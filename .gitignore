@@ -1,0 +1,95 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+.installed.cfg
+MANIFEST
+
+# ── Virtual Environment ───────────────────────────────────────────────────────
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# ── uv ───────────────────────────────────────────────────────────────────────
+.uv/
+uv.lock
+
+# ── Data Files (never commit raw/generated data) ──────────────────────────────
+data/raw/sqlite/*.db
+data/bronze/
+data/silver/
+data/gold/
+data/serving/
+*.db
+*.duckdb
+*.duckdb.wal
+*.parquet
+*.arrow
+*.feather
+*.csv
+*.tsv
+*.xlsx
+*.json
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+*.log.zip
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Spark ─────────────────────────────────────────────────────────────────────
+spark-warehouse/
+derby.log
+metastore_db/
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── IDEs ─────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+.env
+.env.*
+secrets.yaml
+secrets.json
+*.pem
+*.key

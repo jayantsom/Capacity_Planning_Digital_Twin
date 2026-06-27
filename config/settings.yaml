@@ -1,0 +1,61 @@
+project:
+  name: capacity_planning_digital_twin
+  version: "0.1.0"
+
+paths:
+  data_root: data
+  raw_sqlite: data/raw/sqlite
+  bronze: data/bronze
+  silver: data/silver
+  gold: data/gold
+  serving: data/serving
+  logs: logs
+
+databases:
+  raw:
+    demand_forecast: raw_demand_forecast.db
+    product_master: raw_product_master.db
+    target_test_time: raw_target_test_time.db
+    target_yield: raw_target_yield.db
+    site_equipment_inventory: raw_site_equip_inv.db
+    site_soft: raw_site_soft.db
+    manufacturing_intelligence: raw_mi_execution.db
+    test_x_parameter: raw_mi_test_param.db
+    mi_logs: raw_mi_logs.db
+    reference_data: raw_reference_data.db
+  analytics: capacity_planning_twin.duckdb
+
+data_generation:
+  random_seed: 42
+  start_date_actual: "2023-01-01"
+  end_date_actual: "2026-06-30"
+  start_date_forecast: "2026-07-01"
+  end_date_forecast: "2027-12-31"
+  n_snapshots: 2
+  snapshot_dates:
+    - "2023-01-01"
+    - "2024-01-01"
+
+spark:
+  app_name: capacity_planning_digital_twin
+  master: local[*]
+  shuffle_partitions: 12
+  broadcast_threshold_mb: 50
+
+capacity:
+  default_utilization: 0.85
+  other_impediments_sec: 0
+  retest_type1:
+    retest_times: 2.0
+    test_x_parameter: 0.75
+  bottleneck_thresholds:
+    critical: 0.15
+    high: 0.08
+    medium: 0.03
+    low: 0.0
+    balanced: -0.05
+
+logging:
+  level: INFO
+  rotation: "10 MB"
+  retention: "30 days"
