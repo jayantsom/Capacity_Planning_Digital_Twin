@@ -8,26 +8,21 @@ requires-python = ">=3.11"
 dependencies = [
     # Data storage
     "duckdb>=0.10.0",
-
     # Data processing
     "pyspark>=3.5.0",
     "pandas>=2.2.0",
     "polars>=0.20.0",
     "numpy>=1.26.0",
     "pyarrow>=15.0.0",
-
     # Synthetic data
     "faker>=24.0.0",
-
     # Configuration
     "pyyaml>=6.0.1",
     "python-dotenv>=1.0.0",
-
     # Utilities
     "loguru>=0.7.2",
     "rich>=13.7.0",
     "tqdm>=4.66.0",
-
     # ML (installed now, used later)
     "scikit-learn>=1.4.0",
     "xgboost>=2.0.0",
@@ -36,10 +31,10 @@ dependencies = [
     "numba>=0.61.0",
     "llvmlite>=0.44.0",
     "shap>=0.44.0",
-
     # API (for MCP server later)
     "fastapi>=0.110.0",
     "uvicorn>=0.29.0",
+    "python-dateutil>=2.9.0.post0",
 ]
 
 [project.optional-dependencies]

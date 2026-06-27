@@ -24,13 +24,13 @@ try:
 except Exception as e:
     print(f"Verification failed: {e}")
 '@ | uv run python -
+```
 
 -----------------------------------------------------------------------------
 
-## Checking Local SQLite Database Status
+## Inspecting SQLite Databases (Table Schemas & Row Counts)
 
-To verify that your local SQLite databases exist and inspect their current table schemas and row counts, 
-run the status script below for your operating system from the project root:
+To verify the presence of all raw SQLite databases and quickly inspect their table shapes (row and column counts), run the appropriate snippet below from the project root:
 
 ### For Windows (PowerShell)
 ```powershell
@@ -41,18 +41,23 @@ from pathlib import Path
 dbs = [
     'data/raw/sqlite/raw_reference_data.db',
     'data/raw/sqlite/raw_product_master.db',
+    'data/raw/sqlite/raw_demand_forecast.db',
+    'data/raw/sqlite/raw_target_test_time.db',
+    'data/raw/sqlite/raw_target_yield.db',
+    'data/raw/sqlite/raw_site_equip_inv.db',
+    'data/raw/sqlite/raw_site_soft.db',
 ]
 for db in dbs:
     p = Path(db)
     if p.exists():
         conn = sqlite3.connect(p)
         tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-        print(f'{p.name}: {[t[0] for t in tables]}')
         for t in tables:
             count = conn.execute(f"SELECT COUNT(*) FROM {t[0]}").fetchone()[0]
-            print(f'  {t[0]}: {count} rows')
+            cols  = conn.execute(f"PRAGMA table_info({t[0]})").fetchall()
+            print(f'{p.name} | {t[0]}: {count:,} rows | {len(cols)} columns')
         conn.close()
     else:
         print(f'MISSING: {db}')
 '@ | uv run python -
-
+```
