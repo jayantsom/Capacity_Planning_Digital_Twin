@@ -9,6 +9,9 @@ ACTUAL_END = "2026-06-30"
 FORECAST_START = "2026-07-01"
 FORECAST_END = "2027-12-31"
 
+# Used by Bronze validation
+ACTUAL_END = "2026-06-30"
+
 # Snapshot IDs (deterministic UUIDs)
 SNAPSHOT_1_ID = "snap-2023-01-planning-cycle"
 SNAPSHOT_2_ID = "snap-2024-01-planning-cycle"

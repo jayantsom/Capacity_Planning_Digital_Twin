@@ -23,7 +23,7 @@ databases:
     test_x_parameter: raw_mi_test_param.db
     mi_logs: raw_mi_logs.db
     reference_data: raw_reference_data.db
-  analytics: capacity_planning_twin.duckdb
+  analytics: capacity_planning_twin.duckdb # Single DuckDB file: all layers (bronze/silver/gold)
 
 data_generation:
   random_seed: 42
