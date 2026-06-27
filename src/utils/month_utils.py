@@ -4,7 +4,7 @@ month_key format: YYYYMM integer (e.g. 202301 = January 2023)
 All planning tables use this as the time dimension key.
 """
 
-from datetime import date, datetime
+from datetime import date
 from dateutil.relativedelta import relativedelta
 
 
@@ -18,6 +18,23 @@ def month_key_to_date(mk: int) -> date:
     year = mk // 100
     month = mk % 100
     return date(year, month, 1)
+
+
+def month_label_to_key(label: str) -> int:
+    """
+    Convert month label string to integer key.
+    jan_2023 → 202301
+    feb_2026 → 202602
+    """
+    month_map = {
+        "jan": 1,  "feb": 2,  "mar": 3,  "apr": 4,
+        "may": 5,  "jun": 6,  "jul": 7,  "aug": 8,
+        "sep": 9,  "oct": 10, "nov": 11, "dec": 12,
+    }
+    parts = label.split("_")
+    month_num = month_map.get(parts[0], 1)
+    year = int(parts[1])
+    return year * 100 + month_num
 
 
 def month_key_range(start_mk: int, end_mk: int) -> list[int]:
@@ -54,8 +71,7 @@ def is_actual(mk: int) -> bool:
 
 
 def working_days_in_month(mk: int, days_normal: int) -> int:
-    """Return working days — slight monthly variation around normal."""
+    """Return working days with slight monthly variation around normal."""
     import random
-    # Seed per month for reproducibility
     random.seed(mk)
     return max(18, min(days_normal + random.randint(-1, 1), 27))
