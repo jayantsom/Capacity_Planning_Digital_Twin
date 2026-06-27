@@ -28,9 +28,9 @@ except Exception as e:
 
 -----------------------------------------------------------------------------
 
-## Inspecting SQLite Databases (Table Schemas & Row Counts)
+## Verifying Database Schemas and Row Counts
 
-To verify the presence of all raw SQLite databases and quickly inspect their table shapes (row and column counts), run the appropriate snippet below from the project root:
+To print a beautifully formatted table verifying that all raw SQLite files exist and contain their expected target tables, schemas, and records, run the snippet below for your operating system from the project root:
 
 ### For Windows (PowerShell)
 ```powershell
@@ -39,25 +39,29 @@ import sqlite3
 from pathlib import Path
 
 dbs = [
-    'data/raw/sqlite/raw_reference_data.db',
-    'data/raw/sqlite/raw_product_master.db',
-    'data/raw/sqlite/raw_demand_forecast.db',
-    'data/raw/sqlite/raw_target_test_time.db',
-    'data/raw/sqlite/raw_target_yield.db',
-    'data/raw/sqlite/raw_site_equip_inv.db',
-    'data/raw/sqlite/raw_site_soft.db',
+    ('data/raw/sqlite/raw_reference_data.db',    ['site_master','test_type_master','equipment_master']),
+    ('data/raw/sqlite/raw_product_master.db',    ['product_master']),
+    ('data/raw/sqlite/raw_demand_forecast.db',   ['demand_forecast']),
+    ('data/raw/sqlite/raw_target_test_time.db',  ['target_test_time']),
+    ('data/raw/sqlite/raw_target_yield.db',      ['target_yield']),
+    ('data/raw/sqlite/raw_site_equip_inv.db',    ['site_equipment_inventory']),
+    ('data/raw/sqlite/raw_site_soft.db',         ['site_soft']),
+    ('data/raw/sqlite/raw_mi_execution.db',      ['mi_execution']),
+    ('data/raw/sqlite/raw_mi_test_param.db',     ['mi_test_param']),
+    ('data/raw/sqlite/raw_mi_logs.db',           ['mi_logs']),
 ]
-for db in dbs:
-    p = Path(db)
-    if p.exists():
-        conn = sqlite3.connect(p)
-        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-        for t in tables:
-            count = conn.execute(f"SELECT COUNT(*) FROM {t[0]}").fetchone()[0]
-            cols  = conn.execute(f"PRAGMA table_info({t[0]})").fetchall()
-            print(f'{p.name} | {t[0]}: {count:,} rows | {len(cols)} columns')
-        conn.close()
-    else:
-        print(f'MISSING: {db}')
+print(f'{"Database":<35} {"Table":<30} {"Rows":>12} {"Columns":>8}')
+print('-' * 90)
+for db_path, tables in dbs:
+    p = Path(db_path)
+    if not p.exists():
+        print(f'MISSING: {db_path}')
+        continue
+    conn = sqlite3.connect(p)
+    for t in tables:
+        count = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+        cols  = conn.execute(f"PRAGMA table_info({t})").fetchall()
+        print(f'{p.name:<35} {t:<30} {count:>12,} {len(cols):>8}')
+    conn.close()
 '@ | uv run python -
 ```
