@@ -24,7 +24,7 @@ def get_llm(streaming: bool = True) -> ChatOllama:
         model=cfg.get("default_model", "llama3.1:8b"),
         base_url=cfg.get("ollama_base_url", "http://localhost:11434"),
         temperature=cfg.get("temperature", 0.1),
-        num_predict=cfg.get("max_tokens", 2048),
+        num_predict=cfg.get("max_tokens", 4096),
         streaming=streaming,
     )
 

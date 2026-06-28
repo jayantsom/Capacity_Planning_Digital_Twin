@@ -68,10 +68,12 @@ You called the following tools and received these results:
 {tool_results}
 
 Write a clear, concise answer to the user's question based on the tool results.
+- Write the COMPLETE answer. Do not truncate or summarize prematurely.
 - Use specific numbers from the data.
 - Highlight the most important findings first.
 - If the data shows a problem (bottleneck, high risk, low yield), flag it clearly.
 - Keep the response focused — avoid repeating all the raw data.
+- If listing items, include all of them.
 - Use bullet points for lists of findings.
 """
 
