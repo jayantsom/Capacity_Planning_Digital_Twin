@@ -38,6 +38,7 @@ dependencies = [
     "scipy>=1.17.1",
     "imbalanced-learn>=0.14.2",
     "plotly>=6.8.0",
+    "mcp>=1.28.1",
 ]
 
 [project.optional-dependencies]
