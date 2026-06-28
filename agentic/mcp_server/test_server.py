@@ -99,9 +99,9 @@ def run_tests():
     print("=" * 60)
 
     if failed == 0:
-        print("\n✅ MCP Server ready — proceed to Step 13B (LangGraph agents)")
+        print("\n✅ MCP Server ready")
     else:
-        print("\n❌ Fix errors above before proceeding to 13B")
+        print("\n❌ Fix errors above before proceeding")
 
     return failed == 0
 
