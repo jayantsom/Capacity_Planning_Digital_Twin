@@ -202,7 +202,7 @@ $$\text{Step 5 (Need)} = \frac{\text{Demand}}{\text{Step 3} \times \text{Step 4}
 
 **Supply** (units that can be tested by existing fleet):
 
-$$\text{Supply} = \text{equip\_qty} \times \text{Step 3} \times \text{Step 4}$$
+$$\text{Supply} = \text{equip\\_qty} \times \text{Step 3} \times \text{Step 4}$$
 
 **Capacity Gap %**:
 
@@ -231,7 +231,7 @@ The factor $R \times X = 1.5$ represents: on average, a failed unit requires 1.5
 
 Used when retest rates are derived from the yield structure of the product.
 
-$$R = \frac{1 - Y_1 + Y_2}{Y_2}, \quad X = \text{retest\_quote}$$
+$$R = \frac{1 - Y_1 + Y_2}{Y_2}, \quad X = \text{retest\\_quote}$$
 
 Where:
 - $Y_1$ = first-pass yield (`yield_retest_1`)
