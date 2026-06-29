@@ -40,7 +40,7 @@ from langchain_core.messages import HumanMessage
 # ── App setup ─────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="Capacity Planning Digital Twin — Chat API",
+    title="Capacity Planning Digital Twin - Chat API",
     description="Multi-agent AI chatbot backed by DuckDB gold layer via MCP server.",
     version="1.0.0",
 )
@@ -285,7 +285,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "backend.main:app",
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=8000,
         reload=True,
         reload_dirs=[str(PROJECT_ROOT / "agentic"), str(PROJECT_ROOT / "backend")],

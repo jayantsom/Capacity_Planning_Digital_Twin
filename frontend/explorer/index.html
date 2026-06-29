@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Data Explorer - Capacity Planning Twin</title>
+  <link rel="icon" href="data:,"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <!-- Chart.js for visualisations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/explorer/static/explorer.css"/>
+</head>
+<body>
+
+<!-- ══ App shell ══════════════════════════════════════════════════════════════ -->
+<div class="shell" id="shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Logo / branding -->
+    <div class="sidebar-brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <rect x="2" y="2" width="9" height="9" rx="1.5" fill="#58a6ff"/>
+        <rect x="13" y="2" width="9" height="9" rx="1.5" fill="#58a6ff" opacity=".5"/>
+        <rect x="2" y="13" width="9" height="9" rx="1.5" fill="#58a6ff" opacity=".5"/>
+        <rect x="13" y="13" width="9" height="9" rx="1.5" fill="#58a6ff" opacity=".3"/>
+      </svg>
+      <span class="brand-name">Data Explorer</span>
+      <button class="theme-toggle" id="themeToggle" title="Toggle light/dark">
+        <svg class="icon-dark" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="icon-light" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+    </div>
+
+    <!-- Nav sections -->
+    <div class="sidebar-scroll">
+
+      <!-- Raw layer -->
+      <div class="nav-section">
+        <div class="nav-section-header" onclick="toggleSection('raw')">
+          <span class="layer-dot" style="background:#6e7681"></span>
+          <span class="nav-section-label">Raw Layer</span>
+          <span class="nav-count" id="raw-count">–</span>
+          <svg class="chevron" id="raw-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6,9 12,15 18,9"/></svg>
+        </div>
+        <div class="nav-items" id="raw-items">
+          <div class="nav-loading">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Bronze layer -->
+      <div class="nav-section">
+        <div class="nav-section-header" onclick="toggleSection('bronze')">
+          <span class="layer-dot" style="background:#b45309"></span>
+          <span class="nav-section-label">Bronze Layer</span>
+          <span class="nav-count" id="bronze-count">–</span>
+          <svg class="chevron" id="bronze-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6,9 12,15 18,9"/></svg>
+        </div>
+        <div class="nav-items" id="bronze-items">
+          <div class="nav-loading">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Silver layer -->
+      <div class="nav-section">
+        <div class="nav-section-header" onclick="toggleSection('silver')">
+          <span class="layer-dot" style="background:#64748b"></span>
+          <span class="nav-section-label">Silver Layer</span>
+          <span class="nav-count" id="silver-count">–</span>
+          <svg class="chevron" id="silver-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6,9 12,15 18,9"/></svg>
+        </div>
+        <div class="nav-items" id="silver-items">
+          <div class="nav-loading">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Gold layer -->
+      <div class="nav-section">
+        <div class="nav-section-header" onclick="toggleSection('gold')">
+          <span class="layer-dot" style="background:#d97706"></span>
+          <span class="nav-section-label">Gold Layer</span>
+          <span class="nav-count" id="gold-count">–</span>
+          <svg class="chevron" id="gold-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6,9 12,15 18,9"/></svg>
+        </div>
+        <div class="nav-items" id="gold-items">
+          <div class="nav-loading">Loading…</div>
+        </div>
+      </div>
+
+    </div><!-- /sidebar-scroll -->
+  </aside>
+
+  <!-- ── Filter panel ──────────────────────────────────────────────────────── -->
+  <aside class="filter-panel" id="filterPanel">
+    <div class="filter-panel-header">
+      <span class="filter-title">Filters</span>
+      <button class="btn-ghost btn-sm" onclick="clearAllFilters()">Clear all</button>
+    </div>
+    <div class="filter-body" id="filterBody">
+      <div class="filter-empty">Select a table to see filters.</div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn-primary" onclick="applyFilters()">Apply filters</button>
+    </div>
+  </aside>
+
+  <!-- ── Main workspace ────────────────────────────────────────────────────── -->
+  <main class="workspace">
+
+    <!-- Breadcrumb / header -->
+    <div class="workspace-header">
+      <div class="breadcrumb" id="breadcrumb">
+        <span class="bc-root">Capacity Planning Twin</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9,18 15,12 9,6"/></svg>
+        <span class="bc-current" id="bcCurrent">Select a table</span>
+      </div>
+      <div class="workspace-actions">
+        <button class="btn-ghost btn-sm" onclick="exportCSV()" id="btnExport" disabled>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+        </button>
+        <button class="btn-ghost btn-sm" onclick="toggleChart()" id="btnChart" disabled>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Chart
+        </button>
+        <button class="btn-ghost btn-sm" onclick="openSQLEditor()" id="btnSQL">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16,18 22,12 16,6"/><polyline points="8,6 2,12 8,18"/></svg>
+          SQL
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="kpi-strip" id="kpiStrip" style="display:none">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Rows</div>
+        <div class="kpi-value" id="kpiTotal">–</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Columns</div>
+        <div class="kpi-value" id="kpiCols">–</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Layer</div>
+        <div class="kpi-value kpi-layer" id="kpiLayer">–</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Source</div>
+        <div class="kpi-value" id="kpiSource">–</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Page</div>
+        <div class="kpi-value" id="kpiPage">–</div>
+      </div>
+    </div>
+
+    <!-- Chart panel -->
+    <div class="chart-panel" id="chartPanel" style="display:none">
+      <div class="chart-controls">
+        <div class="chart-control-group">
+          <label class="ctrl-label">Chart type</label>
+          <select class="ctrl-select" id="chartType" onchange="renderChart()">
+            <option value="bar">Bar</option>
+            <option value="line">Line</option>
+            <option value="scatter">Scatter</option>
+          </select>
+        </div>
+        <div class="chart-control-group">
+          <label class="ctrl-label">X axis</label>
+          <select class="ctrl-select" id="chartX" onchange="renderChart()"></select>
+        </div>
+        <div class="chart-control-group">
+          <label class="ctrl-label">Y axis</label>
+          <select class="ctrl-select" id="chartY" onchange="renderChart()"></select>
+        </div>
+        <div class="chart-control-group">
+          <label class="ctrl-label">Group by</label>
+          <select class="ctrl-select" id="chartGroup" onchange="renderChart()">
+            <option value="">None</option>
+          </select>
+        </div>
+        <button class="btn-ghost btn-sm" onclick="closeChart()">✕ Close</button>
+      </div>
+      <div class="chart-container">
+        <canvas id="mainChart"></canvas>
+      </div>
+    </div>
+
+    <!-- SQL editor panel -->
+    <div class="sql-panel" id="sqlPanel" style="display:none">
+      <div class="sql-header">
+        <span class="sql-title">SQL Query</span>
+        <div style="display:flex;gap:8px">
+          <button class="btn-primary btn-sm" onclick="runSQL()">Run ⌘↵</button>
+          <button class="btn-ghost btn-sm" onclick="closeSQLEditor()">✕ Close</button>
+        </div>
+      </div>
+      <textarea class="sql-editor" id="sqlEditor" placeholder="SELECT * FROM gold_bottleneck WHERE bottleneck_severity = 'CRITICAL' LIMIT 100"
+                onkeydown="sqlKeydown(event)"></textarea>
+      <div class="sql-status" id="sqlStatus"></div>
+    </div>
+
+    <!-- Data table -->
+    <div class="table-wrap" id="tableWrap">
+      <div class="table-empty" id="tableEmpty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity=".3"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        <p>Select a table from the sidebar to explore data.</p>
+      </div>
+      <table class="data-table" id="dataTable" style="display:none">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination" id="pagination" style="display:none">
+      <button class="page-btn" id="btnPrev" onclick="changePage(-1)">← Prev</button>
+      <span class="page-info" id="pageInfo"></span>
+      <button class="page-btn" id="btnNext" onclick="changePage(1)">Next →</button>
+      <select class="page-size-select" id="pageSizeSelect" onchange="changePageSize()">
+        <option value="50">50 / page</option>
+        <option value="100" selected>100 / page</option>
+        <option value="250">250 / page</option>
+        <option value="500">500 / page</option>
+      </select>
+    </div>
+
+  </main>
+</div>
+
+<script src="/explorer/static/explorer.js"></script>
+</body>
+</html>
