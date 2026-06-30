@@ -32,20 +32,20 @@ flowchart LR
     end
 
     subgraph MCP["agentic/mcp_server/"]
-        S[server.py\nTOOL_REGISTRY]
-        DB[db.py\nread-only conn]
+        S["server.py\nTOOL_REGISTRY"]
+        DB["db.py\nread-only conn"]
         T1[capacity_tools.py]
         T2[yield_tools.py]
         T3[maintenance_tools.py]
         T4[forecast_tools.py]
         T5[capex_tools.py]
         T6[schema_tools.py]
-        T7[query_tool.py\nfallback]
+        T7["query_tool.py\nfallback"]
     end
 
     DDB[(DuckDB\ngold layer)]
 
-    Agents -->|direct Python call\n fn(**args)| S
+    Agents -->|"direct Python call\n fn(**args)"| S
     S --> T1 & T2 & T3 & T4 & T5 & T6 & T7
     T1 & T2 & T3 & T4 & T5 & T6 & T7 --> DB
     DB -->|read_only=True| DDB
