@@ -1,0 +1,1 @@
+"""Executable data-generator rules."""

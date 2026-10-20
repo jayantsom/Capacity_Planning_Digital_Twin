@@ -1,0 +1,77 @@
+# Settings owned by the synthetic data generator.
+brand:
+  primary_company: Erivon
+  site_code_prefix: ERV
+
+data_generation:
+  random_seed: 42
+  profile: local_16gb
+  volume: medium
+  start_date_actual: "2023-01-01"
+  end_date_actual: "2026-10-31"
+  start_date_forecast: "2026-11-01"
+  end_date_forecast: "2027-12-31"
+  n_snapshots: 2
+  snapshot_dates:
+    - "2025-10-31"
+    - "2026-10-31"
+  noise_profile: realistic
+
+# Volume changes density, not the contractual date boundaries.
+volume_profiles:
+  low:
+    execution_day_stride: 14
+    demand_scale: 0.20
+    log_probability_scale: 0.40
+  medium:
+    execution_day_stride: 7
+    demand_scale: 0.55
+    log_probability_scale: 0.70
+  high:
+    execution_day_stride: 1
+    demand_scale: 1.00
+    log_probability_scale: 1.00
+
+noise:
+  duplicate_execution_probability: 0.002
+  missing_execution_probability: 0.005
+  null_measurement_probability: 0.003
+  outlier_probability: 0.001
+  allowed_rule_ids:
+    - RAW_DUPLICATE_EXECUTION
+    - RAW_MISSING_EXECUTION
+    - RAW_NULL_MEASUREMENT
+    - RAW_TEST_TIME_OUTLIER
+
+local_16gb:
+  max_active_sites: 30
+  max_active_products: 48
+  max_active_test_types: 24
+  max_systems: 40
+  max_fixtures_handlers: 45
+  max_site_product_assignments: 120
+  max_route_steps: 8
+  target_average_route_steps: 5
+  max_site_resource_relationships: 300
+  max_execution_rows: 3000000
+  max_test_parameter_rows: 3000000
+  max_log_rows: 300000
+  max_raw_bytes: 3000000000
+  max_promoted_run_bytes: 6000000000
+  max_peak_ram_bytes: 10000000000
+  max_generation_minutes: 20
+  max_smoke_build_minutes: 45
+  min_free_disk_bytes: 12000000000
+
+databases:
+  raw:
+    demand_forecast: raw_demand_forecast.db
+    product_master: raw_product_master.db
+    target_test_time: raw_target_test_time.db
+    target_yield: raw_target_yield.db
+    site_equipment_inventory: raw_site_equip_inv.db
+    site_soft: raw_site_soft.db
+    manufacturing_intelligence: raw_mi_execution.db
+    test_x_parameter: raw_mi_test_param.db
+    mi_logs: raw_mi_logs.db
+    reference_data: raw_reference_data.db

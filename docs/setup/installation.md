@@ -1,65 +1,62 @@
 # Installation
 
----
-
 ## Prerequisites
 
-| Tool | Version | Purpose | Install |
-|---|---|---|---|
-| Python | 3.12.12 | Runtime | [python.org](https://python.org) or pyenv |
-| uv | Latest | Package manager | `pip install uv` |
-| Java (Temurin JDK) | 17 | PySpark requires JVM | [adoptium.net](https://adoptium.net) |
-| Git | Any | Source control | [git-scm.com](https://git-scm.com) |
-| Ollama | Latest | Local LLM runtime | [ollama.com](https://ollama.com) |
+- Windows target with approximately 16 GB RAM
+- Git
+- uv
+- Python 3.12, managed by uv
+- Java 17 for PySpark
+- Optional Ollama for Capacity Assistant
 
-**Hardware minimum**: 8GB RAM, 4-core CPU, 10GB free disk.
-**Recommended**: 16GB RAM, NVIDIA GPU with 4GB+ VRAM for llama3.1:8b inference speed.
+GPU acceleration is optional. Do not run PySpark, full-data ML, and Ollama concurrently on the one-machine profile.
 
----
+## Install
 
-## Setup
-
-```bash
-# 1. Clone
+```powershell
+# Clone the project and install its locked environment.
 git clone <repo-url>
-cd capacity_planning_digital_twin
+cd Capacity_Planning_Digital_Twin
+uv sync --extra dev --locked
 
-# 2. Create virtual environment and install all dependencies
-uv sync
+# Confirm the core runtimes.
+uv run python --version
+java -version
+```
 
-# 3. Pull the LLM model (one-time, ~4.7GB download)
+`uv.lock` is the reproducibility source. Dependency versions should not be copied into documentation unless they are verified against the lock.
+
+### Windows PySpark path fallback
+
+PySpark is built from its source distribution. If Windows reports that a deeply
+nested PySpark example file cannot be created, use short temporary and cache paths:
+
+```powershell
+# Short paths avoid the Windows source-build path limit.
+$env:UV_CACHE_DIR = "D:\uv-cache"
+$env:TEMP = "D:\uv-temp"
+$env:TMP = $env:TEMP
+New-Item -ItemType Directory -Force $env:TEMP | Out-Null
+uv sync --extra dev --locked
+```
+
+## Runtime directory
+
+Generated data and models must stay outside the repository:
+
+```powershell
+# Choose an external runtime location for this shell.
+$env:CAPACITY_TWIN_HOME = "$env:LOCALAPPDATA\CapacityPlanningDigitalTwin"
+```
+
+If unset, Capacity Twin Core uses that same Windows location by default.
+
+## Optional Capacity Assistant model
+
+```powershell
+# Install the current local baseline model.
 ollama pull llama3.1:8b
-
-# 4. Verify Java is on PATH (required for PySpark)
-java -version   # should print: openjdk version "17..."
+ollama serve
 ```
 
----
-
-## Dependencies (pyproject.toml)
-
-### Pipeline
-`duckdb`, `pandas`, `pyspark==4.1.2`, `pyyaml`, `loguru`
-
-### ML
-`scikit-learn>=1.5`, `xgboost>=2.1`, `lightgbm>=4.4`, `prophet>=1.1`, `shap>=0.46`, `imbalanced-learn>=0.12`, `scipy>=1.13`
-
-### Agentic
-`langgraph`, `langchain`, `langchain-ollama`, `langchain-core`, `fastapi`, `uvicorn`, `pydantic>=2`
-
-> **Prophet note**: First run downloads and compiles CmdStan (~2 min). Subsequent runs use the cached binary. Set `CMDSTAN_PATH` env var to control the cache location.
-
----
-
-## Verify installation
-
-```bash
-uv run python -c "
-import duckdb, pyspark, xgboost, prophet, shap, langgraph, fastapi
-print('All imports OK')
-"
-```
-
-```bash
-ollama list   # should show llama3.1:8b
-```
+Ollama is not required for Data Explorer or non-AI data workloads. Future model alternatives are not installation prerequisites.

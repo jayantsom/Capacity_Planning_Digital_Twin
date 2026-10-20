@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Data Explorer — Capacity Planning Digital Twin</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/explorer/static/explorer-modern.css?v=20261020i">
+</head>
+<body>
+  <a class="skip-link" href="#workspace">Skip to data workspace</a>
+  <header class="product-header">
+    <a class="brand" href="/" aria-label="Test Equipment Capacity Planning Digital Twin home">
+      <span class="brand-mark" aria-hidden="true">CP</span>
+    </a>
+    <nav class="product-nav" aria-label="Primary navigation">
+      <a href="/">Home</a>
+      <a aria-current="page" href="/explorer/">Data Explorer</a>
+      <a href="/decision-intelligence/">Decision Intelligence</a>
+      <a href="/capacity-assistant/">Capacity Assistant</a>
+      <a href="/data-operations/">Data Operations</a>
+    </nav>
+  </header>
+
+  <div class="shell">
+    <section class="page-heading" aria-labelledby="pageTitle">
+      <div class="page-heading-identity">
+        <span class="page-heading-mark" aria-hidden="true">DX</span>
+        <div>
+          <p class="eyebrow">PROMOTED DATA WORKSPACE</p>
+          <h1 id="pageTitle">Data Explorer</h1>
+        </div>
+      </div>
+      <div class="title-actions">
+        <a class="service-status status-checking" id="sourceStatus" href="/explorer/api/sources"><span aria-hidden="true">◌</span><span>CHECKING</span></a>
+      </div>
+    </section>
+
+    <div class="explorer-body">
+      <aside class="sidebar closed" id="sidebar" aria-label="Data sources">
+        <div class="panel-heading">
+          <div class="panel-heading-copy"><p class="eyebrow">DATA CATALOG</p><h2>Layers &amp; tables</h2></div>
+          <button class="sidebar-toggle" id="sourceToggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Expand data catalog" title="Expand data catalog"><span aria-hidden="true">›</span></button>
+        </div>
+        <div class="catalog-status" id="catalogStatus" role="status">Loading promoted sources…</div>
+        <div class="sidebar-scroll" id="layerNavigation"></div>
+      </aside>
+
+      <main class="workspace" id="workspace">
+      <section class="workspace-header" aria-labelledby="tableTitle">
+        <div class="table-identity">
+          <div class="title-line"><h1 id="tableTitle">Select a table</h1><span class="layer-badge" id="layerBadge" hidden></span></div>
+          <p id="tableContext">Choose a source table to inspect its schema and records.</p>
+        </div>
+        <div class="workspace-actions">
+          <button class="button button-secondary" id="filterToggle" type="button" aria-controls="filterPanel" aria-expanded="false">Filters</button>
+          <button class="button button-secondary" id="schemaButton" type="button" disabled>Schema</button>
+          <button class="button button-secondary" id="exportButton" type="button" disabled>Export CSV</button>
+          <button class="button button-secondary" id="chartButton" type="button" disabled>Chart</button>
+          <button class="button button-primary" id="sqlButton" type="button">SQL</button>
+        </div>
+      </section>
+
+      <section class="filter-panel closed" id="filterPanel" aria-label="Table filters">
+        <div class="filter-panel-head">
+          <div><h2>Filters</h2></div>
+          <div class="active-filter-band" id="activeFilters" aria-live="polite"><span>No active filters</span></div>
+        </div>
+        <div class="filter-controls-row">
+          <form class="filter-body" id="filterForm">
+            <p class="empty-state">Select a table to configure filters.</p>
+          </form>
+          <div class="filter-actions">
+            <button class="button button-secondary" id="clearFilters" type="button">Clear</button>
+            <button class="button button-primary" form="filterForm" type="submit">Apply filters</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="kpi-strip" id="kpiStrip" aria-label="Table summary" hidden>
+        <div><span>ROWS</span><strong id="kpiTotal">—</strong></div>
+        <div><span>COLUMNS</span><strong id="kpiColumns">—</strong></div>
+        <div><span>SOURCE</span><strong id="kpiSource">—</strong></div>
+        <div><span>PAGE</span><strong id="kpiPage">—</strong></div>
+        <div><span>REFRESHED</span><strong id="kpiFreshness">Just now</strong></div>
+      </section>
+
+      <section class="utility-panel" id="schemaPanel" hidden>
+        <div class="utility-heading"><div><p class="eyebrow">TABLE CONTRACT</p><h2>Schema</h2></div><button class="close-button" data-close-panel="schemaPanel" type="button" aria-label="Close schema">×</button></div>
+        <div class="schema-grid" id="schemaGrid"></div>
+      </section>
+
+      <section class="utility-panel" id="chartPanel" hidden>
+        <div class="utility-heading"><div><p class="eyebrow">CURRENT PAGE</p><h2>Data chart</h2></div><button class="close-button" data-close-panel="chartPanel" type="button" aria-label="Close chart">×</button></div>
+        <div class="chart-controls">
+          <label>X axis<select id="chartX"></select></label>
+          <label>Y axis<select id="chartY"></select></label>
+        </div>
+        <div class="chart-canvas" id="chartCanvas" role="img" aria-label="Chart of the current page"></div>
+        <p class="chart-note">The data table below is the accessible tabular alternative.</p>
+      </section>
+
+      <section class="utility-panel" id="sqlPanel" hidden>
+        <div class="utility-heading"><div><p class="eyebrow">READ-ONLY QUERY</p><h2>SQL editor</h2></div><button class="close-button" data-close-panel="sqlPanel" type="button" aria-label="Close SQL editor">×</button></div>
+        <label class="sql-label" for="sqlEditor">Query</label>
+        <textarea class="sql-editor" id="sqlEditor" rows="4" spellcheck="false" placeholder="SELECT * FROM gold_bottleneck LIMIT 100"></textarea>
+        <div class="sql-actions"><span id="sqlStatus" role="status">Only read-only queries are accepted by the service.</span><button class="button button-primary" id="runSql" type="button">Run query</button></div>
+      </section>
+
+      <section class="table-region" id="tableRegion" aria-label="Data records" aria-busy="false">
+        <div class="state-panel" id="tableState">
+          <strong>No table selected</strong>
+          <p>Select a table from the source catalog to begin exploring.</p>
+        </div>
+        <div class="table-scroll" id="tableScroll" hidden>
+          <table class="data-table" id="dataTable">
+            <caption class="sr-only" id="tableCaption">Selected table records</caption>
+            <thead id="tableHead"></thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <nav class="pagination" id="pagination" aria-label="Table pagination" hidden>
+        <button class="page-button" id="previousPage" type="button">← Previous</button>
+        <span id="pageInfo">0 rows</span>
+        <button class="page-button" id="nextPage" type="button">Next →</button>
+        <label>Rows per page
+          <select id="pageSize"><option value="50">50</option><option value="100" selected>100</option><option value="250">250</option><option value="500">500</option></select>
+        </label>
+      </nav>
+      </main>
+      <button class="scrim" id="scrim" type="button" aria-label="Close side panel" hidden></button>
+    </div>
+  </div>
+  <script src="/explorer/static/explorer-modern.js?v=20261020e"></script>
+</body>
+</html>

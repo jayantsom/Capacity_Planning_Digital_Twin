@@ -1,0 +1,31 @@
+# Settings owned by the medallion and capacity pipeline.
+databases:
+  bronze: bronze.duckdb
+  silver: silver.duckdb
+  gold: gold.duckdb
+  serving: serving.duckdb
+
+publication:
+  artifacts_directory: artifacts
+  active_pointer: current.json
+  minimum_previous_known_good_runs: 1
+  bronze_chunk_size: 100000
+
+spark:
+  app_name: capacity_planning_digital_twin
+  master: local[*]
+  shuffle_partitions: 12
+  broadcast_threshold_mb: 50
+  driver_memory: 4g
+
+capacity:
+  default_utilization: 0.85
+  other_impediments_sec: 0
+  retest_type1:
+    retest_times: 2.0
+    test_x_parameter: 0.75
+  bottleneck_thresholds:
+    critical: -0.15
+    high: -0.08
+    medium: -0.03
+    balanced_upper: 0.05

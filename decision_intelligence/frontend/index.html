@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Decision Intelligence</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/decision-intelligence/static/decision-intelligence.css?v=20261020d">
+</head>
+<body>
+  <a class="skip-link" href="#workspace">Skip to workspace</a>
+  <header class="product-header">
+    <a class="brand" href="/" aria-label="Test Equipment Capacity Planning Digital Twin home"><span class="brand-mark" aria-hidden="true">CP</span></a>
+    <nav aria-label="Primary navigation">
+      <a href="/">Home</a>
+      <a href="/explorer/">Data Explorer</a>
+      <a href="/decision-intelligence/" aria-current="page">Decision Intelligence</a>
+      <a href="/capacity-assistant/">Capacity Assistant</a>
+      <a href="/data-operations/">Data Operations</a>
+    </nav>
+  </header>
+
+  <main id="workspace" class="workspace">
+    <div class="title-row">
+      <div class="page-heading">
+        <span class="page-heading-mark" aria-hidden="true">DI</span>
+        <div><p class="eyebrow">MODEL DASHBOARDS</p><h1>Decision Intelligence</h1></div>
+      </div>
+      <div class="title-actions">
+        <span id="healthStatus" class="service-status status-checking"><span aria-hidden="true">◌</span><span>CHECKING</span></span>
+        <button id="runSelected" class="button secondary" type="button">Run this workflow</button>
+        <button id="runAll" class="button primary" type="button">Run all workflows</button>
+      </div>
+    </div>
+
+    <div class="tab-strip" role="tablist" aria-label="ML workflows">
+      <button role="tab" aria-selected="true" data-workflow="demand" data-priority="1"><strong>Demand Forecasting</strong><small>18-MONTH FORECAST</small></button>
+      <button role="tab" aria-selected="false" data-workflow="yield" data-priority="2" tabindex="-1"><strong>Yield Prediction</strong><small>MEASURED YIELD · SHAP</small></button>
+      <button role="tab" aria-selected="false" data-workflow="oee-risk" data-priority="3" tabindex="-1"><strong>OEE Degradation</strong><small>RISK · NOT FAILURE</small></button>
+      <button role="tab" aria-selected="false" data-workflow="oee-anomaly" data-priority="4" tabindex="-1"><strong>OEE Anomaly</strong><small>DRIVER · SEVERITY</small></button>
+      <button role="tab" aria-selected="false" data-workflow="capex" data-priority="5" tabindex="-1"><strong>CapEx Simulation</strong><small>P50 · P80 · P95</small></button>
+    </div>
+
+    <section id="jobBand" class="job-band" aria-live="polite" hidden>
+      <div><strong id="jobPhase">Starting</strong><span id="jobDetail"></span></div>
+      <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="jobProgress"></span></div>
+      <output id="jobPercent">0%</output>
+    </section>
+
+    <form id="filters" class="filter-band">
+      <label>Site<input id="siteFilter" type="text" maxlength="80" placeholder="All sites"></label>
+      <label>Product<input id="productFilter" type="text" maxlength="120" placeholder="All products"></label>
+      <label>Test type<input id="testFilter" type="text" maxlength="80" placeholder="All tests"></label>
+      <label>Snapshot<input id="snapshotFilter" type="text" maxlength="80" placeholder="All snapshots"></label>
+      <label>Month from<input id="monthFrom" type="number" min="200001" max="220012" placeholder="YYYYMM"></label>
+      <label>Month to<input id="monthTo" type="number" min="200001" max="220012" placeholder="YYYYMM"></label>
+      <button class="button secondary" id="clearFilters" type="button">Clear</button>
+      <button class="button primary" type="submit">Apply</button>
+    </form>
+
+    <section class="kpi-strip" id="kpiStrip" aria-label="Workflow metrics"></section>
+
+    <section class="analytics-grid">
+      <article class="panel">
+        <div class="panel-title"><h2>Trend</h2><span id="trendSummary"></span></div>
+        <div id="trendChart" class="trend-chart" role="img" aria-label="Workflow trend chart"></div>
+      </article>
+      <article class="panel">
+        <div class="panel-title"><h2>Distribution and rankings</h2><span>Highest impact first</span></div>
+        <div class="donut-summary">
+          <div id="donutChart" class="donut" role="img" aria-label="Top result distribution">
+            <span id="donutValue">—</span>
+          </div>
+          <div id="donutLegend" class="donut-legend"></div>
+        </div>
+        <div id="rankings" class="rankings"></div>
+      </article>
+    </section>
+
+    <section class="table-panel">
+      <div class="panel-title"><h2>Records</h2><button id="exportCsv" type="button">Export CSV</button></div>
+      <div class="table-wrap">
+        <table><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table>
+      </div>
+    </section>
+    <p id="pageStatus" class="page-status" aria-live="polite"></p>
+  </main>
+  <script type="module" src="/decision-intelligence/static/decision-intelligence.js?v=20261020b"></script>
+</body>
+</html>

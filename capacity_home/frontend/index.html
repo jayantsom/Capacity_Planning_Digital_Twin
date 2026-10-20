@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Test Equipment Capacity Planning Digital Twin</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/home/static/home.css?v=20261020d">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to applications</a>
+  <header class="product-header">
+    <a class="brand" href="/" aria-label="Test Equipment Capacity Planning Digital Twin home">
+      <span class="brand-mark" aria-hidden="true">CP</span>
+    </a>
+    <nav class="product-nav" aria-label="Primary navigation">
+      <a aria-current="page" href="/">Home</a>
+      <a href="/explorer/">Data Explorer</a>
+      <a href="/decision-intelligence/">Decision Intelligence</a>
+      <a href="/capacity-assistant/">Capacity Assistant</a>
+      <a href="/data-operations/">Data Operations</a>
+    </nav>
+  </header>
+
+  <main id="main" class="page-shell">
+    <section class="page-heading page-heading-centered">
+      <span class="page-heading-mark" aria-hidden="true">CP</span>
+      <div>
+        <p class="eyebrow">LOCAL PLANNING WORKSPACE</p>
+        <h1>Test Equipment Capacity Planning Digital Twin</h1>
+      </div>
+    </section>
+    <section class="app-grid" aria-label="Primary applications">
+      <a class="app-card" href="/explorer/" data-app="explorer">
+        <span class="card-top"><b>DX</b><span class="status status-pending" id="explorer-status">CHECKING</span></span>
+        <span class="card-bottom"><strong>Data Explorer</strong><small id="explorer-detail">Promoted data</small></span>
+      </a>
+      <a class="app-card" href="/decision-intelligence/" data-app="decision">
+        <span class="card-top"><b>DI</b><span class="status status-pending" id="decision-status">CHECKING</span></span>
+        <span class="card-bottom"><strong>Decision Intelligence</strong><small id="decision-detail">Five model workflows</small></span>
+      </a>
+      <a class="app-card" href="/capacity-assistant/" data-app="assistant">
+        <span class="card-top"><b>CA</b><span class="status status-pending" id="capacity-assistant-status">CHECKING</span></span>
+        <span class="card-bottom"><strong>Capacity Assistant</strong><small id="capacity-assistant-detail">Grounded analysis</small></span>
+      </a>
+    </section>
+
+    <section class="secondary-grid" aria-label="Data operations">
+      <article class="operations-card" data-app="operations">
+        <span class="card-top"><b>DO</b><span class="status status-pending" id="operations-status">CHECKING</span></span>
+        <span class="operations-content">
+          <span class="operations-copy">
+            <strong>Data Operations</strong>
+            <small id="operations-detail">Raw and medallion status</small>
+          </span>
+          <a href="/data-operations/#generator">
+            <span>Data Generator</span>
+            <span id="generator-home-status" class="mini-status status-pending"><span aria-hidden="true">◌</span><span>CHECKING</span></span>
+          </a>
+          <a href="/data-operations/#pipeline">
+            <span>Data Pipeline</span>
+            <span id="pipeline-home-status" class="mini-status status-pending"><span aria-hidden="true">◌</span><span>CHECKING</span></span>
+          </a>
+        </span>
+      </article>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <span>LOCAL WORKSPACE</span>
+    <button class="text-button" id="refresh-status" type="button">Refresh status</button>
+  </footer>
+  <script type="module" src="/home/static/home.js?v=20261020b"></script>
+</body>
+</html>

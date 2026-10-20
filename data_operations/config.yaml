@@ -1,0 +1,14 @@
+# Settings owned by the Data Operations web application.
+server:
+  allowed_origins:
+    - "http://127.0.0.1:8000"
+    - "http://localhost:8000"
+
+jobs:
+  history_limit: 20
+  global_single_flight: true
+
+profiles:
+  small: low
+  medium: medium
+  full: high

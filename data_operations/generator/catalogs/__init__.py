@@ -1,0 +1,1 @@
+"""Versioned synthetic telecom catalogs."""

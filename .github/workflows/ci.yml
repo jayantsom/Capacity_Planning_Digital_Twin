@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the project
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Python and dependencies
+        run: uv sync --extra dev --locked
+
+      - name: Check code quality
+        run: >-
+          uv run ruff check
+          capacity_home capacity_assistant data_explorer data_operations
+          decision_intelligence src
+
+  app-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - capacity_home
+          - capacity_assistant
+          - data_explorer
+          - data_operations
+          - decision_intelligence
+          - src/capacity_twin_core
+    steps:
+      - name: Check out the project
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Python and dependencies
+        run: uv sync --extra dev --locked
+
+      - name: Run the app test suite
+        run: uv run pytest "${{ matrix.target }}" -q
+
+  smoke:
+    runs-on: ubuntu-latest
+    needs: [quality, app-tests]
+    steps:
+      - name: Check out the project
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Python and dependencies
+        run: uv sync --extra dev --locked
+
+      - name: Check app boundaries and shared formulas
+        run: uv run pytest src/capacity_twin_core/tests -q

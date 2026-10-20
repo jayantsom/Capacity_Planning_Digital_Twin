@@ -28,7 +28,6 @@ env/
 
 # ── uv ───────────────────────────────────────────────────────────────────────
 .uv/
-uv.lock
 
 # ── Data Files (never commit raw/generated data) ──────────────────────────────
 data/raw/sqlite/*.db
@@ -82,9 +81,14 @@ desktop.ini
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 .pytest_cache/
+.ruff_cache/
+pytest-cache-files-*/
 .coverage
 htmlcov/
 .tox/
+
+# Generated ML artifacts live under CAPACITY_TWIN_HOME.
+/models/
 
 # ── Secrets ───────────────────────────────────────────────────────────────────
 .env

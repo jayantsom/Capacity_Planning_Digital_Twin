@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Data Operations</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/data-operations/static/data-operations.css?v=20261020e">
+</head>
+<body>
+  <a class="skip-link" href="#workspace">Skip to workspace</a>
+  <header class="product-header">
+    <a class="brand" href="/" aria-label="Test Equipment Capacity Planning Digital Twin home">
+      <span class="brand-mark" aria-hidden="true">CP</span>
+    </a>
+    <nav aria-label="Primary navigation">
+      <a href="/">Home</a>
+      <a href="/explorer/">Data Explorer</a>
+      <a href="/decision-intelligence/">Decision Intelligence</a>
+      <a href="/capacity-assistant/">Capacity Assistant</a>
+      <a href="/data-operations/" aria-current="page">Data Operations</a>
+    </nav>
+  </header>
+
+  <main id="workspace" class="workspace">
+    <div class="title-row">
+      <div class="page-heading">
+        <span class="page-heading-mark" aria-hidden="true">DO</span>
+        <div>
+          <p class="eyebrow">GENERATOR AND PIPELINE</p>
+          <h1>Data Operations</h1>
+        </div>
+      </div>
+      <span id="healthStatus" class="service-status status-checking"><span aria-hidden="true">◌</span><span>CHECKING</span></span>
+    </div>
+
+    <div class="tab-strip" role="tablist" aria-label="Data Operations sections">
+      <button role="tab" aria-selected="true" aria-controls="generatorPanel" id="generatorTab" data-tab="generator">
+        <span class="tab-title-line"><strong>Data Generator</strong><span id="generatorStatus" class="component-status status-checking"><span aria-hidden="true">◌</span><span>CHECKING</span></span></span>
+        <small>CONFIGURE · BUILD RAW</small>
+      </button>
+      <button role="tab" aria-selected="false" aria-controls="pipelinePanel" id="pipelineTab" data-tab="pipeline" tabindex="-1">
+        <span class="tab-title-line"><strong>Data Pipeline</strong><span id="pipelineStatus" class="component-status status-checking"><span aria-hidden="true">◌</span><span>CHECKING</span></span></span>
+        <small>BRONZE · SILVER · GOLD · SERVING</small>
+      </button>
+    </div>
+
+    <section id="jobBand" class="job-band" aria-live="polite">
+      <div>
+        <strong id="jobPhase">No active job</strong>
+        <span id="jobDetail">Ready</span>
+      </div>
+      <div class="progress-track" role="progressbar" aria-label="Job progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <span id="jobProgress"></span>
+      </div>
+      <output id="jobPercent">0%</output>
+    </section>
+
+    <section id="generatorPanel" role="tabpanel" aria-labelledby="generatorTab">
+      <form id="generatorForm">
+        <div class="filter-band">
+          <label>Profile<select id="profile" name="profile"><option value="small">Small</option><option value="medium" selected>Medium</option><option value="full">Full</option></select></label>
+          <label>Seed<input id="randomSeed" name="random_seed" type="number" min="0" value="42"></label>
+          <label>Actual start<input id="actualStart" name="actual_start" type="date"></label>
+          <label>Actual end<input id="actualEnd" name="actual_end" type="date"></label>
+          <label>Forecast start<input id="forecastStart" name="forecast_start" type="date"></label>
+          <label>Forecast end<input id="forecastEnd" name="forecast_end" type="date"></label>
+          <label>Noise<select id="noiseProfile" name="noise_profile"><option value="low">Low noise</option><option value="realistic" selected>Realistic</option><option value="stress">Stress</option></select></label>
+        </div>
+
+        <div class="advanced-grid">
+          <label>Snapshot dates<input id="snapshotDates" type="text" aria-describedby="snapshotHelp"><small id="snapshotHelp">Comma-separated YYYY-MM-DD dates</small></label>
+          <label>Site safety cap<input id="maxSites" type="number" min="1" max="30" placeholder="Catalog default"></label>
+          <label>Product safety cap<input id="maxProducts" type="number" min="1" max="48" placeholder="Catalog default"></label>
+          <label>Test-type safety cap<input id="maxTestTypes" type="number" min="1" max="24" placeholder="Catalog default"></label>
+          <label>System safety cap<input id="maxSystems" type="number" min="1" max="40" placeholder="Catalog default"></label>
+          <label>Fixture/handler cap<input id="maxFixtures" type="number" min="1" max="45" placeholder="Catalog default"></label>
+        </div>
+
+        <div class="kpi-strip" aria-label="Estimated run size">
+          <div><span>ROWS</span><strong id="estimateRows">—</strong></div>
+          <div><span>RAW SIZE</span><strong id="estimateBytes">—</strong></div>
+          <div><span>TIME</span><strong id="estimateMinutes">—</strong></div>
+          <div><span>LOCAL LIMIT</span><strong id="estimateLimit">—</strong></div>
+        </div>
+
+        <div class="action-row">
+          <button class="button secondary" id="estimateButton" type="button">Update estimate</button>
+          <button class="button primary" id="generateButton" type="submit">Generate Raw</button>
+        </div>
+      </form>
+
+      <div class="step-grid" aria-label="Generator steps">
+        <div><b>01</b><span>Reference data</span></div>
+        <div><b>02</b><span>Products and routes</span></div>
+        <div><b>03</b><span>Planning targets</span></div>
+        <div><b>04</b><span>Equipment and calendar</span></div>
+        <div><b>05</b><span>Execution</span></div>
+        <div><b>06</b><span>Parameters</span></div>
+        <div><b>07</b><span>Logs and validation</span></div>
+      </div>
+    </section>
+
+    <section id="pipelinePanel" role="tabpanel" aria-labelledby="pipelineTab" hidden>
+      <p class="status-guidance" id="pipelineGuidance" role="status" hidden></p>
+      <div class="kpi-strip">
+        <div><span>RAW DATABASES</span><strong id="rawCount">—</strong></div>
+        <div><span>ACTIVE RUN</span><strong id="activeRun">—</strong></div>
+        <div><span>PROMOTED</span><strong id="promotedAt">—</strong></div>
+        <div><span>JAVA</span><strong id="javaStatus">—</strong></div>
+      </div>
+      <div class="pipeline-flow" aria-label="Pipeline stages">
+        <div><b>01</b><strong>Bronze</strong><span>Ingest and preserve</span></div>
+        <div><b>02</b><strong>Silver</strong><span>Clean and conform</span></div>
+        <div><b>03</b><strong>Gold</strong><span>Capacity analytics</span></div>
+        <div><b>04</b><strong>Serving</strong><span>Publish views</span></div>
+      </div>
+      <div class="action-row">
+        <button class="button primary" id="pipelineButton" type="button">Run pipeline</button>
+        <button class="button secondary" id="rollbackButton" type="button" disabled>Rollback</button>
+      </div>
+    </section>
+
+    <section class="history-section" aria-labelledby="historyTitle">
+      <div class="section-title"><h2 id="historyTitle">Run history</h2><button id="refreshButton" type="button">Refresh</button></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Job</th><th>Type</th><th>Status</th><th>Phase</th><th>Started</th><th>Completed</th></tr></thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="danger-zone" aria-labelledby="dangerTitle">
+      <div class="section-title">
+        <div><p class="eyebrow">DESTRUCTIVE ACTIONS</p><h2 id="dangerTitle">Danger zone</h2></div>
+        <span id="clearStatus" role="status"></span>
+      </div>
+      <div class="danger-grid">
+        <article>
+          <div><strong>Clear Raw Data</strong><span id="clearRawSummary">Checking Raw data…</span></div>
+          <button class="button danger-secondary" id="clearRawButton" type="button">Clear Raw Data</button>
+        </article>
+        <article>
+          <div><strong>Clear All Data</strong><span id="clearAllSummary">Checking generated data…</span></div>
+          <button class="button danger-primary" id="clearAllButton" type="button">Clear All Data</button>
+        </article>
+      </div>
+      <p class="danger-note">Logs and job history are preserved. Clear All Data cannot be rolled back.</p>
+    </section>
+  </main>
+  <script type="module" src="/data-operations/static/data-operations.js?v=20261020e"></script>
+</body>
+</html>

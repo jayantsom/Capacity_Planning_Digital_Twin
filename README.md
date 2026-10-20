@@ -1,147 +1,94 @@
 # Capacity Planning Digital Twin
 
-[![Python](https://img.shields.io/badge/Python-3.12.12-3776AB?logo=python&logoColor=white)](https://python.org)
-[![DuckDB](https://img.shields.io/badge/DuckDB-Analytics_DB-FFF000?logo=duckdb&logoColor=black)](https://duckdb.org)
-[![PySpark](https://img.shields.io/badge/PySpark-4.1.2-E25A1C?logo=apachespark&logoColor=white)](https://spark.apache.org)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Multi--Agent-1C3C3C?logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph)
-[![Ollama](https://img.shields.io/badge/Ollama-llama3.1:8b-000000?logo=ollama&logoColor=white)](https://ollama.com)
-[![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![uv](https://img.shields.io/badge/uv-Package_Manager-DE5FE9)](https://docs.astral.sh/uv)
-[![License](https://img.shields.io/badge/License-Personal_Portfolio-lightgrey)](./docs/technical-reference/license.md)
+A local, synthetic telecom and networking manufacturing capacity-planning project. It combines deterministic data generation, a Raw-to-Serving medallion pipeline, five existing ML workflows, and Capacity Assistant, a local LangGraph assistant grounded in read-only data tools.
 
-> **A local end-to-end semiconductor manufacturing capacity planning system** combining a medallion data pipeline, deterministic capacity math, five ML models, and a LangGraph multi-agent AI framework for natural-language analytics.
+All technologies are free and open source. The target is one Windows workstation with 16 GB RAM; generated data, models, logs, and run artifacts stay outside the repository.
 
----
+## Essential project
 
-## TL;DR
+- **Domain:** telecom and networking products, routes, tests, sites, resources, demand, yield, OEE, capacity, and CapEx.
+- **Synthetic brand:** **Erivon**, with `ERV_*` identifiers. Real manufacturer or EMS names may appear only as attributed educational reference data; no real capability, volume, performance, or affiliation is implied.
+- **Dates:** actual and execution data cover 2023-01-01 through 2026-10-31. Forecast data cover 2026-11-01 through 2027-12-31. Each planning snapshot observes only actuals known by its as-of date.
+- **Demand:** `DIRECT_CUSTOMER`, `SPARE`, `SERVICE`, and `BOM_DEPENDENT` are explicit. Parent BOM demand and independent child demand remain separately reconcilable.
+- **Equipment:** routes declare `ALTERNATIVE_POOL`, `SERIAL_STEP`, `PAIRED_FIXTURE`, `MULTI_DUT`, `STANDALONE`, `SHARED_POOL`, or `DEDICATED` behavior.
+- **Raw quality:** intentional duplicates, nulls, missing days, outliers, late records, stale dimensions, and broken references must be named by noise rules and traceable to expected outcomes.
+- **Publication:** candidate runs are validated before promotion; manifests record schemas, checksums, counts, reconciliations, validation results, and promotion state. These are target contracts where implementation is still being stabilized.
 
-This project builds a **capacity planning digital twin** for a synthetic semiconductor/telecom test-equipment manufacturing environment. It ingests raw operational data from 10 SQLite databases, processes it through a Bronze → Silver → Gold medallion pipeline using PySpark and DuckDB, applies a validated 5-step capacity utilisation engine, trains five domain-specific ML models, and exposes the entire gold layer through a multi-agent AI system where a local LLM routes natural-language queries to specialised domain agents.
+No fixed row counts, runtimes, model scores, or business-quality claims are made here. Results depend on the selected profile, machine, seed, and validated run.
 
-**Everything runs locally.** No cloud dependencies. No paid APIs.
+## Five applications and one shared core
 
----
-
-## What This System Does
-
-| Layer | What it does | Output |
+| Component | Responsibility | Configuration |
 |---|---|---|
-| **Raw** | 10 SQLite DBs, 2.75M rows of synthetic operational data | Source of truth |
-| **Bronze** | Ingests + validates all raw data into DuckDB | 12 tables, 2,751,592 rows |
-| **Silver** | PySpark transforms: joins, enrichments, feature engineering | 13 tables, 3,119,383 rows |
-| **Gold** | 5-step capacity math engine + analytics aggregations | 9 tables + 6 serving views |
-| **ML** | 5 models: demand forecasting, yield prediction, predictive maintenance, anomaly detection, CapEx optimisation | 11 output tables |
-| **Agentic** | LangGraph router + 5 domain agents + MCP server + FastAPI + UI | Natural-language capacity analytics |
+| Capacity Home | Compact launcher for all four workspaces | `capacity_home/config.yaml` |
+| Capacity Assistant | Assistant, agents, MCP tools, and local API | `capacity_assistant/config.yaml` |
+| Data Explorer | Read-only table and query interface | `data_explorer/config.yaml` |
+| Data Operations | Generator and medallion-pipeline tabs with safe local jobs | `data_operations/config.yaml` |
+| Decision Intelligence | Five ML dashboards and atomic model publication | `decision_intelligence/config.yaml` |
+| Capacity Twin Core | Shared paths, dates, contracts, logging, and capacity formulas | `src/capacity_twin_core/config.yaml` |
 
----
+The landing page shows **Data Explorer**, **Decision Intelligence**, and **Capacity Assistant** in the first row, followed by **Data Operations**. The UI uses a light Graphite/Dark Cyan identity and plain HTML, CSS, and JavaScript. One FastAPI server on `127.0.0.1` serves every workspace and API.
 
-## Motivation
+## Storage
 
-Capacity planning in semiconductor/telecom manufacturing is a complex, multi-variable problem involving equipment utilisation, yield rates, demand variability, and capital expenditure decisions. Traditional approaches rely on static spreadsheet models that cannot incorporate ML-predicted yield, probabilistic demand, or natural-language querying.
+Set `CAPACITY_TWIN_HOME` to keep runtime data outside the checkout. On Windows the default is `%LOCALAPPDATA%\CapacityPlanningDigitalTwin`.
 
-This project demonstrates the full engineering stack required to build an AI-enabled capacity planning system — from raw data modelling through to a conversational analytics interface — matching the technical depth required for Advanced Analytics & AI Enablement roles in semiconductor manufacturing.
+- Ten Raw source databases are separate SQLite files.
+- Processed layers are separate `bronze.duckdb`, `silver.duckdb`, `gold.duckdb`, `ml.duckdb`, and `serving.duckdb` files in the approved run-artifact design.
+- `current.json` is the intended atomic pointer to the promoted run.
+- Capacity Assistant and Data Explorer are read-only consumers of promoted data.
 
----
+Pipeline candidates use separate run-scoped databases. Validation must pass before `current.json` is atomically changed to the new promoted run.
 
-## Features
+## Quick start
 
-- **Medallion data architecture**: Raw → Bronze → Silver → Gold, all in a single DuckDB file with layer-prefixed tables
-- **Deterministic 5-step capacity math engine**: Mathematically validated to 4 decimal places, implementing industry-standard test equipment capacity formulas
-- **Two retest models**: Type 1 (fixed retest parameters) and Type 2 (yield-based retest calculation)
-- **Semiconductor-standard bottleneck classification**: Six severity tiers (CRITICAL / HIGH / MEDIUM / LOW / BALANCED / EXCESS)
-- **Five ML models**: Prophet+XGBoost+LightGBM demand ensemble, XGBoost yield regressor with SHAP, SMOTE-balanced failure classifier, Isolation Forest OEE anomaly detector, Monte Carlo CapEx optimiser
-- **ML yield feedback loop**: Predicted yield feeds back into the capacity math engine via `gold_cap_ml_adjusted`
-- **LangGraph multi-agent framework**: Router + 5 domain agents (Capacity, Yield, Maintenance, Forecast, CapEx)
-- **MCP server**: 20 structured tools exposing the DuckDB gold layer, plus a safe fallback `run_query` tool
-- **Streaming FastAPI backend**: SSE streaming with per-step pipeline events
-- **Data Explorer**: Separate FastAPI app on port 8001 with full SQLite + DuckDB browser, Chart.js visualisations, SQL editor, CSV export, dark/light mode
-- **Fully local**: llama3.1:8b via Ollama, no external API calls
+Python 3.12, uv, Java 17 for PySpark, and optional Ollama are required.
 
----
+```powershell
+# Install the locked project and development tools.
+uv sync --extra dev
 
-## Documentation Index
+# Optionally choose an external runtime directory.
+$env:CAPACITY_TWIN_HOME = "$env:LOCALAPPDATA\CapacityPlanningDigitalTwin"
 
-### Architecture
-- [System Architecture](./docs/architecture/system-architecture.md) — end-to-end architecture, execution flow, Mermaid diagrams
-- [File Structure](./docs/architecture/file-structure.md) — every file and directory explained
-- [Tech Stack](./docs/architecture/tech-stack.md) — detailed technology table with justifications
-- [Configuration](./docs/architecture/configuration.md) — settings.yaml, constants.py, environment
+# Generate Raw data, build the pipeline, and run the five ML workflows.
+uv run capacity-generate
+uv run capacity-pipeline
+uv run capacity-ml
 
-### Technical & Industrial Engineering
-- [Capacity Planning Fundamentals](./docs/technical-reference/capacity-planning.md) — domain concepts, terminology, formulas, worked examples
-- [Data Scope & Schema](./docs/technical-reference/data-scope.md) — sites, products, test types, data ranges
-
-### Data Engineering
-- [Pipeline Overview](./docs/data-engineering/pipeline-overview.md) — medallion architecture, end-to-end data flow
-- [Synthetic Data Generation](./docs/data-engineering/data-generation.md) — all 10 generators, logic, schemas
-- [Bronze Layer](./docs/data-engineering/bronze.md) — ingestion, validation, schema
-- [Silver Layer](./docs/data-engineering/silver.md) — PySpark transforms, enrichment, feature engineering
-- [Gold Layer](./docs/data-engineering/gold.md) — capacity math, analytics, serving views
-
-### Machine Learning
-- [ML Overview](./docs/ml/ml-overview.md) — model registry, feature store, design decisions
-- [Demand Forecasting](./docs/ml/demand-forecasting.md) — Prophet + XGBoost + LightGBM ensemble + Croston
-- [Yield Prediction](./docs/ml/yield-prediction.md) — XGBoost regressor + SHAP + capacity feedback
-- [Predictive Maintenance](./docs/ml/predictive-maintenance.md) — XGBoost classifier + SMOTE
-- [OEE Anomaly Detection](./docs/ml/oee-anomaly.md) — Isolation Forest
-- [CapEx Optimisation](./docs/ml/capex-montecarlo.md) — Monte Carlo simulation
-
-### AI Enablement
-- [Agentic Architecture](./docs/ai-enablement/agentic-architecture.md) — LangGraph graph, state, routing
-- [MCP Server](./docs/ai-enablement/mcp-server.md) — tool registry, protocol, all 20 tools
-- [Domain Agents](./docs/ai-enablement/agents.md) — all 5 agents, prompts, tool bindings
-- [FastAPI Backend](./docs/ai-enablement/backend.md) — endpoints, SSE streaming, data explorer
-
-### Setup & Operations
-- [Installation](./docs/setup/installation.md) — prerequisites, uv setup, dependencies
-- [Running the Project](./docs/setup/running.md) — all run commands, expected outputs
-- [Validation & Testing](./docs/setup/validation.md) — smoke tests, verification queries
-- [Known Limitations](./docs/setup/limitations.md) — current constraints and workarounds
-
-### Reference
-- [Glossary](./docs/technical-reference/glossary.md) — every technical term defined
-- [Future Scope](./docs/technical-reference/future-scope.md)
-- [Disclaimer & License](./docs/technical-reference/license.md)
-
----
-
-## Quick Start
-
-```bash
-# 1. Clone and set up
-git clone <repo>
-cd capacity_planning_digital_twin
-uv sync
-
-# 2. Run the full pipeline
-uv run python -m src.generators.run_all_generators   # ~2 min
-uv run python -m src.pipeline.bronze.ingest          # ~30s
-uv run python -m src.pipeline.silver.run_silver      # ~135s
-uv run python -m src.pipeline.gold.run_gold          # ~60s
-uv run python -m src.ml.run_ml                       # ~15 min
-
-# 3. Start Ollama (separate terminal)
-ollama serve
-ollama pull llama3.1:8b
-
-# 4. Start backends
-uv run python -m backend.main                        # port 8000 — AI chat
-uv run uvicorn backend.explorer.main:app --port 8001 # port 8001 — Data Explorer
-
-# 5. Open
-# http://localhost:8000   → AI Analyst chat
-# http://localhost:8001/explorer/ → Data Explorer
+# Start every dashboard on one local address.
+uv run capacity-twin
 ```
 
----
+Capacity Assistant uses `llama3.1:8b` through local Ollama as its baseline. Data Explorer should remain usable when Ollama is unavailable.
 
-## Author
+```powershell
+# Pull and run the optional local model.
+ollama pull llama3.1:8b
+ollama serve
+```
 
-**Jayant Som**
-Data & AI-ML Consultant · MS Electrical Engineering (University at Buffalo, GPA 3.87)
+## ML scope
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-jayantsom-0077B5?logo=linkedin)](https://www.linkedin.com/in/jayantsom)
-[![Email](https://img.shields.io/badge/Email-jayant4195@gmail.com-D14836?logo=gmail&logoColor=white)](mailto:jayant4195@gmail.com)
+The project retains five workflows: demand forecasting, measured-yield prediction, OEE degradation risk, OEE anomaly detection, and CapEx Monte Carlo simulation. Evaluation must be temporal and leakage-aware, with train, validation, and holdout windows separated by month and honest comparison to a declared naive baseline. A workflow that cannot be evaluated returns `not_evaluable` with a reason. CapEx is simulation, not optimization, and contamination is not model accuracy.
 
----
+## Documentation
 
-> **Disclaimer**: See [Disclaimer & License](./docs/technical-reference/license.md).
+- [Architecture](docs/architecture/system-architecture.md)
+- [Configuration](docs/architecture/configuration.md)
+- [Data generation](docs/data-engineering/data-generation.md)
+- [Pipeline](docs/data-engineering/pipeline-overview.md)
+- [ML workflows](docs/ml/ml-overview.md)
+- [Capacity Assistant and APIs](docs/ai-enablement/agentic-architecture.md)
+- [Installation](docs/setup/installation.md)
+- [Running](docs/setup/running.md)
+- [Validation](docs/setup/validation.md)
+- [Limitations](docs/setup/limitations.md)
+- [Future scope](docs/technical-reference/future-scope.md)
+- [Disclaimer and license](docs/technical-reference/license.md)
+
+## Future alternatives
+
+Future model evaluation may compare licensed Ollama tags for a Qwen 3.5 4B-class candidate, Granite 4.2 8B-class candidate, and Qwen 3.5 9B-class challenger. Exact tags, availability, licenses, latency, RAM, and tool-call quality must be verified first. `llama.cpp` is the preferred lightweight runtime alternative; LocalAI and vLLM remain conditional future options.
+
+> This project is educational and synthetic. Do not use its outputs for production decisions.

@@ -1,20 +1,35 @@
 # Future Scope
 
-> Planned improvements not yet implemented.
+Nothing on this page is part of the essential delivery. Each item requires a measured problem, a separate decision, and updated acceptance criteria.
 
----
+## Data and governance
 
-| Area | Planned Enhancement |
-|---|---|
-| **Orchestration** | Airflow DAG wrapping all 5 pipeline steps with dependency management and alerting |
-| **Incremental pipeline** | Change-data-capture for Bronze; partition-aware Silver/Gold refreshes |
-| **True LLM streaming** | Replace word-split token emission with native Ollama async streaming client |
-| **Power BI dashboard** | Connect via DuckDB ODBC driver or Parquet export; 6 pages across 6 serving views |
-| **Recursive forecasting** | Update lag features recursively for multi-step ahead XGBoost/LGB predictions |
-| **Multi-turn conversation** | Persist `AgentState.messages` across sessions (Redis or SQLite session store) |
-| **Agent memory** | Summarise prior tool results so agents can reference earlier answers in conversation |
-| **Claude Desktop integration** | Register MCP server in `claude_desktop_config.json` for direct Claude Desktop queries |
-| **Yield feedback loop v2** | Run ML pipeline after Gold on every pipeline refresh; keep `gold_cap_ml_adjusted` always current |
-| **UI improvements** | Chat UI: typing indicator, copy button, conversation history, message timestamps |
-| **Model retraining triggers** | Auto-retrain ML models when new actuals arrive (drift detection via PSI/KS test) |
-| **Confidence intervals** | Expose Prophet prediction intervals in `gold_demand_forecast` |
+- dbt after SQL ownership and lineage justify migration
+- Dagster after manual sequential runs require partitions, retries, or scheduling
+- MLflow or an offline feature store after grains and temporal joins are trustworthy
+- CDC, advanced drift exercises, richer noise profiles, and artifact comparison
+- Additional retention, partial rebuilds, and a dedicated quality/lineage view
+
+## Domain
+
+- WIP, finite scheduling, queue simulation, genealogy, and rework loops
+- Maintenance work orders, failure modes, counters, and repair history
+- Supplier/material risk, inventory, workforce, utilities, sustainability, and finance
+- Additional scenario, NPI, S&OP, network-planning, and test-economics experiences
+
+## ML and AI
+
+- Model cards, drift monitoring, calibrated forecast intervals, and richer agent evaluation
+- Documentation RAG only after structured live-data tools are reliable
+- Verified Ollama evaluations for Qwen 3.5 4B-class, Granite 4.2 8B-class, and Qwen 3.5 9B-class candidates
+- `llama.cpp` as the preferred lightweight runtime alternative
+- LocalAI only for a demonstrated multi-backend need; vLLM only for a future Linux GPU environment
+
+## Infrastructure and UI
+
+- Authentication, audit, observability, containers, or online sharing
+- PostgreSQL, ClickHouse, Kafka, Iceberg, Delta Lake, or distributed Spark
+- React/TypeScript/Vite only if the static UI becomes demonstrably hard to maintain
+- New user-facing cards only after the fixed Capacity Assistant/Data Explorer product is stable
+
+All future technologies must remain free/open source unless the project scope is explicitly changed.

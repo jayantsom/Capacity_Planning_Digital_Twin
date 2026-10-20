@@ -1,0 +1,10 @@
+# Settings owned by the read-only Data Explorer.
+server:
+  allowed_origins:
+    - "http://127.0.0.1:8000"
+    - "http://localhost:8000"
+
+query:
+  default_limit: 500
+  maximum_limit: 2000
+  timeout_seconds: 15
