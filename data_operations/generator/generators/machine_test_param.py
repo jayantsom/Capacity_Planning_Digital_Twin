@@ -1,6 +1,6 @@
 """
-Generator: raw_mi_test_param.db
-Daily test × parameter data derived from MI execution records.
+Generator: raw_machine_test_param.db
+Daily test × parameter data derived from Machine execution records.
 """
 
 import sqlite3
@@ -19,36 +19,40 @@ from data_operations.generator.rules.determinism import stable_seed
 from data_operations.generator.services.operational_derivation import derive_test_parameters
 
 ACTUAL_START = date(2023, 1, 1)
-ACTUAL_END   = date(2026, 10, 31)
+ACTUAL_END = date(2026, 10, 31)
 
 TEST_CAT_ID = {t[0]: t[2] for t in TEST_TYPES}
 SITE_FACTORY = {s[0]: s[2] for s in SITES}
 
 # Retest quote by test type (Test × Parameter)
 RETEST_QUOTE = {
-    "OTA": 0.75, "TRX": 0.75, "PIM": 0.70,
-    "PAM": 0.75, "FCT": 0.75, "ICT": 0.75,
-    "BIT": 0.70, "ALT": 0.70, "UC": 0.75, "AT": 0.75,
+    "OTA": 0.75,
+    "TRX": 0.75,
+    "PIM": 0.70,
+    "PAM": 0.75,
+    "FCT": 0.75,
+    "ICT": 0.75,
+    "BIT": 0.70,
+    "ALT": 0.70,
+    "UC": 0.75,
+    "AT": 0.75,
 }
 
 
-def generate_mi_test_param_db(config: dict) -> None:
+def generate_machine_test_param_db(config: dict) -> None:
     logger.info("=" * 60)
-    logger.info("GENERATING: raw_mi_test_param.db")
+    logger.info("GENERATING: raw_machine_test_param.db")
     logger.info("=" * 60)
 
-    db_path = get_sqlite_path(
-        config["databases"]["raw"]["test_x_parameter"], config
-    )
-    execution_path = get_sqlite_path(
-        config["databases"]["raw"]["manufacturing_intelligence"], config
-    )
+    db_path = get_sqlite_path(config["databases"]["raw"]["test_x_parameter"], config)
+    execution_path = get_sqlite_path(config["databases"]["raw"]["machine_execution"], config)
     rows_written = derive_test_parameters(execution_path, db_path)
     logger.info(f"  Final total: {rows_written:,} rows")
-    logger.success("raw_mi_test_param.db complete")
+    logger.success("raw_machine_test_param.db complete")
     return
 
     from collections import defaultdict
+
     site_assignments = defaultdict(list)
     for a in ASSIGNMENT_MATRIX:
         site_assignments[a["site_code"]].append(a)
@@ -78,7 +82,7 @@ def generate_mi_test_param_db(config: dict) -> None:
 
             for assignment in assignments:
                 product_num = assignment["product_number"]
-                test_types  = assignment["test_types"]
+                test_types = assignment["test_types"]
 
                 for tt in test_types:
                     cat_id = TEST_CAT_ID.get(tt, "999999")
@@ -98,15 +102,11 @@ def generate_mi_test_param_db(config: dict) -> None:
                     base_yield = local_rng.uniform(y_min, y_max)
 
                     # Yield retest values
-                    yield_retest1   = float(np.clip(
-                        local_rng.uniform(0.70, 0.90), 0.50, 0.99))
-                    yield_retest2   = float(np.clip(
-                        local_rng.uniform(0.85, 0.98), 0.50, 0.99))
+                    yield_retest1 = float(np.clip(local_rng.uniform(0.70, 0.90), 0.50, 0.99))
+                    yield_retest2 = float(np.clip(local_rng.uniform(0.85, 0.98), 0.50, 0.99))
 
                     # Type 2 retest times formula
-                    retest_times_t2 = (
-                        (1 - yield_retest1 + yield_retest2) / yield_retest2
-                    )
+                    retest_times_t2 = (1 - yield_retest1 + yield_retest2) / yield_retest2
 
                     for i, d in enumerate(month_dates):
                         if d.weekday() >= 5 and local_rng.random() > 0.15:
@@ -115,48 +115,48 @@ def generate_mi_test_param_db(config: dict) -> None:
                             continue
 
                         total_qty = max(1, int(local_rng.uniform(50, 500)))
-                        fp_yield  = float(np.clip(
-                            base_yield + local_rng.normal(0, 0.02),
-                            0.50, 0.99
-                        ))
-                        fp_qty    = int(total_qty * fp_yield)
-                        ff_qty    = total_qty - fp_qty
+                        fp_yield = float(
+                            np.clip(base_yield + local_rng.normal(0, 0.02), 0.50, 0.99)
+                        )
+                        fp_qty = int(total_qty * fp_yield)
+                        ff_qty = total_qty - fp_qty
 
-                        batch_rows.append({
-                            "factory_code":       factory_code,
-                            "site_code":          site_code,
-                            "product_number":     product_num,
-                            "test_category_id":   cat_id,
-                            "test_type":          tt,
-                            "execution_date":     d.isoformat(),
-                            "month_key":          date_to_month_key(d),
-                            "first_pass_qty":     fp_qty,
-                            "first_fail_qty":     ff_qty,
-                            "total_qty":          total_qty,
-                            "first_pass_yield":   round(fp_yield, 4),
-                            "test_x_parameter":   retest_quote,
-                            "retest_times_avg":   round(
-                                float(local_rng.uniform(1.5, 2.5)), 3),
-                            "retest_times_type1": 2.0,
-                            "retest_times_type2": round(retest_times_t2, 4),
-                            "yield_retest_1":     round(yield_retest1, 4),
-                            "yield_retest_2_plus":round(yield_retest2, 4),
-                        })
+                        batch_rows.append(
+                            {
+                                "factory_code": factory_code,
+                                "site_code": site_code,
+                                "product_number": product_num,
+                                "test_category_id": cat_id,
+                                "test_type": tt,
+                                "execution_date": d.isoformat(),
+                                "month_key": date_to_month_key(d),
+                                "first_pass_qty": fp_qty,
+                                "first_fail_qty": ff_qty,
+                                "total_qty": total_qty,
+                                "first_pass_yield": round(fp_yield, 4),
+                                "test_x_parameter": retest_quote,
+                                "retest_times_avg": round(float(local_rng.uniform(1.5, 2.5)), 3),
+                                "retest_times_type1": 2.0,
+                                "retest_times_type2": round(retest_times_t2, 4),
+                                "yield_retest_1": round(yield_retest1, 4),
+                                "yield_retest_2_plus": round(yield_retest2, 4),
+                            }
+                        )
 
         if batch_rows:
             batch_df = pd.DataFrame(batch_rows)
             with sqlite3.connect(db_path) as conn:
                 batch_df.to_sql(
-                    "mi_test_param", conn,
+                    "machine_test_param",
+                    conn,
                     if_exists="replace" if first_batch else "append",
-                    index=False
+                    index=False,
                 )
             rows_written += len(batch_rows)
             first_batch = False
-            logger.info(f"  {month_label}: {len(batch_rows):,} rows "
-                        f"[total: {rows_written:,}]")
+            logger.info(f"  {month_label}: {len(batch_rows):,} rows [total: {rows_written:,}]")
 
         current = month_end + timedelta(days=1)
 
     logger.info(f"  Final total: {rows_written:,} rows")
-    logger.success("raw_mi_test_param.db complete")
+    logger.success("raw_machine_test_param.db complete")

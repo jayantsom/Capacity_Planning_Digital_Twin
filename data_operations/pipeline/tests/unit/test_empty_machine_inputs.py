@@ -1,8 +1,8 @@
-"""Empty MI inputs still publish queryable Silver schemas."""
+"""Empty Machine inputs still publish queryable Silver schemas."""
 
 import duckdb
 
-from data_operations.pipeline.pipeline.silver.transforms_mi import transform_mi_execution
+from data_operations.pipeline.pipeline.silver.transforms_machine import transform_machine_execution
 
 
 def test_empty_execution_creates_schema_and_indexes() -> None:
@@ -10,7 +10,7 @@ def test_empty_execution_creates_schema_and_indexes() -> None:
     with duckdb.connect() as connection:
         connection.execute(
             """
-            CREATE TABLE brnz_mi_execution (
+            CREATE TABLE brnz_machine_execution (
                 factory_code VARCHAR, site_code VARCHAR, product_number VARCHAR,
                 product_type VARCHAR, test_category_id VARCHAR, test_type VARCHAR,
                 execution_date DATE, month_key INTEGER, passed_qty DOUBLE,
@@ -24,22 +24,18 @@ def test_empty_execution_creates_schema_and_indexes() -> None:
             """
         )
 
-        count = transform_mi_execution(
-            connection, spark=None, run_id="run", ts="now"
-        )
+        count = transform_machine_execution(connection, spark=None, run_id="run", ts="now")
 
         assert count == 0
-        assert connection.execute(
-            "SELECT COUNT(*) FROM slvr_mi_execution"
-        ).fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM slvr_machine_execution").fetchone()[0] == 0
         index_names = {
             row[0]
             for row in connection.execute(
                 """
                 SELECT index_name
                 FROM duckdb_indexes()
-                WHERE table_name = 'slvr_mi_execution'
+                WHERE table_name = 'slvr_machine_execution'
                 """
             ).fetchall()
         }
-        assert "idx_slvr_mi_exec_month" in index_names
+        assert "idx_slvr_machine_exec_month" in index_names

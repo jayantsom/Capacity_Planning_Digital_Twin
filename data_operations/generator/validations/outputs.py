@@ -22,7 +22,7 @@ def _scalar(connection: sqlite3.Connection, query: str) -> Any:
 
 
 def validate_outputs(raw_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
-    """Validate schemas, bounds, dates, identities, and MI reconciliation."""
+    """Validate schemas, bounds, dates, identities, and Machine reconciliation."""
     errors: list[str] = []
     row_counts: dict[str, dict[str, int]] = {}
     checksums: dict[str, str] = {}
@@ -46,13 +46,13 @@ def validate_outputs(raw_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
                 for table in tables
             }
 
-    execution_path = raw_dir / database_names["manufacturing_intelligence"]
+    execution_path = raw_dir / database_names["machine_execution"]
     parameter_path = raw_dir / database_names["test_x_parameter"]
-    log_path = raw_dir / database_names["mi_logs"]
+    log_path = raw_dir / database_names["machine_logs"]
     if execution_path.is_file():
         with sqlite3.connect(execution_path) as connection:
             date_bounds = connection.execute(
-                "SELECT MIN(execution_date), MAX(execution_date) FROM mi_execution"
+                "SELECT MIN(execution_date), MAX(execution_date) FROM machine_execution"
             ).fetchone()
             expected = (
                 config["data_generation"]["start_date_actual"],
@@ -62,12 +62,12 @@ def validate_outputs(raw_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
                 errors.append(f"execution date bounds {tuple(date_bounds)} do not equal {expected}")
             if _scalar(
                 connection,
-                "SELECT COUNT(*) FROM mi_execution WHERE total_qty != passed_qty + failed_qty",
+                "SELECT COUNT(*) FROM machine_execution WHERE total_qty != passed_qty + failed_qty",
             ):
                 errors.append("execution total quantity does not reconcile")
             if _scalar(
                 connection,
-                "SELECT COUNT(*) FROM mi_execution WHERE yield_avg IS NOT NULL "
+                "SELECT COUNT(*) FROM machine_execution WHERE yield_avg IS NOT NULL "
                 "AND (yield_avg < 0 OR yield_avg > 1)",
             ):
                 errors.append("execution yield is outside [0, 1]")
@@ -76,7 +76,7 @@ def validate_outputs(raw_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
                 """
                 SELECT COUNT(*) FROM (
                     SELECT event_id
-                    FROM mi_execution
+                    FROM machine_execution
                     GROUP BY event_id
                     HAVING COUNT(*) > 1
                        AND SUM(CASE WHEN noise_rule_id = 'RAW_DUPLICATE_EXECUTION' THEN 1 ELSE 0 END) = 0
@@ -93,8 +93,8 @@ def validate_outputs(raw_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
                 connection,
                 """
                 SELECT COUNT(*)
-                FROM mi_test_param p
-                LEFT JOIN execution_db.mi_execution e
+                FROM machine_test_param p
+                LEFT JOIN execution_db.machine_execution e
                   ON e.record_id = p.execution_record_id
                 WHERE e.record_id IS NULL
                    OR p.total_qty != e.total_qty
@@ -112,8 +112,8 @@ def validate_outputs(raw_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
                 connection,
                 """
                 SELECT COUNT(*)
-                FROM mi_logs l
-                LEFT JOIN execution_db.mi_execution e
+                FROM machine_logs l
+                LEFT JOIN execution_db.machine_execution e
                   ON e.record_id = l.execution_record_id
                 WHERE e.record_id IS NULL
                 """,
@@ -122,9 +122,9 @@ def validate_outputs(raw_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
                 errors.append(f"{orphan_logs} logs do not reference execution events")
 
     budget_pairs = (
-        ("manufacturing_intelligence", "mi_execution", "max_execution_rows"),
-        ("test_x_parameter", "mi_test_param", "max_test_parameter_rows"),
-        ("mi_logs", "mi_logs", "max_log_rows"),
+        ("machine_execution", "machine_execution", "max_execution_rows"),
+        ("test_x_parameter", "machine_test_param", "max_test_parameter_rows"),
+        ("machine_logs", "machine_logs", "max_log_rows"),
     )
     for database_key, table, cap_name in budget_pairs:
         count = row_counts.get(database_names[database_key], {}).get(table, 0)

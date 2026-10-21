@@ -24,9 +24,9 @@ The app configuration declares:
 - `raw_target_yield.db`
 - `raw_site_equip_inv.db`
 - `raw_site_soft.db`
-- `raw_mi_execution.db`
-- `raw_mi_test_param.db`
-- `raw_mi_logs.db`
+- `raw_machine_execution.db`
+- `raw_machine_test_param.db`
+- `raw_machine_logs.db`
 - `raw_reference_data.db`
 
 ## Business contracts

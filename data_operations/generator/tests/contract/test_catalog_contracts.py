@@ -15,7 +15,7 @@ from data_operations.generator.validations.preflight import validate_preflight
 def test_local_profile_passes_preflight() -> None:
     report = validate_preflight(load_config())
     assert report["status"] == "passed"
-    assert report["projections"]["mi_execution"] <= 3_000_000
+    assert report["projections"]["machine_execution"] <= 3_000_000
 
 
 def test_catalog_uses_erivon_and_sparse_assignments() -> None:
@@ -30,9 +30,12 @@ def test_every_parent_and_child_has_a_separate_route() -> None:
     route_df, step_df = build_routes()
     assert set(route_df["product_number"]) == {product[0] for product in PRODUCTS}
     assert {"PARENT", "CHILD"} <= set(route_df["product_level"])
-    assert step_df.groupby("route_id")["step_sequence"].apply(list).map(
-        lambda values: values == list(range(1, len(values) + 1))
-    ).all()
+    assert (
+        step_df.groupby("route_id")["step_sequence"]
+        .apply(list)
+        .map(lambda values: values == list(range(1, len(values) + 1)))
+        .all()
+    )
 
 
 def test_all_capacity_behaviors_are_connected() -> None:

@@ -12,10 +12,10 @@ import duckdb
 from capacity_twin_core.logging import logger
 from capacity_twin_core.runtime.database_paths import get_duckdb_connection, load_config
 from data_operations.pipeline.pipeline.bronze.schema import BRONZE_CONFIGS
-from data_operations.pipeline.pipeline.silver.transforms_mi import (
-    transform_mi_execution,
-    transform_mi_logs,
-    transform_mi_test_param,
+from data_operations.pipeline.pipeline.silver.transforms_machine import (
+    transform_machine_execution,
+    transform_machine_logs,
+    transform_machine_test_param,
 )
 from data_operations.pipeline.pipeline.silver.transforms_planning import (
     transform_demand_requirements,
@@ -93,10 +93,10 @@ def run_silver_transforms(
     logger.info("╚══════════════════════════════════════════════════════════╝")
     logger.info(f"  Pipeline run ID: {run_id}")
 
-    spark     = get_spark_session()
+    spark = get_spark_session()
     owns_connection = duck_conn is None
     duck_conn = duck_conn or get_duckdb_connection(config, database_key="silver")
-    counts    = {}
+    counts = {}
 
     # ── Reference and master ───────────────────────────────────────────────
     logger.info("\n── Reference Tables ────────────────────────────────────────")
@@ -107,26 +107,17 @@ def run_silver_transforms(
 
     # ── Planning tables ────────────────────────────────────────────────────
     logger.info("\n── Planning Tables ─────────────────────────────────────────")
-    counts["slvr_demand_requirement"] = transform_demand_requirements(
-        duck_conn, run_id, ts
-    )
-    counts["slvr_tgt_test_time"] = transform_target_test_time(
-        duck_conn, spark, run_id, ts)
-    counts["slvr_tgt_yield"]     = transform_target_yield(
-        duck_conn, spark, run_id, ts)
-    counts["slvr_site_equip_inv"] = transform_site_equipment_inventory(
-        duck_conn, spark, run_id, ts)
-    counts["slvr_site_soft"]     = transform_site_soft(
-        duck_conn, spark, run_id, ts)
+    counts["slvr_demand_requirement"] = transform_demand_requirements(duck_conn, run_id, ts)
+    counts["slvr_tgt_test_time"] = transform_target_test_time(duck_conn, spark, run_id, ts)
+    counts["slvr_tgt_yield"] = transform_target_yield(duck_conn, spark, run_id, ts)
+    counts["slvr_site_equip_inv"] = transform_site_equipment_inventory(duck_conn, spark, run_id, ts)
+    counts["slvr_site_soft"] = transform_site_soft(duck_conn, spark, run_id, ts)
 
-    # ── MI tables (chunked) ────────────────────────────────────────────────
-    logger.info("\n── Manufacturing Intelligence Tables ───────────────────────")
-    counts["slvr_mi_execution"]  = transform_mi_execution(
-        duck_conn, spark, run_id, ts)
-    counts["slvr_mi_test_param"] = transform_mi_test_param(
-        duck_conn, spark, run_id, ts)
-    counts["slvr_mi_logs"]       = transform_mi_logs(
-        duck_conn, spark, run_id, ts)
+    # ── Machine tables (chunked) ────────────────────────────────────────────────
+    logger.info("\n── Machine Tables ───────────────────────────────────────────")
+    counts["slvr_machine_execution"] = transform_machine_execution(duck_conn, spark, run_id, ts)
+    counts["slvr_machine_test_param"] = transform_machine_test_param(duck_conn, spark, run_id, ts)
+    counts["slvr_machine_logs"] = transform_machine_logs(duck_conn, spark, run_id, ts)
     counts["slvr_quarantine"] = _build_quarantine(duck_conn, run_id, ts)
 
     # ── Summary ────────────────────────────────────────────────────────────
@@ -138,7 +129,7 @@ def run_silver_transforms(
     for table, count in sorted(counts.items()):
         logger.info(f"  {table:<35} {count:>10,} rows")
         total += count
-    logger.info(f"  {'─'*47}")
+    logger.info(f"  {'─' * 47}")
     logger.info(f"  {'TOTAL':<35} {total:>10,} rows")
     logger.info(f"\n  Wall time: {elapsed:.1f}s")
     logger.success("Silver transforms complete.")

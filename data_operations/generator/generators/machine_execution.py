@@ -1,7 +1,7 @@
 """
-Generator: raw_mi_execution.db
+Generator: raw_machine_execution.db
 Daily manufacturing execution data from test systems and sensors.
-Jan 2023 → Jun 2026 (actual period only — MI is always ACTUAL).
+Jan 2023 → Jun 2026 (actual period only — Machine is always ACTUAL).
 Deliberate imperfections: missing days, null yields, duplicates,
 yield excursions, equipment downtime spikes.
 """
@@ -22,21 +22,21 @@ from data_operations.generator.rules.npi import npi_ramp
 
 # ── Date range ────────────────────────────────────────────────────────────────
 ACTUAL_START = date(2023, 1, 1)
-ACTUAL_END   = date(2026, 10, 31)
+ACTUAL_END = date(2026, 10, 31)
 
 # ── Base throughput ranges by test type (units/day/site) ──────────────────────
 # Derived from: demand / working_days / equipment_qty (approximated)
 DAILY_THROUGHPUT_BASE = {
-    "OTA": (20,  120),
-    "TRX": (40,  300),
-    "PIM": (30,  200),
-    "PAM": (30,  200),
+    "OTA": (20, 120),
+    "TRX": (40, 300),
+    "PIM": (30, 200),
+    "PAM": (30, 200),
     "FCT": (100, 800),
     "ICT": (200, 1500),
-    "BIT": (50,  400),
-    "ALT": (20,  150),
-    "UC":  (40,  300),
-    "AT":  (50,  400),
+    "BIT": (50, 400),
+    "ALT": (20, 150),
+    "UC": (40, 300),
+    "AT": (50, 400),
 }
 
 # Lookup: test_type → (category_id)
@@ -49,6 +49,7 @@ SITE_FACTORY = {}
 def _build_site_factory_map() -> dict:
     """Build site_code → factory_code mapping from reference data."""
     from data_operations.generator.generators.reference_data import SITES
+
     return {s[0]: s[2] for s in SITES}
 
 
@@ -66,14 +67,12 @@ def _is_weekend(d: date) -> bool:
     return d.weekday() >= 5  # Saturday=5, Sunday=6
 
 
-def generate_mi_execution_db(config: dict) -> None:
+def generate_machine_execution_db(config: dict) -> None:
     logger.info("=" * 60)
-    logger.info("GENERATING: raw_mi_execution.db")
+    logger.info("GENERATING: raw_machine_execution.db")
     logger.info("=" * 60)
 
-    db_path = get_sqlite_path(
-        config["databases"]["raw"]["manufacturing_intelligence"], config
-    )
+    db_path = get_sqlite_path(config["databases"]["raw"]["machine_execution"], config)
 
     dates = DateContract.from_config(config)
     volume = VolumeContract.from_config(config)
@@ -83,8 +82,7 @@ def generate_mi_execution_db(config: dict) -> None:
     site_factory = _build_site_factory_map()
     all_dates = _generate_dates(actual_start, actual_end)
     total_days = len(all_dates)
-    logger.info(f"  Date range: {actual_start} → {actual_end} "
-                f"({total_days} days)")
+    logger.info(f"  Date range: {actual_start} → {actual_end} ({total_days} days)")
 
     # Process in monthly batches to manage memory
     rows_written = 0
@@ -92,6 +90,7 @@ def generate_mi_execution_db(config: dict) -> None:
 
     # Group assignments by site for efficient processing
     from collections import defaultdict
+
     site_assignments = defaultdict(list)
     for a in ASSIGNMENT_MATRIX:
         site_assignments[a["site_code"]].append(a)
@@ -118,8 +117,8 @@ def generate_mi_execution_db(config: dict) -> None:
 
             for assignment in assignments:
                 product_num = assignment["product_number"]
-                status      = assignment["product_status"]
-                test_types  = assignment["test_types"]
+                status = assignment["product_status"]
+                test_types = assignment["test_types"]
 
                 for tt in test_types:
                     cat_id = TEST_CAT_ID.get(tt, "999999")
@@ -136,9 +135,7 @@ def generate_mi_execution_db(config: dict) -> None:
 
                     # Base daily throughput
                     tp_min, tp_max = DAILY_THROUGHPUT_BASE.get(tt, (50, 300))
-                    base_throughput = (
-                        local_rng.uniform(tp_min, tp_max) * volume.demand_scale
-                    )
+                    base_throughput = local_rng.uniform(tp_min, tp_max) * volume.demand_scale
 
                     # NPI: lower throughput until ramp complete
                     if status == "NPI":
@@ -146,6 +143,7 @@ def generate_mi_execution_db(config: dict) -> None:
 
                     # Base yield from approximate target
                     from data_operations.generator.generators.target_yield import YIELD_BASE
+
                     y_min, y_max = YIELD_BASE.get(tt, (0.85, 0.95))
                     base_yield = local_rng.uniform(y_min, y_max)
 
@@ -156,19 +154,20 @@ def generate_mi_execution_db(config: dict) -> None:
 
                     # Equipment downtime event: ~0.5% daily probability
                     downtime_days = {
-                        i for i in range(len(month_dates))
+                        i
+                        for i in range(len(month_dates))
                         if local_rng.random() < noise["missing_execution_probability"]
                     }
 
-                    # Missing day indices: 2% of days have no MI record
+                    # Missing day indices: 2% of days have no Machine record
                     missing_day_indices = {
-                        i for i in range(len(month_dates))
-                        if local_rng.random() < 0.02
+                        i for i in range(len(month_dates)) if local_rng.random() < 0.02
                     }
 
                     # Duplicate record indices: 0.5%
                     duplicate_indices = {
-                        i for i in range(len(month_dates))
+                        i
+                        for i in range(len(month_dates))
                         if local_rng.random() < noise["duplicate_execution_probability"]
                     }
 
@@ -196,9 +195,7 @@ def generate_mi_execution_db(config: dict) -> None:
                             continue
 
                         # Daily throughput variation ±20%
-                        daily_qty = max(1, int(
-                            base_throughput * local_rng.uniform(0.80, 1.20)
-                        ))
+                        daily_qty = max(1, int(base_throughput * local_rng.uniform(0.80, 1.20)))
 
                         # Yield: apply excursion if active
                         if has_excursion and (
@@ -206,10 +203,9 @@ def generate_mi_execution_db(config: dict) -> None:
                         ):
                             day_yield = max(0.50, base_yield - local_rng.uniform(0.08, 0.15))
                         else:
-                            day_yield = float(np.clip(
-                                base_yield + local_rng.normal(0, 0.02),
-                                0.50, 0.99
-                            ))
+                            day_yield = float(
+                                np.clip(base_yield + local_rng.normal(0, 0.02), 0.50, 0.99)
+                            )
 
                         # Named sensor noise stays traceable on the raw row.
                         if local_rng.random() < noise["null_measurement_probability"]:
@@ -221,9 +217,7 @@ def generate_mi_execution_db(config: dict) -> None:
                             else int(daily_qty * base_yield)
                         )
                         failed_qty = daily_qty - passed_qty
-                        final_yield = (
-                            round(day_yield, 4) if day_yield is not None else None
-                        )
+                        final_yield = round(day_yield, 4) if day_yield is not None else None
 
                         # Equipment downtime
                         if i in downtime_days:
@@ -235,11 +229,10 @@ def generate_mi_execution_db(config: dict) -> None:
                         from data_operations.generator.generators.target_test_time import (
                             TEST_TIME_BASE,
                         )
+
                         tt_min, tt_max = TEST_TIME_BASE.get(tt, (60, 300))
                         base_tt = local_rng.uniform(tt_min, tt_max)
-                        has_test_time_outlier = (
-                            local_rng.random() < noise["outlier_probability"]
-                        )
+                        has_test_time_outlier = local_rng.random() < noise["outlier_probability"]
                         if has_test_time_outlier:
                             test_dur = base_tt * local_rng.uniform(1.3, 1.8)
                         else:
@@ -249,47 +242,36 @@ def generate_mi_execution_db(config: dict) -> None:
                             "record_id": stable_id(
                                 "execution-record", site_code, product_num, tt, d, "original"
                             ),
-                            "event_id": stable_id(
-                                "execution-event", site_code, product_num, tt, d
-                            ),
-                            "factory_code":           factory_code,
-                            "site_code":              site_code,
-                            "test_category_id":       cat_id,
-                            "test_type":              tt,
-                            "product_number":         product_num,
-                            "product_type":           assignment["product_level"],
-                            "execution_date":         d.isoformat(),
-                            "month_key":              date_to_month_key(d),
-                            "passed_qty":             passed_qty,
-                            "failed_qty":             failed_qty,
-                            "total_qty":              daily_qty,
-                            "yield_avg":              final_yield,
-                            "final_test_yield_avg":   final_yield,
-                            "test_duration_avg_sec":  round(test_dur, 2),
-                            "handling_time_avg_sec":  round(
-                                float(local_rng.uniform(10, 120)), 2),
-                            "setup_time_avg_sec":     round(
-                                float(local_rng.uniform(5, 60)), 2),
-                            "load_unload_time_avg_sec": round(
-                                float(local_rng.uniform(5, 30)), 2),
-                            "idle_time_avg_sec":      round(
-                                float(local_rng.uniform(0, 120)), 2),
-                            "retest_count_avg":       round(
-                                float(local_rng.uniform(0, 0.3)), 3),
+                            "event_id": stable_id("execution-event", site_code, product_num, tt, d),
+                            "factory_code": factory_code,
+                            "site_code": site_code,
+                            "test_category_id": cat_id,
+                            "test_type": tt,
+                            "product_number": product_num,
+                            "product_type": assignment["product_level"],
+                            "execution_date": d.isoformat(),
+                            "month_key": date_to_month_key(d),
+                            "passed_qty": passed_qty,
+                            "failed_qty": failed_qty,
+                            "total_qty": daily_qty,
+                            "yield_avg": final_yield,
+                            "final_test_yield_avg": final_yield,
+                            "test_duration_avg_sec": round(test_dur, 2),
+                            "handling_time_avg_sec": round(float(local_rng.uniform(10, 120)), 2),
+                            "setup_time_avg_sec": round(float(local_rng.uniform(5, 60)), 2),
+                            "load_unload_time_avg_sec": round(float(local_rng.uniform(5, 30)), 2),
+                            "idle_time_avg_sec": round(float(local_rng.uniform(0, 120)), 2),
+                            "retest_count_avg": round(float(local_rng.uniform(0, 0.3)), 3),
                             "equipment_downtime_avg_sec": round(downtime_sec, 2),
-                            "actual_throughput_uph":  round(
-                                passed_qty / max(0.1,
-                                    (test_dur + 30) / 3600), 2),
-                            "noise_rule_id":          (
+                            "actual_throughput_uph": round(
+                                passed_qty / max(0.1, (test_dur + 30) / 3600), 2
+                            ),
+                            "noise_rule_id": (
                                 "RAW_NULL_MEASUREMENT"
                                 if final_yield is None
-                                else (
-                                    "RAW_TEST_TIME_OUTLIER"
-                                    if has_test_time_outlier
-                                    else None
-                                )
+                                else ("RAW_TEST_TIME_OUTLIER" if has_test_time_outlier else None)
                             ),
-                            "data_provenance":        "DERIVED_SYNTHETIC_EXECUTION",
+                            "data_provenance": "DERIVED_SYNTHETIC_EXECUTION",
                         }
                         batch_rows.append(row)
 
@@ -307,17 +289,20 @@ def generate_mi_execution_db(config: dict) -> None:
             batch_df = pd.DataFrame(batch_rows)
             with __import__("sqlite3").connect(db_path) as conn:
                 batch_df.to_sql(
-                    "mi_execution", conn,
+                    "machine_execution",
+                    conn,
                     if_exists="replace" if first_batch else "append",
-                    index=False
+                    index=False,
                 )
             rows_written += len(batch_rows)
             first_batch = False
-            logger.info(f"  Batch {batch_num:02d} ({month_label}): "
-                        f"{len(batch_rows):,} rows written "
-                        f"[total: {rows_written:,}]")
+            logger.info(
+                f"  Batch {batch_num:02d} ({month_label}): "
+                f"{len(batch_rows):,} rows written "
+                f"[total: {rows_written:,}]"
+            )
 
         current = month_end + timedelta(days=1)
 
     logger.info(f"  Final total: {rows_written:,} rows")
-    logger.success("raw_mi_execution.db complete")
+    logger.success("raw_machine_execution.db complete")

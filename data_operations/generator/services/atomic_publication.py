@@ -71,7 +71,7 @@ def publish_candidate(
 
     manifest = {
         "run_id": run_id,
-        "schema_version": "raw-telecom-1.0",
+        "schema_version": "raw-telecom-2.0",
         "catalog_version": "telecom-1.0",
         "generated_at_utc": datetime.now(UTC).isoformat(),
         "seed": config["data_generation"]["random_seed"],

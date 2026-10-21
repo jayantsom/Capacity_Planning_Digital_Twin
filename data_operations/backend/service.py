@@ -64,7 +64,11 @@ def estimate_run(options: GeneratorOptions) -> dict[str, Any]:
     config = build_run_config(options)
     limits = config["local_16gb"]
     projection = estimate_rows(config)
-    total_rows = projection["mi_execution"] + projection["mi_test_param"] + projection["mi_logs"]
+    total_rows = (
+        projection["machine_execution"]
+        + projection["machine_test_param"]
+        + projection["machine_logs"]
+    )
     estimated_bytes = projection["estimated_raw_bytes"]
     runtime = get_runtime_home()
     disk_probe = runtime
@@ -72,9 +76,9 @@ def estimate_run(options: GeneratorOptions) -> dict[str, Any]:
         disk_probe = disk_probe.parent
     free_disk_bytes = shutil.disk_usage(disk_probe).free
     within_limits = (
-        projection["mi_execution"] <= limits["max_execution_rows"]
-        and projection["mi_test_param"] <= limits["max_test_parameter_rows"]
-        and projection["mi_logs"] <= limits["max_log_rows"]
+        projection["machine_execution"] <= limits["max_execution_rows"]
+        and projection["machine_test_param"] <= limits["max_test_parameter_rows"]
+        and projection["machine_logs"] <= limits["max_log_rows"]
         and estimated_bytes <= limits["max_raw_bytes"]
         and free_disk_bytes >= limits["min_free_disk_bytes"]
     )
@@ -87,7 +91,7 @@ def estimate_run(options: GeneratorOptions) -> dict[str, Any]:
             max(
                 0.2,
                 limits["max_generation_minutes"]
-                * projection["mi_execution"]
+                * projection["machine_execution"]
                 / limits["max_execution_rows"],
             ),
             1,

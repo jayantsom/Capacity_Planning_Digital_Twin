@@ -71,7 +71,7 @@ databases:
     target_yield: raw_target_yield.db
     site_equipment_inventory: raw_site_equip_inv.db
     site_soft: raw_site_soft.db
-    manufacturing_intelligence: raw_mi_execution.db
-    test_x_parameter: raw_mi_test_param.db
-    mi_logs: raw_mi_logs.db
+    machine_execution: raw_machine_execution.db
+    test_x_parameter: raw_machine_test_param.db
+    machine_logs: raw_machine_logs.db
     reference_data: raw_reference_data.db

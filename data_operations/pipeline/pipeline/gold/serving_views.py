@@ -37,7 +37,6 @@ SERVING_VIEWS = {
         LEFT JOIN slvr_ref_site rs
             ON dvc.site_code = rs.site_code
     """,
-
     "srv_vw_bottleneck_heatmap": """
         SELECT
             b.site_code,
@@ -71,7 +70,6 @@ SERVING_VIEWS = {
         LEFT JOIN slvr_ref_site rs
             ON b.site_code = rs.site_code
     """,
-
     "srv_vw_equipment_utilization": """
         SELECT
             dvc.site_code,
@@ -95,7 +93,6 @@ SERVING_VIEWS = {
             dvc.test_type, dvc.equipment_id, dvc.equipment_type,
             dvc.capacity_mode, dvc.retest_type, dvc.snapshot_id
     """,
-
     "srv_vw_oee_trend": """
         SELECT
             o.site_code,
@@ -123,7 +120,6 @@ SERVING_VIEWS = {
         LEFT JOIN slvr_ref_site rs
             ON o.site_code = rs.site_code
     """,
-
     "srv_vw_forecast_accuracy": """
         SELECT
             fa.site_code,
@@ -152,8 +148,7 @@ SERVING_VIEWS = {
         LEFT JOIN slvr_ref_site rs  ON fa.site_code     = rs.site_code
         LEFT JOIN slvr_prod_master pm ON fa.product_number = pm.product_number
     """,
-
-    "srv_vw_mi_actuals_summary": """
+    "srv_vw_machine_actuals_summary": """
         SELECT
             ca.site_code,
             rs.region,

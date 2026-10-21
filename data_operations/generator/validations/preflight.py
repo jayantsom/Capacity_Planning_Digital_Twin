@@ -56,9 +56,9 @@ def estimate_rows(config: dict[str, Any]) -> dict[str, int]:
     # Weekend and intentional missing-day rules only reduce these conservative projections.
     return {
         "active_site_product_route_steps": route_steps,
-        "mi_execution": execution,
-        "mi_test_param": execution,
-        "mi_logs": min(execution, int(execution * 0.12)),
+        "machine_execution": execution,
+        "machine_test_param": execution,
+        "machine_logs": min(execution, int(execution * 0.12)),
         "estimated_raw_bytes": execution * 900,
         "estimated_temporary_bytes": execution * 1_800,
         "approximate_spark_partitions": max(1, (execution + 199_999) // 200_000),
@@ -72,9 +72,7 @@ def validate_preflight(config: dict[str, Any]) -> dict[str, Any]:
     product_numbers = {product[0] for product in PRODUCTS}
     test_types = {test[0] for test in TEST_TYPES}
     route_df, step_df = build_routes()
-    product_by_route = dict(
-        zip(route_df["route_id"], route_df["product_number"], strict=True)
-    )
+    product_by_route = dict(zip(route_df["route_id"], route_df["product_number"], strict=True))
     behavior_by_product_test = {
         (product_by_route[row["route_id"]], row["test_type"]): row["capacity_behavior"]
         for row in step_df.to_dict("records")
@@ -95,20 +93,23 @@ def validate_preflight(config: dict[str, Any]) -> dict[str, Any]:
         behavior_by_product_test[(row.product_number, row.test_type)]
         for row in qualification_table.itertuples()
     ]
-    qualification_inventory = qualification_table[
-        ["site_code", "resource_id"]
-    ].drop_duplicates()
+    qualification_inventory = qualification_table[["site_code", "resource_id"]].drop_duplicates()
     compatibility_inventory = resources["tester_fixture_compatibility"][
         ["tester_resource_id", "fixture_resource_id"]
     ]
-    paired_inventory = qualification_table[
-        qualification_table["capacity_behavior"] == "PAIRED_FIXTURE"
-    ][["site_code", "resource_id"]].drop_duplicates().merge(
-        compatibility_inventory,
-        left_on="resource_id",
-        right_on="tester_resource_id",
-        how="inner",
-    )[["site_code", "fixture_resource_id"]].drop_duplicates()
+    paired_inventory = (
+        qualification_table[qualification_table["capacity_behavior"] == "PAIRED_FIXTURE"][
+            ["site_code", "resource_id"]
+        ]
+        .drop_duplicates()
+        .merge(
+            compatibility_inventory,
+            left_on="resource_id",
+            right_on="tester_resource_id",
+            how="inner",
+        )[["site_code", "fixture_resource_id"]]
+        .drop_duplicates()
+    )
     inventory_relationships = len(qualification_inventory) + len(paired_inventory)
     count_checks["site-resource inventory relationships"] = (
         inventory_relationships,
@@ -186,9 +187,9 @@ def validate_preflight(config: dict[str, Any]) -> dict[str, Any]:
 
     projections = estimate_rows(config)
     for table_name, cap_name in (
-        ("mi_execution", "max_execution_rows"),
-        ("mi_test_param", "max_test_parameter_rows"),
-        ("mi_logs", "max_log_rows"),
+        ("machine_execution", "max_execution_rows"),
+        ("machine_test_param", "max_test_parameter_rows"),
+        ("machine_logs", "max_log_rows"),
     ):
         if projections[table_name] > caps[cap_name]:
             errors.append(
@@ -200,4 +201,9 @@ def validate_preflight(config: dict[str, Any]) -> dict[str, Any]:
 
     if errors:
         raise ValueError("Generator preflight failed:\n- " + "\n- ".join(errors))
-    return {"status": "passed", "errors": [], "projections": projections, "count_checks": count_checks}
+    return {
+        "status": "passed",
+        "errors": [],
+        "projections": projections,
+        "count_checks": count_checks,
+    }

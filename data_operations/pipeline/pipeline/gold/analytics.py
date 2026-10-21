@@ -64,9 +64,7 @@ def build_demand_vs_capacity(duck_conn) -> int:
         CREATE INDEX IF NOT EXISTS idx_gold_dvc_site
         ON gold_dmnd_vs_cap (site_code)
     """)
-    count = duck_conn.execute(
-        "SELECT COUNT(*) FROM gold_dmnd_vs_cap"
-    ).fetchone()[0]
+    count = duck_conn.execute("SELECT COUNT(*) FROM gold_dmnd_vs_cap").fetchone()[0]
     logger.info(f"    gold_dmnd_vs_cap: {count:,} rows")
     return count
 
@@ -114,9 +112,7 @@ def build_bottleneck_table(duck_conn) -> int:
             site_code, month_key, snapshot_id, capacity_mode,
             retest_type, test_type, equipment_type
     """)
-    count = duck_conn.execute(
-        "SELECT COUNT(*) FROM gold_bottleneck"
-    ).fetchone()[0]
+    count = duck_conn.execute("SELECT COUNT(*) FROM gold_bottleneck").fetchone()[0]
     logger.info(f"    gold_bottleneck: {count:,} rows")
     return count
 
@@ -151,7 +147,7 @@ def build_oee_metrics(duck_conn) -> int:
             SUM(passed_qty_sum) AS total_passed,
             SUM(total_qty_sum) AS total_produced,
             AVG(equipment_downtime_avg) / 3600.0 AS avg_downtime_hr
-        FROM slvr_mi_execution
+        FROM slvr_machine_execution
         WHERE yield_avg IS NOT NULL AND is_valid
         GROUP BY
             factory_code, site_code, test_category_id, test_type, month_key
@@ -165,9 +161,7 @@ def build_oee_metrics(duck_conn) -> int:
     )
     for column in ("availability_pct", "performance_pct", "quality_pct", "oee_pct"):
         metrics[column] = metrics[column].round(4)
-    count = write_gold_table(
-        metrics, "gold_oee_metrics", duck_conn, indexes=["month_key"]
-    )
+    count = write_gold_table(metrics, "gold_oee_metrics", duck_conn, indexes=["month_key"])
     logger.info(f"    gold_oee_metrics: {count:,} rows")
     return count
 
@@ -249,9 +243,7 @@ def build_forecast_accuracy(duck_conn) -> int:
             AND f.month_key       = a.month_key
         WHERE a.actual_qty > 0
     """)
-    count = duck_conn.execute(
-        "SELECT COUNT(*) FROM gold_forecast_accuracy"
-    ).fetchone()[0]
+    count = duck_conn.execute("SELECT COUNT(*) FROM gold_forecast_accuracy").fetchone()[0]
     logger.info(f"    gold_forecast_accuracy: {count:,} rows")
     return count
 
@@ -261,7 +253,7 @@ def build_actual_capacity(duck_conn) -> int:
     duck_conn.execute("DROP TABLE IF EXISTS gold_cap_actual")
     duck_conn.execute("""
         CREATE TABLE gold_cap_actual AS
-        WITH mi_monthly AS (
+        WITH machine_monthly AS (
             SELECT
                 factory_code,
                 site_code,
@@ -278,7 +270,7 @@ def build_actual_capacity(duck_conn) -> int:
                 AVG(handling_time_avg)             AS actual_handling_time_avg,
                 AVG(actual_throughput)             AS actual_throughput_avg,
                 AVG(equipment_downtime_avg)        AS actual_downtime_avg
-            FROM slvr_mi_execution
+            FROM slvr_machine_execution
             WHERE yield_avg IS NOT NULL
             GROUP BY
                 factory_code, site_code, product_number,
@@ -311,7 +303,7 @@ def build_actual_capacity(duck_conn) -> int:
                 g.snapshot_id
             )                               AS cap_act_pk,
             g.factory_code || '|' || g.test_category_id
-                || '|' || g.product_number AS gcm_mi_join_key,
+                || '|' || g.product_number AS gcm_machine_join_key,
             g.site_code,
             g.factory_code,
             m.month_key,
@@ -335,7 +327,7 @@ def build_actual_capacity(duck_conn) -> int:
                                             AS yield_variance,
             m.actual_test_duration_avg - g.target_test_time_sec
                                             AS test_time_variance_sec
-        FROM mi_monthly m
+        FROM machine_monthly m
         JOIN target_grain g
           ON m.site_code = g.site_code
          AND m.factory_code = g.factory_code
@@ -348,9 +340,7 @@ def build_actual_capacity(duck_conn) -> int:
         CREATE INDEX IF NOT EXISTS idx_gold_cap_act_month
         ON gold_cap_actual (month_key)
     """)
-    count = duck_conn.execute(
-        "SELECT COUNT(*) FROM gold_cap_actual"
-    ).fetchone()[0]
+    count = duck_conn.execute("SELECT COUNT(*) FROM gold_cap_actual").fetchone()[0]
     logger.info(f"    gold_cap_actual: {count:,} rows")
     return count
 
@@ -503,8 +493,6 @@ def build_ml_feature_store(duck_conn) -> int:
         CREATE INDEX IF NOT EXISTS idx_gold_feat_month
         ON gold_ml_feature_store (month_key)
     """)
-    count = duck_conn.execute(
-        "SELECT COUNT(*) FROM gold_ml_feature_store"
-    ).fetchone()[0]
+    count = duck_conn.execute("SELECT COUNT(*) FROM gold_ml_feature_store").fetchone()[0]
     logger.info(f"    gold_ml_feature_store: {count:,} rows")
     return count

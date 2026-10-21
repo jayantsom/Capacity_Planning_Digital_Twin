@@ -28,6 +28,7 @@ from data_operations.pipeline.pipeline.bronze.schema import BRONZE_CONFIGS, Bron
 
 # ── Metadata helpers ───────────────────────────────────────────────────────────
 
+
 def md5_key(*args) -> str:
     raw = "|".join(str(a) for a in args)
     return hashlib.md5(raw.encode()).hexdigest()
@@ -41,9 +42,18 @@ def get_data_type(snapshot_date_str: str, month_col: str, actual_end: str) -> st
         month_abbr = parts[0]
         year = int(parts[1])
         month_map = {
-            "jan": 1, "feb": 2, "mar": 3, "apr": 4,
-            "may": 5, "jun": 6, "jul": 7, "aug": 8,
-            "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+            "jan": 1,
+            "feb": 2,
+            "mar": 3,
+            "apr": 4,
+            "may": 5,
+            "jun": 6,
+            "jul": 7,
+            "aug": 8,
+            "sep": 9,
+            "oct": 10,
+            "nov": 11,
+            "dec": 12,
         }
         month_num = month_map.get(month_abbr, 1)
         col_date = date(year, month_num, 1)
@@ -54,6 +64,7 @@ def get_data_type(snapshot_date_str: str, month_col: str, actual_end: str) -> st
 
 
 # ── Validation ─────────────────────────────────────────────────────────────────
+
 
 def validate_row(
     row: dict,
@@ -93,8 +104,8 @@ def validate_row(
             except (TypeError, ValueError):
                 pass
 
-    # B-VAL-09: Date range for MI tables
-    if config.is_mi:
+    # B-VAL-09: Date range for Machine tables
+    if config.is_machine:
         for col in config.date_columns:
             val = row.get(col)
             if val is not None:
@@ -141,8 +152,7 @@ def _mark_duplicates(
 ) -> None:
     """Keep the first source row and explicitly reject later key duplicates."""
     columns = {
-        row[1]
-        for row in connection.execute(f'PRAGMA table_info("{table_name}")').fetchall()
+        row[1] for row in connection.execute(f'PRAGMA table_info("{table_name}")').fetchall()
     }
     keys = [key for key in natural_keys if key in columns]
     if not keys:
@@ -178,6 +188,7 @@ def _mark_duplicates(
 
 # ── Core ingestion function ────────────────────────────────────────────────────
 
+
 def ingest_table(
     config: BronzeTableConfig,
     db_config: dict,
@@ -192,14 +203,11 @@ def ingest_table(
     logger.info(f"  Ingesting: {config.source_table} → {config.bronze_table}")
 
     # ── Read from SQLite ───────────────────────────────────────────────────
-    sqlite_path = get_sqlite_path(
-        db_config["databases"]["raw"][config.source_db], db_config
-    )
+    sqlite_path = get_sqlite_path(db_config["databases"]["raw"][config.source_db], db_config)
     with sqlite3.connect(sqlite_path) as src_conn:
         src_conn.row_factory = sqlite3.Row
         raw_df = pd.read_sql_query(
-            f'SELECT rowid AS _source_rowid, * FROM "{config.source_table}" '
-            "ORDER BY rowid",
+            f'SELECT rowid AS _source_rowid, * FROM "{config.source_table}" ORDER BY rowid',
             src_conn,
         )
 
@@ -230,23 +238,23 @@ def ingest_table(
         )
 
         # Snapshot / forecast metadata
-        snapshot_date   = row_dict.get("snapshot_date", "")
+        snapshot_date = row_dict.get("snapshot_date", "")
         actual_end = db_config["data_generation"]["end_date_actual"]
-        data_type       = DATA_TYPE_ACTUAL if config.is_mi else (
-            DATA_TYPE_FORECAST
-            if snapshot_date > actual_end
-            else DATA_TYPE_ACTUAL
+        data_type = (
+            DATA_TYPE_ACTUAL
+            if config.is_machine
+            else (DATA_TYPE_FORECAST if snapshot_date > actual_end else DATA_TYPE_ACTUAL)
         )
 
         # Build output row
         out = {**row_dict}
-        out["bronze_id"]        = bronze_id
-        out["src_system"]       = config.source_db
-        out["ingestion_ts"]     = ingestion_ts
-        out["pipeline_run_id"]  = pipeline_run_id
-        out["is_valid"]         = is_valid
-        out["invalid_reason"]   = invalid_reason if invalid_reason else None
-        out["data_type"]        = DATA_TYPE_ACTUAL if config.is_mi else data_type
+        out["bronze_id"] = bronze_id
+        out["src_system"] = config.source_db
+        out["ingestion_ts"] = ingestion_ts
+        out["pipeline_run_id"] = pipeline_run_id
+        out["is_valid"] = is_valid
+        out["invalid_reason"] = invalid_reason if invalid_reason else None
+        out["data_type"] = DATA_TYPE_ACTUAL if config.is_machine else data_type
 
         if is_valid:
             total_valid += 1
@@ -288,9 +296,7 @@ def ingest_table(
             ON {config.bronze_table} ({config.partition_col})
         """)
 
-    row_count = duck_conn.execute(
-        f"SELECT COUNT(*) FROM {config.bronze_table}"
-    ).fetchone()[0]
+    row_count = duck_conn.execute(f"SELECT COUNT(*) FROM {config.bronze_table}").fetchone()[0]
     duplicate_count = duck_conn.execute(
         f"SELECT COUNT(*) FROM {config.bronze_table} WHERE is_duplicate"
     ).fetchone()[0]
@@ -300,24 +306,27 @@ def ingest_table(
     total_invalid = row_count - total_valid
 
     invalid_pct = (total_invalid / len(raw_df) * 100) if len(raw_df) > 0 else 0
-    logger.info(f"    Written: {row_count:,} rows | "
-                f"valid: {total_valid:,} | "
-                f"invalid: {total_invalid:,} ({invalid_pct:.2f}%)")
+    logger.info(
+        f"    Written: {row_count:,} rows | "
+        f"valid: {total_valid:,} | "
+        f"invalid: {total_invalid:,} ({invalid_pct:.2f}%)"
+    )
 
     return {
-        "table":          config.bronze_table,
-        "rows_read":      len(raw_df),
-        "rows_written":   row_count,
-        "valid":          total_valid,
-        "invalid":        total_invalid,
-        "duplicates":     duplicate_count,
-        "invalid_pct":    invalid_pct,
+        "table": config.bronze_table,
+        "rows_read": len(raw_df),
+        "rows_written": row_count,
+        "valid": total_valid,
+        "invalid": total_invalid,
+        "duplicates": duplicate_count,
+        "invalid_pct": invalid_pct,
     }
 
 
-# ── MI tables: chunked ingestion ───────────────────────────────────────────────
+# ── Machine tables: chunked ingestion ───────────────────────────────────────────────
 
-def ingest_mi_table(
+
+def ingest_machine_table(
     config: BronzeTableConfig,
     db_config: dict,
     duck_conn: duckdb.DuckDBPyConnection,
@@ -326,21 +335,16 @@ def ingest_mi_table(
     chunk_size: int = 100_000,
 ) -> dict:
     """
-    Chunked ingestion for large MI tables (1M+ rows).
+    Chunked ingestion for large Machine tables (1M+ rows).
     Reads SQLite in chunks to avoid memory pressure.
     """
-    logger.info(f"  Ingesting (chunked): {config.source_table} "
-                f"→ {config.bronze_table}")
+    logger.info(f"  Ingesting (chunked): {config.source_table} → {config.bronze_table}")
 
-    sqlite_path = get_sqlite_path(
-        db_config["databases"]["raw"][config.source_db], db_config
-    )
+    sqlite_path = get_sqlite_path(db_config["databases"]["raw"][config.source_db], db_config)
 
     # Get total count first
     with sqlite3.connect(sqlite_path) as src_conn:
-        total_rows = src_conn.execute(
-            f"SELECT COUNT(*) FROM {config.source_table}"
-        ).fetchone()[0]
+        total_rows = src_conn.execute(f"SELECT COUNT(*) FROM {config.source_table}").fetchone()[0]
     logger.info(f"    Source rows: {total_rows:,}")
 
     rows_written = 0
@@ -371,13 +375,13 @@ def ingest_mi_table(
                     actual_end=db_config["data_generation"]["end_date_actual"],
                 )
 
-                row_dict["bronze_id"]       = bronze_id
-                row_dict["src_system"]      = config.source_db
-                row_dict["ingestion_ts"]    = ingestion_ts
+                row_dict["bronze_id"] = bronze_id
+                row_dict["src_system"] = config.source_db
+                row_dict["ingestion_ts"] = ingestion_ts
                 row_dict["pipeline_run_id"] = pipeline_run_id
-                row_dict["is_valid"]        = is_valid
-                row_dict["invalid_reason"]  = invalid_reason or None
-                row_dict["data_type"]       = DATA_TYPE_ACTUAL
+                row_dict["is_valid"] = is_valid
+                row_dict["invalid_reason"] = invalid_reason or None
+                row_dict["data_type"] = DATA_TYPE_ACTUAL
 
                 chunk_out.append(row_dict)
                 if is_valid:
@@ -404,15 +408,13 @@ def ingest_mi_table(
             duck_conn.unregister("_temp_chunk")
             rows_written += len(out_df)
             logger.info(
-                f"    Source rowid {last_source_rowid:,}: "
-                f"{rows_written:,} rows written so far"
+                f"    Source rowid {last_source_rowid:,}: {rows_written:,} rows written so far"
             )
 
     if first_chunk:
         with sqlite3.connect(sqlite_path) as src_conn:
             empty_df = pd.read_sql_query(
-                f'SELECT rowid AS _source_rowid, * FROM "{config.source_table}" '
-                "WHERE 1 = 0",
+                f'SELECT rowid AS _source_rowid, * FROM "{config.source_table}" WHERE 1 = 0',
                 src_conn,
             )
         for column in (
@@ -426,15 +428,11 @@ def ingest_mi_table(
             empty_df[column] = pd.Series(dtype="string")
         empty_df["is_valid"] = pd.Series(dtype="bool")
         duck_conn.register("_temp_chunk", empty_df)
-        duck_conn.execute(
-            f"CREATE TABLE {config.bronze_table} AS SELECT * FROM _temp_chunk"
-        )
+        duck_conn.execute(f"CREATE TABLE {config.bronze_table} AS SELECT * FROM _temp_chunk")
         duck_conn.unregister("_temp_chunk")
 
     _mark_duplicates(duck_conn, config.bronze_table, config.natural_keys)
-    rows_written = duck_conn.execute(
-        f"SELECT COUNT(*) FROM {config.bronze_table}"
-    ).fetchone()[0]
+    rows_written = duck_conn.execute(f"SELECT COUNT(*) FROM {config.bronze_table}").fetchone()[0]
     total_valid = duck_conn.execute(
         f"SELECT COUNT(*) FROM {config.bronze_table} WHERE is_valid"
     ).fetchone()[0]
@@ -446,9 +444,7 @@ def ingest_mi_table(
     # Create partition index
     columns = {
         row[1]
-        for row in duck_conn.execute(
-            f'PRAGMA table_info("{config.bronze_table}")'
-        ).fetchall()
+        for row in duck_conn.execute(f'PRAGMA table_info("{config.bronze_table}")').fetchall()
     }
     if config.partition_col and config.partition_col in columns:
         duck_conn.execute(f"""
@@ -458,22 +454,25 @@ def ingest_mi_table(
         """)
 
     invalid_pct = (total_invalid / total_rows * 100) if total_rows > 0 else 0
-    logger.info(f"    Final: {rows_written:,} rows | "
-                f"valid: {total_valid:,} | "
-                f"invalid: {total_invalid:,} ({invalid_pct:.2f}%)")
+    logger.info(
+        f"    Final: {rows_written:,} rows | "
+        f"valid: {total_valid:,} | "
+        f"invalid: {total_invalid:,} ({invalid_pct:.2f}%)"
+    )
 
     return {
-        "table":        config.bronze_table,
-        "rows_read":    total_rows,
+        "table": config.bronze_table,
+        "rows_read": total_rows,
         "rows_written": rows_written,
-        "valid":        total_valid,
-        "invalid":      total_invalid,
-        "duplicates":   duplicate_count,
-        "invalid_pct":  invalid_pct,
+        "valid": total_valid,
+        "invalid": total_invalid,
+        "duplicates": duplicate_count,
+        "invalid_pct": invalid_pct,
     }
 
 
 # ── Master Bronze runner ───────────────────────────────────────────────────────
+
 
 def run_bronze_ingestion(
     config: dict,
@@ -486,6 +485,7 @@ def run_bronze_ingestion(
     Returns list of summary dicts for reporting.
     """
     import time
+
     start = time.time()
 
     logger.info("╔══════════════════════════════════════════════════════════╗")
@@ -493,7 +493,7 @@ def run_bronze_ingestion(
     logger.info("╚══════════════════════════════════════════════════════════╝")
 
     pipeline_run_id = pipeline_run_id or str(uuid.uuid4())
-    ingestion_ts    = datetime.now(UTC).isoformat()
+    ingestion_ts = datetime.now(UTC).isoformat()
 
     logger.info(f"  Pipeline run ID: {pipeline_run_id}")
     logger.info(f"  Ingestion timestamp: {ingestion_ts}")
@@ -502,22 +502,20 @@ def run_bronze_ingestion(
     duck_conn = duck_conn or get_duckdb_connection(config, database_key="bronze")
     summaries = []
 
-    # Large MI tables use chunked ingestion
-    mi_tables = {"brnz_mi_execution", "brnz_mi_test_param", "brnz_mi_logs"}
+    # Large Machine tables use chunked ingestion
+    machine_tables = {"brnz_machine_execution", "brnz_machine_test_param", "brnz_machine_logs"}
     chunk_size = int(config.get("publication", {}).get("bronze_chunk_size", 100_000))
 
     for table_config in BRONZE_CONFIGS:
         logger.info(f"\n── {table_config.bronze_table} ─────────────────")
         try:
-            if table_config.bronze_table in mi_tables:
-                summary = ingest_mi_table(
-                    table_config, config, duck_conn,
-                    pipeline_run_id, ingestion_ts, chunk_size
+            if table_config.bronze_table in machine_tables:
+                summary = ingest_machine_table(
+                    table_config, config, duck_conn, pipeline_run_id, ingestion_ts, chunk_size
                 )
             else:
                 summary = ingest_table(
-                    table_config, config, duck_conn,
-                    pipeline_run_id, ingestion_ts
+                    table_config, config, duck_conn, pipeline_run_id, ingestion_ts
                 )
             summaries.append(summary)
         except Exception as e:
@@ -529,16 +527,17 @@ def run_bronze_ingestion(
     logger.info("\n╔══════════════════════════════════════════════════════════╗")
     logger.info("║                  BRONZE SUMMARY                         ║")
     logger.info("╚══════════════════════════════════════════════════════════╝")
-    logger.info(f"  {'Table':<35} {'Rows':>10} {'Valid':>10} "
-                f"{'Invalid':>10} {'Inv%':>6}")
-    logger.info(f"  {'-'*75}")
+    logger.info(f"  {'Table':<35} {'Rows':>10} {'Valid':>10} {'Invalid':>10} {'Inv%':>6}")
+    logger.info(f"  {'-' * 75}")
     total_rows = 0
     for s in summaries:
-        logger.info(f"  {s['table']:<35} {s['rows_written']:>10,} "
-                    f"{s['valid']:>10,} {s['invalid']:>10,} "
-                    f"{s['invalid_pct']:>5.2f}%")
+        logger.info(
+            f"  {s['table']:<35} {s['rows_written']:>10,} "
+            f"{s['valid']:>10,} {s['invalid']:>10,} "
+            f"{s['invalid_pct']:>5.2f}%"
+        )
         total_rows += s["rows_written"]
-    logger.info(f"  {'-'*75}")
+    logger.info(f"  {'-' * 75}")
     logger.info(f"  {'TOTAL':<35} {total_rows:>10,}")
     logger.info(f"\n  Wall time: {elapsed:.1f}s")
     logger.success("Bronze ingestion complete.")

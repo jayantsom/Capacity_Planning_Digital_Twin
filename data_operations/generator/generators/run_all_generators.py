@@ -80,18 +80,20 @@ def run_all(
     logger.info("\n╔══════════════════════════════════════════════════════════╗")
     logger.info("║                  GENERATION SUMMARY                     ║")
     logger.info("╚══════════════════════════════════════════════════════════╝")
-    logger.info(f"  Reference:     {len(site_df)} sites | "
-                f"{len(test_type_df)} test types | "
-                f"{len(equip_df)} equipment")
+    logger.info(
+        f"  Reference:     {len(site_df)} sites | "
+        f"{len(test_type_df)} test types | "
+        f"{len(equip_df)} equipment"
+    )
     logger.info(f"  Products:      {len(product_df)} records")
     logger.info(f"  Demand:        {len(demand_df):,} rows")
     logger.info(f"  Test time:     {len(ttt_df):,} rows")
     logger.info(f"  Yield:         {len(yield_df):,} rows")
     logger.info(f"  Equipment inv: {len(equip_inv_df):,} rows")
     logger.info(f"  Site soft:     {len(site_soft_df):,} rows")
-    logger.info("  MI execution:  [see per-month logs above]")
-    logger.info("  MI test param: [see per-month logs above]")
-    logger.info("  MI logs:       [see per-month logs above]")
+    logger.info("  Machine execution:  [see per-month logs above]")
+    logger.info("  Machine test param: [see per-month logs above]")
+    logger.info("  Machine logs:       [see per-month logs above]")
     logger.info(f"\n  Total wall time: {elapsed:.1f}s")
     logger.info(f"  Manifest: {manifest_path}")
     logger.success("ALL GENERATORS COMPLETE.")

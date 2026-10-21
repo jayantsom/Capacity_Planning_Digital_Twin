@@ -20,9 +20,9 @@ REQUIRED_TABLES = [
     "slvr_tgt_yield",
     "slvr_site_equip_inv",
     "slvr_site_soft",
-    "slvr_mi_execution",
-    "slvr_mi_test_param",
-    "slvr_mi_logs",
+    "slvr_machine_execution",
+    "slvr_machine_test_param",
+    "slvr_machine_logs",
     "slvr_quarantine",
 ]
 

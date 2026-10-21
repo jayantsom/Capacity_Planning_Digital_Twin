@@ -145,9 +145,9 @@ def build_gcm_base(duck_conn) -> int:
                 rs.supplier_name,
                 rs.country,
 
-                -- GCM-MI join key
+                -- GCM-Machine join key
                 rs.factory_code || '|' || ttt.test_category_id
-                    || '|' || ad.product_number     AS gcm_mi_join_key
+                    || '|' || ad.product_number     AS gcm_machine_join_key
 
             FROM all_demand ad
 
@@ -202,15 +202,19 @@ def build_gcm_base(duck_conn) -> int:
         FROM gcm_joined
     """)
 
-    for col in ["month_key", "site_code", "product_number",
-                "test_type", "snapshot_id", "gcm_mi_join_key"]:
+    for col in [
+        "month_key",
+        "site_code",
+        "product_number",
+        "test_type",
+        "snapshot_id",
+        "gcm_machine_join_key",
+    ]:
         duck_conn.execute(f"""
             CREATE INDEX IF NOT EXISTS idx_gold_gcm_{col}
             ON gold_gcm_base ({col})
         """)
 
-    count = duck_conn.execute(
-        "SELECT COUNT(*) FROM gold_gcm_base"
-    ).fetchone()[0]
+    count = duck_conn.execute("SELECT COUNT(*) FROM gold_gcm_base").fetchone()[0]
     logger.info(f"    gold_gcm_base: {count:,} rows")
     return count

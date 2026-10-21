@@ -1,4 +1,4 @@
-"""Derive parameter and log facts from canonical MI execution rows."""
+"""Derive parameter and log facts from canonical Machine execution rows."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ def derive_test_parameters(execution_db: Path, output_db: Path) -> int:
     """Create one reconciled test-parameter row per execution record."""
     with sqlite3.connect(execution_db) as source, sqlite3.connect(output_db) as target:
         source.row_factory = sqlite3.Row
-        target.execute("DROP TABLE IF EXISTS mi_test_param")
+        target.execute("DROP TABLE IF EXISTS machine_test_param")
         target.execute(
             """
-            CREATE TABLE mi_test_param (
+            CREATE TABLE machine_test_param (
                 parameter_record_id TEXT PRIMARY KEY,
                 execution_record_id TEXT NOT NULL,
                 event_id TEXT NOT NULL,
@@ -41,14 +41,16 @@ def derive_test_parameters(execution_db: Path, output_db: Path) -> int:
             )
             """
         )
-        insert_sql = "INSERT INTO mi_test_param VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        insert_sql = (
+            "INSERT INTO machine_test_param VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        )
         count = 0
         cursor = source.execute(
             """
             SELECT record_id, event_id, factory_code, site_code, product_number,
                    test_category_id, test_type, execution_date, month_key,
                    passed_qty, failed_qty, total_qty, noise_rule_id
-            FROM mi_execution
+            FROM machine_execution
             ORDER BY execution_date, site_code, product_number, test_type, record_id
             """
         )
@@ -84,13 +86,13 @@ def derive_test_parameters(execution_db: Path, output_db: Path) -> int:
                         round(yield_retest_1, 6),
                         round(yield_retest_2, 6),
                         row["noise_rule_id"],
-                        "DERIVED_FROM_MI_EXECUTION",
+                        "DERIVED_FROM_MACHINE_EXECUTION",
                     )
                 )
             target.executemany(insert_sql, rows)
             count += len(rows)
         target.execute(
-            "CREATE UNIQUE INDEX idx_param_execution_record ON mi_test_param(execution_record_id)"
+            "CREATE UNIQUE INDEX idx_param_execution_record ON machine_test_param(execution_record_id)"
         )
         return count
 
@@ -99,10 +101,10 @@ def derive_logs(execution_db: Path, output_db: Path) -> int:
     """Create bounded excursions that reference real execution records."""
     with sqlite3.connect(execution_db) as source, sqlite3.connect(output_db) as target:
         source.row_factory = sqlite3.Row
-        target.execute("DROP TABLE IF EXISTS mi_logs")
+        target.execute("DROP TABLE IF EXISTS machine_logs")
         target.execute(
             """
-            CREATE TABLE mi_logs (
+            CREATE TABLE machine_logs (
                 log_event_id TEXT PRIMARY KEY,
                 execution_record_id TEXT NOT NULL,
                 event_id TEXT NOT NULL,
@@ -129,7 +131,7 @@ def derive_logs(execution_db: Path, output_db: Path) -> int:
                    test_category_id, test_type, execution_date, month_key,
                    yield_avg, test_duration_avg_sec, equipment_downtime_avg_sec,
                    noise_rule_id
-            FROM mi_execution
+            FROM machine_execution
             WHERE yield_avg < 0.82
                OR yield_avg IS NULL
                OR equipment_downtime_avg_sec > 3600
@@ -165,14 +167,16 @@ def derive_logs(execution_db: Path, output_db: Path) -> int:
                     row["execution_date"],
                     row["month_key"],
                     row["noise_rule_id"],
-                    "DERIVED_FROM_MI_EXECUTION",
+                    "DERIVED_FROM_MACHINE_EXECUTION",
                 )
             )
-        target.executemany("INSERT INTO mi_logs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+        target.executemany(
+            "INSERT INTO machine_logs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows
+        )
         target.execute(
             """
             CREATE UNIQUE INDEX idx_log_natural_key
-            ON mi_logs(site_code, factory_code, log_event_id)
+            ON machine_logs(site_code, factory_code, log_event_id)
             """
         )
         return len(rows)
