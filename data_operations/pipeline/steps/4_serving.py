@@ -35,7 +35,12 @@ def run(config: dict, candidate: PipelineRun) -> dict[str, int]:
             connection.execute(
                 f'CREATE TABLE "{table}" AS SELECT * FROM gold."{table}"'
             )
-        for table in ("slvr_ref_site", "slvr_prod_master"):
+        for table in (
+            "slvr_ref_site",
+            "slvr_ref_test_type",
+            "slvr_ref_equipment",
+            "slvr_prod_master",
+        ):
             connection.execute(
                 f'CREATE TABLE "{table}" AS SELECT * FROM silver."{table}"'
             )

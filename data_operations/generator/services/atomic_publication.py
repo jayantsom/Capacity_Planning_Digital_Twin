@@ -73,6 +73,8 @@ def publish_candidate(
         "run_id": run_id,
         "schema_version": "raw-telecom-2.0",
         "catalog_version": "telecom-1.0",
+        "source_control_run_id": config["control_publication"]["control_run_id"],
+        "source_control_sha256": config["control_publication"]["sha256"],
         "generated_at_utc": datetime.now(UTC).isoformat(),
         "seed": config["data_generation"]["random_seed"],
         "volume": config["data_generation"]["volume"],
@@ -83,7 +85,7 @@ def publish_candidate(
                 "end_date_actual",
                 "start_date_forecast",
                 "end_date_forecast",
-                "snapshot_dates",
+                "plan_as_of_dates",
             )
         },
         "preflight": preflight_report,
@@ -114,6 +116,8 @@ def publish_candidate(
         {
             "run_id": run_id,
             "generated_at_utc": manifest["generated_at_utc"],
+            "source_control_run_id": manifest["source_control_run_id"],
+            "source_control_sha256": manifest["source_control_sha256"],
             "manifest": str(manifest_path.relative_to(runtime_home)),
         },
     )

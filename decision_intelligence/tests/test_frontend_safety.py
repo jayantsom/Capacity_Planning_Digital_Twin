@@ -16,8 +16,12 @@ def test_frontend_has_five_tabs_and_local_assets() -> None:
     assert 'class="service-status status-checking"' in html
     assert '<span class="brand-mark" aria-hidden="true">CP</span>' in html
     assert 'href="/">Home</a>' in html
+    assert html.index('id="filters"') < html.index('id="comparisonBand"')
     assert not re.search(r"https?://", html)
     assert not re.search(r"\son[a-z]+=", html, re.IGNORECASE)
+
+    styles = (FRONTEND / "decision-intelligence.css").read_text(encoding="utf-8")
+    assert ".filter-band { display: flex; flex-wrap: nowrap;" in styles
 
 
 def test_frontend_uses_safe_dom_rendering() -> None:

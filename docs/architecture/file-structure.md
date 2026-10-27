@@ -5,7 +5,7 @@
 | Path | Ownership |
 |---|---|
 | `capacity_home/` | Compact four-card application launcher |
-| `capacity_assistant/` | Assistant frontend, backend, agents, and MCP tools |
+| `operations_assistant/` | Assistant frontend, backend, agents, and MCP tools |
 | `data_explorer/` | Read-only browser and query UI |
 | `data_operations/` | Generator and pipeline modules, dashboard, configuration, and tests |
 | `decision_intelligence/` | Five ML workflows, dashboards, publication, and tests |
@@ -21,7 +21,7 @@ Current executable paths include:
 - `data_operations/generator/generators/run_all_generators.py`
 - `data_operations/pipeline/runner.py`
 - `decision_intelligence/ml/run_ml.py`
-- `capacity_assistant/backend/main.py`
+- `operations_assistant/backend/main.py`
 - `data_explorer/backend/main.py`
 
 Ordered workflow modules should follow `1_<purpose>.py`, `2_<purpose>.py`, and so on as stabilization proceeds. Existing migration-era filenames may remain until wrappers and tests are complete.

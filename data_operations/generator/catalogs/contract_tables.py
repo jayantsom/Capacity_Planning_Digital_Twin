@@ -45,10 +45,12 @@ def build_product_bom() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def build_routes() -> tuple[pd.DataFrame, pd.DataFrame]:
+def build_routes(
+    assignments: list[dict] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return one route and ordered, capacity-aware steps per product."""
     assignments_by_product: dict[str, dict] = {}
-    for assignment in ASSIGNMENT_MATRIX:
+    for assignment in assignments or ASSIGNMENT_MATRIX:
         assignments_by_product.setdefault(assignment["product_number"], assignment)
 
     route_rows: list[dict] = []
@@ -94,16 +96,18 @@ def build_routes() -> tuple[pd.DataFrame, pd.DataFrame]:
     return pd.DataFrame(route_rows), pd.DataFrame(step_rows)
 
 
-def build_site_product_sources() -> pd.DataFrame:
+def build_site_product_sources(
+    assignments: list[dict] | None = None,
+) -> pd.DataFrame:
     """Return sparse source allocations that conserve each product's demand."""
     grouped: dict[str, list[dict]] = defaultdict(list)
-    for assignment in ASSIGNMENT_MATRIX:
+    for assignment in assignments or ASSIGNMENT_MATRIX:
         grouped[assignment["product_number"]].append(assignment)
 
     product_rows = _product_rows()
     rows: list[dict] = []
-    for product_number, assignments in sorted(grouped.items()):
-        count = len(assignments)
+    for product_number, product_assignments in sorted(grouped.items()):
+        count = len(product_assignments)
         policy = "MAKE"
         if product_rows[product_number][7] is None and product_number.endswith(("041", "043")):
             policy = "BUY_TESTED"
@@ -111,7 +115,9 @@ def build_site_product_sources() -> pd.DataFrame:
             policy = "BUY_REQUIRES_INCOMING_TEST"
         allocations = [round(1 / count, 6)] * count
         allocations[-1] = round(1 - sum(allocations[:-1]), 6)
-        for assignment, allocation in zip(assignments, allocations, strict=True):
+        for assignment, allocation in zip(
+            product_assignments, allocations, strict=True
+        ):
             rows.append(
                 {
                     "source_id": stable_id("source", product_number, assignment["site_code"]),
@@ -128,7 +134,9 @@ def build_site_product_sources() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def build_resource_contracts() -> dict[str, pd.DataFrame]:
+def build_resource_contracts(
+    assignments: list[dict] | None = None,
+) -> dict[str, pd.DataFrame]:
     """Return resources, pools, qualifications, compatibility, and multi-DUT limits."""
     resource_rows: list[dict] = []
     pool_rows: list[dict] = []
@@ -186,7 +194,7 @@ def build_resource_contracts() -> dict[str, pd.DataFrame]:
             )
 
     qualification_rows: list[dict] = []
-    route_df, step_df = build_routes()
+    route_df, step_df = build_routes(assignments)
     product_by_route = dict(zip(route_df["route_id"], route_df["product_number"], strict=True))
     behavior_by_product_test = {
         (product_by_route[row["route_id"]], row["test_type"]): row["capacity_behavior"]
@@ -199,7 +207,7 @@ def build_resource_contracts() -> dict[str, pd.DataFrame]:
     for fixture in FIXTURES:
         if fixture[6] is not None:
             paired_systems_by_test[fixture[3]].append(fixture[6])
-    for assignment in ASSIGNMENT_MATRIX:
+    for assignment in assignments or ASSIGNMENT_MATRIX:
         for test_type in assignment["test_types"]:
             behavior = behavior_by_product_test[(assignment["product_number"], test_type)]
             if behavior == "STANDALONE":

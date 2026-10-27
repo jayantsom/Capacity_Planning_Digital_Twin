@@ -9,7 +9,7 @@ from data_operations.pipeline.pipeline.gold.serving_views import SERVING_VIEWS
 
 
 def test_duplicate_business_grain_blocks_publication() -> None:
-    """Fail instead of publishing a multiplied snapshot join."""
+    """Fail instead of publishing a multiplied planning version join."""
     with duckdb.connect() as connection:
         connection.execute(
             """
@@ -18,15 +18,15 @@ def test_duplicate_business_grain_blocks_publication() -> None:
                 product_number VARCHAR,
                 test_type VARCHAR,
                 month_key INTEGER,
-                snapshot_id VARCHAR
+                planning_version_id VARCHAR
             )
             """
         )
         connection.execute(
             """
             INSERT INTO actual_capacity VALUES
-                ('S1', 'P1', 'ICT', 202610, 'snap-1'),
-                ('S1', 'P1', 'ICT', 202610, 'snap-1')
+                ('S1', 'P1', 'ICT', 202610, 'plan-2026-10-31'),
+                ('S1', 'P1', 'ICT', 202610, 'plan-2026-10-31')
             """
         )
         with pytest.raises(ValueError, match="violates unique grain"):
@@ -38,7 +38,7 @@ def test_duplicate_business_grain_blocks_publication() -> None:
                     "product_number",
                     "test_type",
                     "month_key",
-                    "snapshot_id",
+                    "planning_version_id",
                 ],
             )
 
@@ -58,15 +58,15 @@ def test_ml_feature_store_collapses_qualified_resource_fanout() -> None:
         SELECT * FROM (
             VALUES
                 ('S', 'P', 'Family', 'Platform', 'ACTIVE', 'ICT', 202610,
-                 'snap', 100.0, 0.95, 60.0, 'Region', 'SYSTEM-1',
+                 'plan-2026-10-31', 100.0, 0.95, 60.0, 'Region', 'SYSTEM-1',
                  DATE '2026-10-31', 'ACTUAL'),
                 ('S', 'P', 'Family', 'Platform', 'ACTIVE', 'ICT', 202610,
-                 'snap', 100.0, 0.95, 60.0, 'Region', 'FIXTURE-1',
+                 'plan-2026-10-31', 100.0, 0.95, 60.0, 'Region', 'FIXTURE-1',
                  DATE '2026-10-31', 'ACTUAL')
         ) AS source(
             site_code, product_number, product_family, platform, product_status,
-            test_type, month_key, snapshot_id, effective_demand_qty, target_yield,
-            target_test_time_sec, region, equipment_id, snapshot_date, data_type
+            test_type, month_key, planning_version_id, effective_demand_qty, target_yield,
+            target_test_time_sec, region, equipment_id, plan_as_of_date, data_type
         )
         """
     )

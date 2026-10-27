@@ -7,6 +7,7 @@ import pytest
 
 from capacity_twin_core.runtime.database_paths import (
     get_active_run_pointer,
+    get_control_run_pointer,
     get_raw_run_pointer,
 )
 from data_operations.backend import service
@@ -39,13 +40,30 @@ def _write_json(path: Path, payload: dict) -> None:
 
 def _publish_raw(runtime: Path, run_id: str = "raw-1") -> None:
     """Create a complete two-file Raw publication."""
+    control_database = runtime / "control" / "control_reference.duckdb"
+    control_database.parent.mkdir(parents=True, exist_ok=True)
+    control_database.write_bytes(b"control")
+    _write_json(
+        get_control_run_pointer(runtime),
+        {
+            "control_run_id": "control-1",
+            "sha256": "control-sha",
+            "catalog_version": "test",
+            "database": str(control_database),
+        },
+    )
     raw_dir = runtime / "raw" / "sqlite"
     raw_dir.mkdir(parents=True)
     for name in ("first.db", "second.db"):
         (raw_dir / name).write_bytes(b"raw")
     _write_json(
         get_raw_run_pointer(runtime),
-        {"run_id": run_id, "generated_at_utc": "2026-10-20T00:00:00+00:00"},
+        {
+            "run_id": run_id,
+            "generated_at_utc": "2026-10-20T00:00:00+00:00",
+            "source_control_run_id": "control-1",
+            "source_control_sha256": "control-sha",
+        },
     )
 
 
@@ -66,6 +84,8 @@ def _publish_pipeline(
         {
             "run_id": run_id,
             "source_raw_run_id": source_raw_run_id,
+            "source_control_run_id": "control-1",
+            "source_control_sha256": "control-sha",
             "status": "PROMOTED",
         },
     )

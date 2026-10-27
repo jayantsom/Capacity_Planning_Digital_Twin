@@ -18,7 +18,7 @@ tabbed dashboards. The project does not add MLflow or a separate feature-store p
 - Compute lag and rolling features inside each series and strictly behind the target.
 - Enable Prophet yearly seasonality only when a series spans at least two complete years.
 - Collapse qualified-resource fan-out before creating product/site/test/month ML rows.
-- Preserve business keys and snapshots through sorting, prediction, explanation, and publication.
+- Preserve business keys and planning versions through sorting, prediction, explanation, and publication.
 - Compare every reported metric with a declared naive baseline.
 - Return `not_evaluable` with a reason for empty data, insufficient history, constant targets, one-class labels, or zero-only targets.
 - Mark rows as train, validation, holdout, or future inference.

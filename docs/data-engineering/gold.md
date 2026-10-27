@@ -1,6 +1,6 @@
 # Gold and Serving Layers
 
-Gold applies the trusted capacity, OEE, demand, and snapshot contracts. Serving exposes stable read-only views to Capacity Assistant and Data Explorer.
+Gold applies the trusted capacity, OEE, demand, and planning version contracts. Serving exposes stable read-only views to Operations Assistant and Data Explorer.
 
 ## Capacity principles
 
@@ -15,7 +15,20 @@ Gold applies the trusted capacity, OEE, demand, and snapshot contracts. Serving 
 - Dedicated resources serve only qualified products.
 - Normal and maximum scenarios use explicit calendar and shift assumptions.
 
-Capacity is calculated at a declared site, product, route step/test, month, and snapshot grain. Aggregation to resource pools occurs before fleet comparison so supply is not duplicated by product fan-out.
+Capacity is calculated at a declared site, product, route step/test, month, and planning version grain. Aggregation to resource pools occurs before fleet comparison so supply is not duplicated by product fan-out.
+
+## Operational time grains
+
+Daily execution, test-parameter, and log facts also publish honest ISO-week and
+calendar-month aggregates. Quantities are summed, yield is recomputed from passed
+and tested quantities, weighted values keep their documented weights, and OEE
+components are recomputed from period numerators and denominators. Monthly
+planning, capacity, forecast, and ML values are never relabelled or divided into
+invented weeks.
+
+The operational tables expose period boundaries, source coverage, partial-period
+status, and pipeline lineage. Decision Intelligence keeps monthly ML predictions
+separate from its weekly/monthly operational panels.
 
 ## Publication
 

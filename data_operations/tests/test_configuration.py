@@ -10,17 +10,17 @@ from data_operations.backend.service import build_run_config, estimate_run
 
 
 def test_run_overrides_do_not_modify_tracked_configuration() -> None:
-    """Build an in-memory run snapshot for UI values."""
+    """Build an in-memory run configuration for UI values."""
     options = GeneratorOptions(profile="small", random_seed=7)
     config = build_run_config(options)
     assert config["data_generation"]["volume"] == "low"
     assert config["data_generation"]["random_seed"] == 7
 
 
-def test_snapshot_must_stay_inside_actual_history() -> None:
-    """Reject a snapshot that can see future records."""
+def test_plan_as_of_date_must_stay_inside_actual_history() -> None:
+    """Reject a plan as-of date that can see future records."""
     with pytest.raises(ValidationError):
-        GeneratorOptions(snapshot_dates=[date(2027, 1, 1)])
+        GeneratorOptions(plan_as_of_dates=[date(2027, 1, 1)])
 
 
 def test_estimate_reports_uncapped_safety_result() -> None:

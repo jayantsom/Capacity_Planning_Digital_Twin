@@ -87,7 +87,7 @@ def is_intermittent_demand(
 
 
 def prepare_demand_series(df: pd.DataFrame) -> pd.DataFrame:
-    """Collapse test/snapshot fan-out to one historical product-site-month row."""
+    """Collapse test/planning version fan-out to one historical product-site-month row."""
     actual = df.copy()
     if "is_actual" in actual:
         actual = actual[actual["is_actual"].fillna(0).astype(int) == 1]
@@ -97,7 +97,7 @@ def prepare_demand_series(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("No historical actual demand rows are available")
 
     keys = ["product_id", "site_id", "month"]
-    # Demand is repeated for each required test and snapshot, so summing is wrong.
+    # Demand is repeated for each required test and planning version, so summing is wrong.
     varying = actual.groupby(keys)["demand"].nunique(dropna=True)
     if (varying > 1).any():
         raise ValueError("Conflicting demand values at product/site/month grain")
@@ -106,7 +106,7 @@ def prepare_demand_series(df: pd.DataFrame) -> pd.DataFrame:
     ]
     aggregations = {"demand": "first", **{col: "first" for col in metadata}}
     return (
-        actual.sort_values(keys + (["snapshot_id"] if "snapshot_id" in actual else []))
+        actual.sort_values(keys + (["planning_version_id"] if "planning_version_id" in actual else []))
         .groupby(keys, as_index=False)
         .agg(aggregations)
         .sort_values(keys)
@@ -137,7 +137,7 @@ def _feat_cols(df: pd.DataFrame) -> list[str]:
     exclude = {
         "month",
         "demand",
-        "snapshot_id",
+        "planning_version_id",
         "feat_pk",
         "feature_row_id",
         "product_id",

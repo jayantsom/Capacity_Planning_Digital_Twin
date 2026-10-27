@@ -18,6 +18,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlparse
 
 import duckdb
@@ -27,10 +28,17 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from capacity_twin_core.analytics import TimeGrain, supported_grains
+from capacity_twin_core.comparison import (
+    get_comparison_window,
+    resolve_time_column,
+)
 from capacity_twin_core.runtime.database_paths import (
     get_active_run_pointer,
+    get_control_run_pointer,
     get_runtime_home,
     load_app_config,
+    load_config,
 )
 from data_explorer.backend.sql_security import (
     ExplorerSqlError,
@@ -78,25 +86,8 @@ def _active_artifact_root() -> Path | None:
 
 
 def _discover_sources() -> dict[str, dict]:
-    """
-    Discover all SQLite databases in DATA_DIR and DuckDB analytics DB.
-    Returns a dict of source_id → {type, path, layer, label, color}.
-    """
-    sources = {}
-
-    # SQLite raw databases
-    RAW_COLORS = {
-        "sites":         "#6e7681",
-        "products":      "#6e7681",
-        "equipment":     "#6e7681",
-        "calendar":      "#6e7681",
-        "suppliers":     "#6e7681",
-        "test_types":    "#6e7681",
-        "demand":        "#6e7681",
-        "yield_data":    "#6e7681",
-        "oee_data":      "#6e7681",
-        "gcm_config":    "#6e7681",
-    }
+    """Discover every project database without exposing engine internals."""
+    sources: dict[str, dict] = {}
     artifact_root = _active_artifact_root()
     raw_sqlite_dir = (
         artifact_root / "raw" / "sqlite"
@@ -111,10 +102,45 @@ def _discover_sources() -> dict[str, dict]:
                 "path":   str(sqlite_path),
                 "layer":  "raw",
                 "label":  sid.replace("_", " ").title(),
-                "color":  RAW_COLORS.get(sid, "#6e7681"),
+                "color":  LAYER_META["raw"]["color"],
+                "available": True,
             }
+    for filename in load_config()["databases"]["raw"].values():
+        sqlite_path = raw_sqlite_dir / filename
+        sid = sqlite_path.stem
+        sources.setdefault(
+            f"raw_{sid}",
+            {
+                "type": "sqlite",
+                "path": str(sqlite_path),
+                "layer": "raw",
+                "label": sid.replace("_", " ").title(),
+                "color": LAYER_META["raw"]["color"],
+                "available": False,
+            },
+        )
 
-    # Register each physical medallion database as its own source.
+    control_pointer = get_control_run_pointer(DATA_DIR)
+    control_path: Path | None = None
+    control_run_id = None
+    if control_pointer.is_file():
+        try:
+            payload = json.loads(control_pointer.read_text(encoding="utf-8"))
+            control_path = Path(payload["database"])
+            control_run_id = payload.get("control_run_id")
+        except (OSError, KeyError, json.JSONDecodeError):
+            control_path = None
+    sources["duckdb_control"] = {
+        "type": "duckdb",
+        "path": str(control_path) if control_path else "",
+        "layer": "control",
+        "label": "Control Reference DB",
+        "color": LAYER_META["control"]["color"],
+        "available": bool(control_path and control_path.is_file()),
+        "run_id": control_run_id,
+    }
+
+    # Register each physical medallion database, including missing expected layers.
     database_names = PIPELINE_CONFIG["databases"]
     for layer in ("bronze", "silver", "gold", "serving"):
         database_name = database_names[layer]
@@ -124,23 +150,46 @@ def _discover_sources() -> dict[str, dict]:
             if candidate is not None and candidate.is_file()
             else DATA_DIR / database_name
         )
-        if duckdb_path.is_file():
-            sources[f"duckdb_{layer}"] = {
-                "type": "duckdb",
-                "path": str(duckdb_path),
-                "layer": layer,
-                "label": f"{layer.title()} DB",
-                "color": LAYER_META.get(layer, LAYER_META["gold"])["color"],
-            }
+        sources[f"duckdb_{layer}"] = {
+            "type": "duckdb",
+            "path": str(duckdb_path),
+            "layer": layer,
+            "label": f"{layer.title()} DB",
+            "color": LAYER_META[layer]["color"],
+            "available": duckdb_path.is_file(),
+        }
+
+    ml_pointer = DATA_DIR / "ml_current.json"
+    ml_path: Path | None = None
+    ml_run_id = None
+    if ml_pointer.is_file():
+        try:
+            payload = json.loads(ml_pointer.read_text(encoding="utf-8"))
+            ml_path = (DATA_DIR / payload["database"]).resolve()
+            ml_run_id = payload.get("run_id")
+        except (OSError, KeyError, json.JSONDecodeError):
+            ml_path = None
+    sources["duckdb_ml"] = {
+        "type": "duckdb",
+        "path": str(ml_path) if ml_path else "",
+        "layer": "ml",
+        "label": "ML Publication DB",
+        "color": LAYER_META["ml"]["color"],
+        "available": bool(ml_path and ml_path.is_file()),
+        "run_id": ml_run_id,
+    }
 
     return sources
 
 
 LAYER_META = {
-    "raw":    {"label": "Raw",    "color": "#6e7681", "prefix": []},
+    "raw":    {"label": "Raw",    "color": "#315f8f", "prefix": []},
+    "control": {"label": "Control", "color": "#5b4b8a", "prefix": []},
     "bronze": {"label": "Bronze", "color": "#b45309", "prefix": ["brnz_"]},
     "silver": {"label": "Silver", "color": "#64748b", "prefix": ["slvr_"]},
     "gold":   {"label": "Gold",   "color": "#d97706", "prefix": ["gold_", "srv_vw_"]},
+    "serving": {"label": "Serving", "color": "#006d77", "prefix": ["srv_vw_"]},
+    "ml": {"label": "ML", "color": "#7c3aed", "prefix": ["gold_"]},
 }
 
 def _table_layer(table_name: str) -> str:
@@ -153,14 +202,14 @@ def _table_layer(table_name: str) -> str:
 
 def _get_duckdb(source_id: str) -> duckdb.DuckDBPyConnection:
     src = _discover_sources().get(source_id)
-    if not src or src["type"] != "duckdb":
+    if not src or src["type"] != "duckdb" or not src.get("available"):
         raise HTTPException(404, f"DuckDB source not found: {source_id}")
     return duckdb.connect(src["path"], read_only=True)
 
 
 def _get_sqlite(source_id: str) -> sqlite3.Connection:
     src = _discover_sources().get(source_id)
-    if not src or src["type"] != "sqlite":
+    if not src or src["type"] != "sqlite" or not src.get("available", True):
         raise HTTPException(404, f"SQLite source not found: {source_id}")
     uri = f"{Path(src['path']).resolve().as_uri()}?mode=ro"
     conn = sqlite3.connect(uri, uri=True)
@@ -168,12 +217,33 @@ def _get_sqlite(source_id: str) -> sqlite3.Connection:
     return conn
 
 
-def _duckdb_tables(conn: duckdb.DuckDBPyConnection) -> list[str]:
+def _duckdb_objects(conn: duckdb.DuckDBPyConnection) -> list[dict]:
     rows = conn.execute(
-        "SELECT table_name FROM information_schema.tables "
-        "WHERE table_schema='main' ORDER BY table_name"
+        """
+        SELECT table_schema, table_name, table_type
+        FROM information_schema.tables
+        WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+        ORDER BY table_schema, table_name
+        """
     ).fetchall()
-    return [r[0] for r in rows]
+    return [
+        {
+            "name": row[1] if row[0] == "main" else f"{row[0]}.{row[1]}",
+            "schema": row[0],
+            "object_type": "VIEW" if "VIEW" in row[2] else "TABLE",
+        }
+        for row in rows
+    ]
+
+
+def _duckdb_tables(conn: duckdb.DuckDBPyConnection) -> list[str]:
+    return [item["name"] for item in _duckdb_objects(conn)]
+
+
+def _quote_duckdb_object(object_name: str, allowed: list[str]) -> str:
+    if object_name not in set(allowed):
+        raise ExplorerSqlError("Unknown table.")
+    return ".".join(f'"{part}"' for part in object_name.split("."))
 
 
 def _sqlite_tables(conn: sqlite3.Connection) -> list[str]:
@@ -184,7 +254,8 @@ def _sqlite_tables(conn: sqlite3.Connection) -> list[str]:
 
 
 def _duckdb_schema(conn: duckdb.DuckDBPyConnection, table: str) -> list[dict]:
-    rows = conn.execute(f"DESCRIBE {table}").fetchall()
+    safe_table = _quote_duckdb_object(table, _duckdb_tables(conn))
+    rows = conn.execute(f"DESCRIBE {safe_table}").fetchall()
     return [{"name": r[0], "type": r[1]} for r in rows]
 
 
@@ -293,45 +364,72 @@ def explorer_index():
 
 @app.get("/explorer/api/sources")
 def get_sources():
-    """List all data sources with their tables, grouped by layer."""
+    """List every project table/view and report missing expected databases."""
     result = []
     for sid, src in _discover_sources().items():
+        if not src.get("available", True):
+            result.append(
+                {
+                    "id": sid,
+                    "label": src["label"],
+                    "type": src["type"],
+                    "layer": src["layer"],
+                    "color": src["color"],
+                    "status": "NOT GENERATED",
+                    "run_id": src.get("run_id"),
+                    "tables": [],
+                }
+            )
+            continue
         try:
             if src["type"] == "sqlite":
                 conn   = _get_sqlite(sid)
                 tables = _sqlite_tables(conn)
                 conn.close()
-                layer  = "raw"
                 result.append({
                     "id": sid, "label": src["label"],
-                    "type": src["type"], "layer": layer,
+                    "type": src["type"], "layer": "raw",
                     "color": src["color"],
-                    "tables": [{"name": t, "layer": "raw"} for t in tables],
+                    "status": "READY",
+                    "tables": [
+                        {"name": table, "layer": "raw", "object_type": "TABLE"}
+                        for table in tables
+                        if table != "sqlite_sequence"
+                    ],
                 })
             else:
                 conn   = _get_duckdb(sid)
-                tables = _duckdb_tables(conn)
+                objects = _duckdb_objects(conn)
+                tables = []
+                for item in objects:
+                    safe_table = _quote_duckdb_object(
+                        item["name"], [obj["name"] for obj in objects]
+                    )
+                    row_count = conn.execute(
+                        f"SELECT COUNT(*) FROM {safe_table}"
+                    ).fetchone()[0]
+                    tables.append(
+                        {
+                            **item,
+                            "layer": src["layer"],
+                            "row_count": int(row_count),
+                        }
+                    )
                 conn.close()
-                # Group by layer
-                grouped: dict[str, list] = {"bronze": [], "silver": [], "gold": []}
-                for t in tables:
-                    lyr = _table_layer(t)
-                    if lyr in grouped:
-                        grouped[lyr].append({"name": t, "layer": lyr})
                 result.append({
                     "id": sid, "label": src["label"],
-                    "type": src["type"], "layer": "multi",
+                    "type": src["type"], "layer": src["layer"],
                     "color": src["color"],
-                    "layers": {
-                        k: {"tables": v, **LAYER_META[k]}
-                        for k, v in grouped.items()
-                        if v
-                    },
+                    "status": "READY",
+                    "run_id": src.get("run_id"),
+                    "tables": tables,
                 })
         except Exception:  # noqa: BLE001 - source failures are reported per source
             result.append({
                 "id": sid,
                 "label": src["label"],
+                "layer": src["layer"],
+                "status": "UNAVAILABLE",
                 "error": "Source is unavailable.",
                 "tables": [],
             })
@@ -359,17 +457,49 @@ def get_schema(source_id: str, table: str):
             conn = _get_duckdb(source_id)
             try:
                 tables = _duckdb_tables(conn)
-                safe_table = allow_identifier(table, tables, "table")
-                columns = _duckdb_schema(conn, safe_table)
+                safe_table = _quote_duckdb_object(table, tables)
+                columns = _duckdb_schema(conn, table)
                 row_count = conn.execute(
                     f"SELECT COUNT(*) FROM {safe_table}"
                 ).fetchone()[0]
             finally:
                 conn.close()
+        native_grain = (
+            TimeGrain.DAY
+            if any(
+                column["name"]
+                in {"execution_date", "event_date", "event_timestamp", "period_start"}
+                for column in columns
+            )
+            else TimeGrain.MONTH
+            if any(
+                column["name"] in {"month", "month_key", "forecast_month_key"}
+                for column in columns
+            )
+            else TimeGrain.NONE
+        )
+        is_operational_rollup = any(
+            column["name"] == "period_grain" for column in columns
+        )
+        grain_options = (
+            (TimeGrain.WEEK, TimeGrain.MONTH)
+            if is_operational_rollup
+            else supported_grains(native_grain)
+        )
         return {
             "source": source_id, "table": table,
-            "layer": _table_layer(table),
+            "layer": src["layer"],
             "columns": columns, "row_count": row_count,
+            "native_grain": native_grain.value,
+            "supported_grains": [
+                grain.value for grain in grain_options
+            ],
+            "comparison_supported": (
+                src["type"] == "duckdb"
+                and src["layer"] in {"silver", "gold", "serving", "ml"}
+                and resolve_time_column({column["name"] for column in columns})
+                is not None
+            ),
         }
     except ExplorerSqlError as error:
         raise HTTPException(400, str(error)) from error
@@ -386,6 +516,7 @@ def get_data(
     filters: str = Query("{}"),   # JSON string of {col: value}
     sort_col: str | None = None,
     sort_dir: str = "asc",
+    window: Literal["total", "band_1", "band_2"] = "total",
 ):
     src = _discover_sources().get(source_id)
     if not src:
@@ -400,11 +531,15 @@ def get_data(
             if src["type"] == "sqlite"
             else _duckdb_tables(metadata_conn)
         )
-        safe_table = allow_identifier(table, tables, "table")
+        safe_table = (
+            allow_identifier(table, tables, "table")
+            if src["type"] == "sqlite"
+            else _quote_duckdb_object(table, tables)
+        )
         schema = (
             _sqlite_schema(metadata_conn, safe_table)
             if src["type"] == "sqlite"
-            else _duckdb_schema(metadata_conn, safe_table)
+            else _duckdb_schema(metadata_conn, table)
         )
         allowed_columns = {column["name"] for column in schema}
     finally:
@@ -416,6 +551,20 @@ def get_data(
         raise ExplorerSqlError("Filters must be a JSON object.") from error
     if not isinstance(filter_dict, dict):
         raise ExplorerSqlError("Filters must be a JSON object.")
+    window_definition = get_comparison_window(window)
+    time_column = resolve_time_column(allowed_columns)
+    window_column = time_column[0] if time_column else None
+    window_grain = time_column[1] if time_column else None
+    window_supported = (
+        src["type"] == "duckdb"
+        and src["layer"] in {"silver", "gold", "serving", "ml"}
+        and window_column is not None
+    )
+    if window != "total" and not window_supported:
+        raise HTTPException(
+            422,
+            "Comparison bands are available only for promoted date-capable tables.",
+        )
 
     safe_sort_dir = "ASC" if sort_dir.lower() != "desc" else "DESC"
     offset = (page - 1) * page_size
@@ -471,8 +620,48 @@ def get_data(
                             safe_column = allow_identifier(col, allowed_columns, "column")
                             wp2.append(f"{safe_column} = ${len(params2)+1}")
                             params2.append(val)
+                if window != "total" and window_column:
+                    if window_grain == "date":
+                        start_value = window_definition.start_date.isoformat()
+                        end_value = window_definition.end_date.isoformat()
+                    else:
+                        start_value = (
+                            window_definition.start_date.year * 100
+                            + window_definition.start_date.month
+                        )
+                        end_value = (
+                            window_definition.end_date.year * 100
+                            + window_definition.end_date.month
+                        )
+                    safe_window_column = allow_identifier(
+                        window_column, allowed_columns, "column"
+                    )
+                    wp2.append(
+                        f"{safe_window_column} BETWEEN "
+                        f"${len(params2)+1} AND ${len(params2)+2}"
+                    )
+                    params2.extend([start_value, end_value])
                 where_clause = f"WHERE {' AND '.join(wp2)}"
                 params = params2
+            elif window != "total" and window_column:
+                safe_window_column = allow_identifier(
+                    window_column, allowed_columns, "column"
+                )
+                if window_grain == "date":
+                    params = [
+                        window_definition.start_date.isoformat(),
+                        window_definition.end_date.isoformat(),
+                    ]
+                else:
+                    params = [
+                        window_definition.start_date.year * 100
+                        + window_definition.start_date.month,
+                        window_definition.end_date.year * 100
+                        + window_definition.end_date.month,
+                    ]
+                where_clause = (
+                    f"WHERE {safe_window_column} BETWEEN $1 AND $2"
+                )
 
             total_rel = conn.execute(
                 f"SELECT COUNT(*) FROM {safe_table} {where_clause}", params
@@ -492,6 +681,8 @@ def get_data(
             "total": total, "total_pages": max(1, -(-total // page_size)),
             "columns": list(data[0].keys()) if data else [],
             "rows": data,
+            "window": window,
+            "window_supported": window_supported,
         }
     except ExplorerSqlError as error:
         raise HTTPException(400, str(error)) from error
@@ -528,9 +719,9 @@ def get_distinct(source_id: str, table: str, col: str, limit: int = 200):
             conn = _get_duckdb(source_id)
             try:
                 tables = _duckdb_tables(conn)
-                safe_table = allow_identifier(table, tables, "table")
+                safe_table = _quote_duckdb_object(table, tables)
                 columns = {
-                    item["name"] for item in _duckdb_schema(conn, safe_table)
+                    item["name"] for item in _duckdb_schema(conn, table)
                 }
                 safe_column = allow_identifier(col, columns, "column")
                 sql = (

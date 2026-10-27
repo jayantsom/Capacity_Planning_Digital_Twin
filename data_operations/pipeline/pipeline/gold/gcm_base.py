@@ -19,8 +19,8 @@ def build_gcm_base(duck_conn) -> int:
                 site_code,
                 product_number,
                 month_key,
-                snapshot_id,
-                snapshot_date,
+                planning_version_id,
+                plan_as_of_date,
                 data_type,
                 SUM(independent_demand_qty) AS independent_demand_qty,
                 SUM(dependent_demand_qty) AS dependent_demand_qty,
@@ -40,8 +40,8 @@ def build_gcm_base(duck_conn) -> int:
                 site_code,
                 product_number,
                 month_key,
-                snapshot_id,
-                snapshot_date,
+                planning_version_id,
+                plan_as_of_date,
                 data_type
         ),
 
@@ -53,8 +53,8 @@ def build_gcm_base(duck_conn) -> int:
                 p.platform,
                 p.product_status,
                 d.month_key,
-                d.snapshot_id,
-                d.snapshot_date,
+                d.planning_version_id,
+                d.plan_as_of_date,
                 'SYNTHETIC_REQUIREMENT' AS forecast_source,
                 d.data_type,
                 d.demand_qty,
@@ -79,8 +79,8 @@ def build_gcm_base(duck_conn) -> int:
                 rs.factory_code,
                 ad.site_code,
                 ad.month_key,
-                ad.snapshot_id,
-                ad.snapshot_date,
+                ad.planning_version_id,
+                ad.plan_as_of_date,
                 ad.data_type,
 
                 -- Product
@@ -155,7 +155,7 @@ def build_gcm_base(duck_conn) -> int:
                 ON  ad.site_code      = ttt.site_code
                 AND ad.product_number  = ttt.product_number
                 AND ad.month_key       = ttt.month_key
-                AND ad.snapshot_id     = ttt.snapshot_id
+                AND ad.planning_version_id     = ttt.planning_version_id
                 AND ttt.is_valid       = true
 
             LEFT JOIN slvr_tgt_yield ty
@@ -163,7 +163,7 @@ def build_gcm_base(duck_conn) -> int:
                 AND ad.product_number  = ty.product_number
                 AND ttt.test_type      = ty.test_type
                 AND ad.month_key       = ty.month_key
-                AND ad.snapshot_id     = ty.snapshot_id
+                AND ad.planning_version_id     = ty.planning_version_id
                 AND ty.is_valid         = true
 
             LEFT JOIN slvr_site_equip_inv ei
@@ -196,7 +196,7 @@ def build_gcm_base(duck_conn) -> int:
                 site_code || '|' || product_number || '|' ||
                 COALESCE(test_type, '')     || '|' ||
                 COALESCE(equipment_id, '')  || '|' ||
-                CAST(month_key AS VARCHAR)  || '|' || snapshot_id
+                CAST(month_key AS VARCHAR)  || '|' || planning_version_id
             )                           AS gcm_pk,
             *
         FROM gcm_joined
@@ -207,7 +207,7 @@ def build_gcm_base(duck_conn) -> int:
         "site_code",
         "product_number",
         "test_type",
-        "snapshot_id",
+        "planning_version_id",
         "gcm_machine_join_key",
     ]:
         duck_conn.execute(f"""

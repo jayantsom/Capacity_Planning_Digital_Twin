@@ -11,8 +11,7 @@ data_generation:
   end_date_actual: "2026-10-31"
   start_date_forecast: "2026-11-01"
   end_date_forecast: "2027-12-31"
-  n_snapshots: 2
-  snapshot_dates:
+  plan_as_of_dates:
     - "2025-10-31"
     - "2026-10-31"
   noise_profile: realistic
@@ -64,6 +63,8 @@ local_16gb:
   min_free_disk_bytes: 12000000000
 
 databases:
+  control:
+    reference: control_reference.duckdb
   raw:
     demand_forecast: raw_demand_forecast.db
     product_master: raw_product_master.db
@@ -75,3 +76,13 @@ databases:
     test_x_parameter: raw_machine_test_param.db
     machine_logs: raw_machine_logs.db
     reference_data: raw_reference_data.db
+
+comparison_windows:
+  band_1:
+    label: Snapshot 1
+    start_date: "2023-01-01"
+    end_date: "2024-12-31"
+  band_2:
+    label: Snapshot 2
+    start_date: "2025-01-01"
+    end_date: "2026-10-31"

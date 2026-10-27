@@ -1,6 +1,6 @@
 # Domain Agents
 
-Capacity Assistant preserves five domain agents:
+Operations Assistant preserves five domain agents:
 
 | Agent | Scope |
 |---|---|

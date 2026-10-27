@@ -3,9 +3,9 @@
 import { apiJson } from '/shared/dashboard.js';
 
 const statusTargets = {
-  capacityAssistant: {
-    badge: document.getElementById('capacity-assistant-status'),
-    detail: document.getElementById('capacity-assistant-detail'),
+  operationsAssistant: {
+    badge: document.getElementById('operations-assistant-status'),
+    detail: document.getElementById('operations-assistant-detail'),
   },
   explorer: {
     badge: document.getElementById('explorer-status'),
@@ -47,20 +47,20 @@ async function fetchJson(url, timeoutMs = 5000) {
   return apiJson(url, {}, timeoutMs);
 }
 
-async function checkCapacityAssistant() {
-  setStatus(statusTargets.capacityAssistant, 'pending', 'CHECKING', 'Checking service…');
+async function checkOperationsAssistant() {
+  setStatus(statusTargets.operationsAssistant, 'pending', 'CHECKING', 'Checking service…');
   try {
-    const health = await fetchJson('/api/health');
+    const health = await fetchJson('/operations-assistant/api/health');
     const model = health.model || health.ollama || '';
     const isDegraded = health.status && !['ok', 'healthy', 'ready'].includes(String(health.status).toLowerCase());
     setStatus(
-      statusTargets.capacityAssistant,
+      statusTargets.operationsAssistant,
       isDegraded ? 'degraded' : 'ready',
       isDegraded ? 'DEGRADED' : 'READY',
       model ? `API ready · ${model}` : 'API responding',
     );
   } catch {
-    setStatus(statusTargets.capacityAssistant, 'offline', 'OFFLINE', 'API not responding');
+    setStatus(statusTargets.operationsAssistant, 'offline', 'OFFLINE', 'API not responding');
   }
 }
 
@@ -136,7 +136,7 @@ function refreshStatus() {
   void Promise.allSettled([
     checkExplorer(),
     checkDecisionIntelligence(),
-    checkCapacityAssistant(),
+    checkOperationsAssistant(),
     checkDataOperations(),
   ]);
 }

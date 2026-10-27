@@ -6,7 +6,8 @@
   <meta name="color-scheme" content="light">
   <title>Decision Intelligence</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/decision-intelligence/static/decision-intelligence.css?v=20261020d">
+  <link rel="stylesheet" href="/shared/comparison-band.css?v=20261020a">
+  <link rel="stylesheet" href="/decision-intelligence/static/decision-intelligence.css?v=20261020f">
 </head>
 <body>
   <a class="skip-link" href="#workspace">Skip to workspace</a>
@@ -16,7 +17,7 @@
       <a href="/">Home</a>
       <a href="/explorer/">Data Explorer</a>
       <a href="/decision-intelligence/" aria-current="page">Decision Intelligence</a>
-      <a href="/capacity-assistant/">Capacity Assistant</a>
+      <a href="/operations-assistant/">Operations Assistant</a>
       <a href="/data-operations/">Data Operations</a>
     </nav>
   </header>
@@ -49,33 +50,44 @@
     </section>
 
     <form id="filters" class="filter-band">
-      <label>Site<input id="siteFilter" type="text" maxlength="80" placeholder="All sites"></label>
-      <label>Product<input id="productFilter" type="text" maxlength="120" placeholder="All products"></label>
-      <label>Test type<input id="testFilter" type="text" maxlength="80" placeholder="All tests"></label>
-      <label>Snapshot<input id="snapshotFilter" type="text" maxlength="80" placeholder="All snapshots"></label>
-      <label>Month from<input id="monthFrom" type="number" min="200001" max="220012" placeholder="YYYYMM"></label>
-      <label>Month to<input id="monthTo" type="number" min="200001" max="220012" placeholder="YYYYMM"></label>
+      <label data-filter="grain">Operational grain<select id="grainFilter"><option value="MONTH">Month</option><option value="WEEK">ISO week</option></select></label>
+      <label data-filter="site">Site<select id="siteFilter"><option value="">All sites</option></select></label>
+      <label data-filter="product">Product<select id="productFilter"><option value="">All products</option></select></label>
+      <label data-filter="test_type">Test type<select id="testFilter"><option value="">All tests</option></select></label>
+      <label data-filter="machine">Machine<select id="machineFilter"><option value="">All machines</option></select></label>
+      <label data-filter="planning_version">Planning version<select id="planningVersionFilter"><option value="">All planning versions</option></select></label>
+      <label data-filter="month_from">Month from<input id="monthFrom" type="number" min="200001" max="220012" placeholder="YYYYMM"></label>
+      <label data-filter="month_to">Month to<input id="monthTo" type="number" min="200001" max="220012" placeholder="YYYYMM"></label>
       <button class="button secondary" id="clearFilters" type="button">Clear</button>
       <button class="button primary" type="submit">Apply</button>
     </form>
+
+    <section id="comparisonBand" class="comparison-band" aria-label="Snapshot window"></section>
 
     <section class="kpi-strip" id="kpiStrip" aria-label="Workflow metrics"></section>
 
     <section class="analytics-grid">
       <article class="panel">
-        <div class="panel-title"><h2>Trend</h2><span id="trendSummary"></span></div>
+        <div class="panel-title"><h2 id="primaryChartTitle">Workflow analysis</h2><span id="trendSummary"></span></div>
         <div id="trendChart" class="trend-chart" role="img" aria-label="Workflow trend chart"></div>
       </article>
       <article class="panel">
-        <div class="panel-title"><h2>Distribution and rankings</h2><span>Highest impact first</span></div>
-        <div class="donut-summary">
-          <div id="donutChart" class="donut" role="img" aria-label="Top result distribution">
-            <span id="donutValue">—</span>
-          </div>
-          <div id="donutLegend" class="donut-legend"></div>
-        </div>
-        <div id="rankings" class="rankings"></div>
+        <div class="panel-title"><h2 id="secondaryChartTitle">Priority analysis</h2><span>Highest impact first</span></div>
+        <div id="rankings" class="rankings workflow-secondary-chart"></div>
       </article>
+    </section>
+
+    <section id="operationalPanel" class="table-panel" hidden>
+      <div class="panel-title">
+        <h2 id="operationalTitle">Operational Performance</h2>
+        <span id="operationalScope">DAILY FACTS · MONTH</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Period</th><th>Yield</th><th>OEE</th><th>Downtime</th><th>Throughput</th><th>Events</th><th>Coverage</th></tr></thead>
+          <tbody id="operationalRows"></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="table-panel">

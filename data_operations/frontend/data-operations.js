@@ -66,7 +66,7 @@ function optionsPayload() {
     actual_end: document.getElementById('actualEnd').value,
     forecast_start: document.getElementById('forecastStart').value,
     forecast_end: document.getElementById('forecastEnd').value,
-    snapshot_dates: document.getElementById('snapshotDates').value
+    plan_as_of_dates: document.getElementById('planAsOfDates').value
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean),
@@ -86,7 +86,7 @@ function applyDefaults(defaults) {
   document.getElementById('actualEnd').value = defaults.actual_end;
   document.getElementById('forecastStart').value = defaults.forecast_start;
   document.getElementById('forecastEnd').value = defaults.forecast_end;
-  document.getElementById('snapshotDates').value = defaults.snapshot_dates.join(', ');
+  document.getElementById('planAsOfDates').value = defaults.plan_as_of_dates.join(', ');
   document.getElementById('noiseProfile').value = defaults.noise_profile;
 }
 

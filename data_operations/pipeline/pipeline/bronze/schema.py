@@ -13,7 +13,7 @@ class BronzeTableConfig:
     source_table: str  # Table name in SQLite
     bronze_table: str  # Target table name in DuckDB
     natural_keys: list[str]  # Columns that form the natural PK
-    is_planning: bool  # Add snapshot/forecast metadata columns?
+    is_planning: bool  # Add planning version/forecast metadata columns?
     is_machine: bool  # Machine tables: add data_type=ACTUAL only
     yield_columns: list[str] = field(default_factory=list)
     qty_columns: list[str] = field(default_factory=list)
@@ -56,7 +56,7 @@ BRONZE_CONFIGS = [
         is_planning=False,
         is_machine=False,
     ),
-    # ── Planning tables (have snapshot metadata) ──────────────────────────
+    # ── Planning tables (have planning version metadata) ──────────────────────────
     BronzeTableConfig(
         source_db="demand_forecast",
         source_table="demand_requirement",
@@ -70,25 +70,25 @@ BRONZE_CONFIGS = [
             "dependent_quantity",
             "total_requirement",
         ],
-        partition_col="snapshot_date",
+        partition_col="plan_as_of_date",
     ),
     BronzeTableConfig(
         source_db="target_test_time",
         source_table="target_test_time",
         bronze_table="brnz_tgt_test_time",
-        natural_keys=["site", "product_number", "test_type", "snapshot_id"],
+        natural_keys=["site", "product_number", "test_type", "planning_version_id"],
         is_planning=True,
         is_machine=False,
-        partition_col="snapshot_date",
+        partition_col="plan_as_of_date",
     ),
     BronzeTableConfig(
         source_db="target_yield",
         source_table="target_yield",
         bronze_table="brnz_tgt_yield",
-        natural_keys=["site", "product_number", "test_type", "snapshot_id"],
+        natural_keys=["site", "product_number", "test_type", "planning_version_id"],
         is_planning=True,
         is_machine=False,
-        partition_col="snapshot_date",
+        partition_col="plan_as_of_date",
     ),
     BronzeTableConfig(
         source_db="site_equipment_inventory",

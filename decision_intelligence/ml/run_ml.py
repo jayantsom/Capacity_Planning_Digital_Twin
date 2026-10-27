@@ -49,6 +49,11 @@ REQUIRED_OUTPUT_TABLES = {
     "gold_oee_anomaly_summary",
     "gold_capex_mc_summary",
     "gold_capex_mc_scenarios",
+    # Keep display labels beside the ML outputs so dashboards stay self-contained.
+    "slvr_ref_site",
+    "slvr_ref_test_type",
+    "slvr_ref_equipment",
+    "slvr_prod_master",
 }
 
 

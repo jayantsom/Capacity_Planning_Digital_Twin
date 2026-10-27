@@ -1,3 +1,5 @@
+.grain-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.grain-badge { border: 1px solid var(--line); color: var(--cyan); font-size: 10px; letter-spacing: .06em; padding: 3px 6px; }
 :root {
   --canvas: #f7f8fa;
   --surface: #fff;
@@ -17,6 +19,9 @@
   --bronze: #9a4f12;
   --silver: #5f6f7d;
   --gold: #8a7000;
+  --control: #5b4b8a;
+  --serving: #006d77;
+  --ml: #7c3aed;
   --font: "Segoe UI", Arial, sans-serif;
   --mono: "Cascadia Code", Consolas, monospace;
 }
@@ -53,6 +58,7 @@ a { color: inherit; }
 
 .shell { height: calc(100vh - 52px); display: flex; flex-direction: column; overflow: hidden; }
 .explorer-body { position: relative; flex: 1; min-height: 0; display: flex; overflow: hidden; margin-top: 12px; border-top: 1px solid var(--graphite); }
+.explorer-comparison-band { flex: 0 0 auto; margin: 12px 14px 0; }
 .sidebar { flex: 0 0 auto; width: 250px; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); border-right: 1px solid var(--graphite); transition: width .18s ease; }
 .sidebar.closed { width: 42px; }
 .sidebar.closed .panel-heading { justify-content: center; padding: 8px 5px; border-bottom: 0; }
@@ -137,9 +143,12 @@ a { color: inherit; }
 .table-identity > p:last-child { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
 .layer-badge { padding: 3px 6px; border: 1px solid currentColor; font: 700 9px var(--mono); text-transform: uppercase; }
 .layer-raw { color: var(--raw); }
+.layer-control { color: var(--control); }
 .layer-bronze { color: var(--bronze); }
 .layer-silver { color: var(--silver); }
 .layer-gold { color: var(--gold); }
+.layer-serving { color: var(--serving); }
+.layer-ml { color: var(--ml); }
 .workspace-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .button { min-height: 34px; padding: 0 11px; border: 1px solid var(--cyan); border-radius: 0; font-weight: 650; font-size: 11px; }
 .button-primary { background: var(--cyan); color: white; }

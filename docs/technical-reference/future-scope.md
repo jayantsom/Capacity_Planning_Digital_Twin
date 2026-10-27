@@ -30,6 +30,6 @@ Nothing on this page is part of the essential delivery. Each item requires a mea
 - Authentication, audit, observability, containers, or online sharing
 - PostgreSQL, ClickHouse, Kafka, Iceberg, Delta Lake, or distributed Spark
 - React/TypeScript/Vite only if the static UI becomes demonstrably hard to maintain
-- New user-facing cards only after the fixed Capacity Assistant/Data Explorer product is stable
+- New user-facing cards only after the fixed Operations Assistant/Data Explorer product is stable
 
 All future technologies must remain free/open source unless the project scope is explicitly changed.

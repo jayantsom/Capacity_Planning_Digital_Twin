@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
@@ -13,9 +14,11 @@ from capacity_twin_core.jobs import GLOBAL_JOBS, JobConflict
 from capacity_twin_core.runtime.database_paths import load_app_config
 from decision_intelligence.backend.models import WorkflowRunRequest
 from decision_intelligence.backend.service import (
+    WORKFLOW_FILTERS,
     WORKFLOW_KEYS,
     WORKFLOW_METADATA,
     dashboard,
+    filter_metadata,
     health_payload,
     publication_payload,
     run_workflows,
@@ -70,13 +73,43 @@ async def publication() -> dict:
         raise HTTPException(status_code=503, detail=str(error)) from error
 
 
+@app.get("/decision-intelligence/api/filters/{workflow}")
+async def workflow_filters(
+    workflow: str,
+    site: str | None = Query(default=None, max_length=80),
+    product: str | None = Query(default=None, max_length=120),
+    test_type: str | None = Query(default=None, max_length=80),
+    machine: str | None = Query(default=None, max_length=120),
+    planning_version: str | None = Query(default=None, max_length=80),
+) -> dict:
+    """Return applicable filters with full human-readable labels."""
+    if workflow not in WORKFLOW_KEYS:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    try:
+        return filter_metadata(
+            workflow,
+            {
+                "site": site,
+                "product": product,
+                "test_type": test_type,
+                "machine": machine,
+                "planning_version": planning_version,
+            },
+        )
+    except (FileNotFoundError, ValueError) as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+
+
 @app.get("/decision-intelligence/api/dashboard/{workflow}")
 async def workflow_dashboard(
     workflow: str,
     site: str | None = Query(default=None, max_length=80),
     product: str | None = Query(default=None, max_length=120),
     test_type: str | None = Query(default=None, max_length=80),
-    snapshot: str | None = Query(default=None, max_length=80),
+    machine: str | None = Query(default=None, max_length=120),
+    planning_version: str | None = Query(default=None, max_length=80),
+    grain: Literal["WEEK", "MONTH"] | None = None,
+    window: Literal["total", "band_1", "band_2"] = "total",
     month_from: int | None = Query(default=None, ge=200001, le=220012),
     month_to: int | None = Query(default=None, ge=200001, le=220012),
     limit: int = Query(default=100, ge=1, le=500),
@@ -89,13 +122,41 @@ async def workflow_dashboard(
             status_code=422,
             detail="Month from must be on or before month to",
         )
+    if window != "total" and (month_from or month_to):
+        raise HTTPException(
+            status_code=422,
+            detail="Manual month fields are unavailable when a comparison band is active",
+        )
+    submitted = {
+        "site": site,
+        "product": product,
+        "test_type": test_type,
+        "machine": machine,
+        "planning_version": planning_version,
+        "grain": grain,
+        "month_from": month_from,
+        "month_to": month_to,
+    }
+    unsupported = sorted(
+        key
+        for key, value in submitted.items()
+        if value not in (None, "") and key not in WORKFLOW_FILTERS[workflow]
+    )
+    if unsupported:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Filters do not apply to {workflow}: {', '.join(unsupported)}",
+        )
     try:
         return dashboard(
             workflow,
             site=site,
             product=product,
             test_type=test_type,
-            snapshot=snapshot,
+            machine=machine,
+            planning_version=planning_version,
+            grain=grain,
+            window=window,
             month_from=month_from,
             month_to=month_to,
             limit=limit,

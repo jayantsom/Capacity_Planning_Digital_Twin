@@ -1,6 +1,6 @@
 # MCP Tools
 
-Capacity Assistant’s MCP layer is a structured, read-only interface over promoted telecom capacity data. Tool implementations live under `capacity_assistant/agentic/mcp_server/`.
+Operations Assistant’s MCP layer is a structured, read-only interface over promoted telecom capacity data. Tool implementations live under `operations_assistant/agentic/mcp_server/`.
 
 ## Tool domains
 
@@ -29,11 +29,11 @@ Keyword-only filtering is defense in depth, not a sufficient parser. The current
 
 ## Testing
 
-Tests belong to Capacity Assistant and should use temporary promoted fixtures:
+Tests belong to Operations Assistant and should use temporary promoted fixtures:
 
 ```powershell
-# Run Capacity Assistant's local tool and API tests.
-uv run pytest capacity_assistant -q
+# Run Operations Assistant's local tool and API tests.
+uv run pytest operations_assistant -q
 ```
 
 Required cases include safe queries, empty SQL, multiple statements, mutation attempts, invalid identifiers, limits, timeouts, sanitized errors, changed run pointers, and concurrent read-only access.

@@ -34,7 +34,7 @@ def md5_key(*args) -> str:
     return hashlib.md5(raw.encode()).hexdigest()
 
 
-def get_data_type(snapshot_date_str: str, month_col: str, actual_end: str) -> str:
+def get_data_type(plan_as_of_date_str: str, month_col: str, actual_end: str) -> str:
     """Determine ACTUAL vs FORECAST based on month column label."""
     # month_col format: jan_2023, feb_2026, jul_2026 ...
     try:
@@ -237,13 +237,13 @@ def ingest_table(
             actual_end=db_config["data_generation"]["end_date_actual"],
         )
 
-        # Snapshot / forecast metadata
-        snapshot_date = row_dict.get("snapshot_date", "")
+        # Planning version / forecast metadata
+        plan_as_of_date = row_dict.get("plan_as_of_date", "")
         actual_end = db_config["data_generation"]["end_date_actual"]
         data_type = (
             DATA_TYPE_ACTUAL
             if config.is_machine
-            else (DATA_TYPE_FORECAST if snapshot_date > actual_end else DATA_TYPE_ACTUAL)
+            else (DATA_TYPE_FORECAST if plan_as_of_date > actual_end else DATA_TYPE_ACTUAL)
         )
 
         # Build output row

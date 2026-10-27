@@ -68,7 +68,7 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = [
     "capacity_home",
-    "capacity_assistant",
+    "operations_assistant",
     "data_explorer",
     "data_operations",
     "decision_intelligence",
@@ -81,14 +81,14 @@ target-version = "py312"
 
 [tool.ruff.lint.per-file-ignores]
 # Tool boundaries deliberately convert backend failures into safe user messages.
-"capacity_assistant/agentic/mcp_server/tools/*.py" = ["BLE001"]
+"operations_assistant/agentic/mcp_server/tools/*.py" = ["BLE001"]
 
 [tool.pytest.ini_options]
 # Disable the optional LangSmith plugin because Windows policy blocks its native UUID helper.
 addopts = "-p no:langsmith_plugin"
 testpaths = [
     "capacity_home",
-    "capacity_assistant",
+    "operations_assistant",
     "data_explorer",
     "data_operations",
     "decision_intelligence",

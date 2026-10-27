@@ -22,6 +22,7 @@ from data_operations.generator.generators.reference_data import TEST_TYPES, writ
 from data_operations.generator.rules.contracts import DateContract
 from data_operations.generator.rules.determinism import stable_seed
 from data_operations.generator.rules.npi import npi_ramp
+from data_operations.generator.services.control_catalog import load_assignments
 
 # ── Base test time ranges by test type (seconds) ──────────────────────────────
 TEST_TIME_BASE = {
@@ -51,15 +52,16 @@ PLATFORM_TEST_RESPONSIBLE = {
 }
 
 
-def generate_test_time_for_snapshot(
-    snapshot_id: str,
-    snapshot_date: str,
+def generate_test_time_for_planning_version(
+    planning_version_id: str,
+    plan_as_of_date: str,
     all_month_keys: list[int],
     root_seed: int = RANDOM_SEED,
+    assignments: list[dict] | None = None,
 ) -> pd.DataFrame:
     rows = []
 
-    for assignment in ASSIGNMENT_MATRIX:
+    for assignment in assignments or ASSIGNMENT_MATRIX:
         site_code   = assignment["site_code"]
         product_num = assignment["product_number"]
         family      = assignment["product_family"]
@@ -99,8 +101,8 @@ def generate_test_time_for_snapshot(
                 "product_number":     product_num,
                 "test_type":          tt,
                 "test_category_id":   cat_id,
-                "snapshot_id":        snapshot_id,
-                "snapshot_date":      snapshot_date,
+                "planning_version_id":        planning_version_id,
+                "plan_as_of_date":      plan_as_of_date,
                 "forecast_source":    FORECAST_SOURCE_PLANNER,
             }
 
@@ -145,19 +147,21 @@ def generate_target_test_time_db(config: dict) -> pd.DataFrame:
     all_month_keys = get_all_month_keys()
 
     dates = DateContract.from_config(config)
-    snapshots = [
-        (f"snap-{snapshot_date.isoformat()}", snapshot_date.isoformat())
-        for snapshot_date in dates.snapshot_dates
+    planning_versions = [
+        (f"plan-{plan_as_of_date.isoformat()}", plan_as_of_date.isoformat())
+        for plan_as_of_date in dates.plan_as_of_dates
     ]
+    assignments = load_assignments(config)
 
     all_dfs = []
-    for snap_id, snap_date in snapshots:
-        logger.info(f"  Generating snapshot: {snap_id}")
-        df = generate_test_time_for_snapshot(
-            snap_id,
-            snap_date,
+    for planning_version_id, plan_as_of_date in planning_versions:
+        logger.info(f"  Generating planning version: {planning_version_id}")
+        df = generate_test_time_for_planning_version(
+            planning_version_id,
+            plan_as_of_date,
             all_month_keys,
             int(config["data_generation"]["random_seed"]),
+            assignments,
         )
         all_dfs.append(df)
         logger.info(f"    Rows: {len(df):,}")

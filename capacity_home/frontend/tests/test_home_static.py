@@ -15,7 +15,7 @@ class HomeStaticTests(unittest.TestCase):
         labels = [
             "Data Explorer",
             "Decision Intelligence",
-            "Capacity Assistant",
+            "Operations Assistant",
             "Data Operations",
         ]
         positions = [html.index(label) for label in labels]
@@ -39,7 +39,7 @@ class HomeStaticTests(unittest.TestCase):
         script = (FRONTEND / "home.js").read_text(encoding="utf-8")
         html = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("'/api/health'", script)
+        self.assertIn("'/operations-assistant/api/health'", script)
         self.assertIn("'/explorer/api/sources'", script)
         self.assertIn("'/decision-intelligence/api/health'", script)
         self.assertIn("'/data-operations/api/health'", script)
@@ -47,6 +47,8 @@ class HomeStaticTests(unittest.TestCase):
             self.assertIn(f"'{label}'", script)
         self.assertIn('id="generator-home-status"', html)
         self.assertIn('id="pipeline-home-status"', html)
+        self.assertIn('id="operations-assistant-status"', html)
+        self.assertIn('id="operations-assistant-detail"', html)
         self.assertIn("health.generator?.status", script)
         self.assertIn("health.pipeline?.status", script)
 

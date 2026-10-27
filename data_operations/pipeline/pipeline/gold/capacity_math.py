@@ -266,7 +266,7 @@ def compute_capacity_for_mode(
             "site_code":       row["site_code"],
             "factory_code":    row.get("factory_code"),
             "month_key":       row["month_key"],
-            "snapshot_id":     row["snapshot_id"],
+            "planning_version_id":     row["planning_version_id"],
             "product_number":  row["product_number"],
             "product_family":  row.get("product_family"),
             "platform":        row.get("platform"),
@@ -361,7 +361,7 @@ def build_resource_scenario_table(duck_conn) -> int:
             SELECT
                 site_code,
                 month_key,
-                snapshot_id,
+                planning_version_id,
                 product_number,
                 test_type,
                 capacity_mode,
@@ -376,7 +376,7 @@ def build_resource_scenario_table(duck_conn) -> int:
             GROUP BY
                 site_code,
                 month_key,
-                snapshot_id,
+                planning_version_id,
                 product_number,
                 test_type,
                 capacity_mode,
@@ -387,7 +387,7 @@ def build_resource_scenario_table(duck_conn) -> int:
             SELECT
                 site_code,
                 month_key,
-                snapshot_id,
+                planning_version_id,
                 product_number,
                 test_type,
                 capacity_mode,
@@ -413,7 +413,7 @@ def build_resource_scenario_table(duck_conn) -> int:
             GROUP BY
                 site_code,
                 month_key,
-                snapshot_id,
+                planning_version_id,
                 product_number,
                 test_type,
                 capacity_mode,
@@ -438,7 +438,7 @@ def build_resource_scenario_table(duck_conn) -> int:
             SELECT
                 site_code,
                 month_key,
-                snapshot_id,
+                planning_version_id,
                 product_number,
                 test_type,
                 equipment_id,
@@ -459,7 +459,7 @@ def build_resource_scenario_table(duck_conn) -> int:
             SELECT
                 site_code,
                 month_key,
-                snapshot_id,
+                planning_version_id,
                 NULL::VARCHAR AS product_number,
                 test_type,
                 CAST(equipment_id AS VARCHAR) AS equipment_id,
@@ -478,7 +478,7 @@ def build_resource_scenario_table(duck_conn) -> int:
             GROUP BY
                 site_code,
                 month_key,
-                snapshot_id,
+                planning_version_id,
                 test_type,
                 equipment_id,
                 capacity_mode,
@@ -504,7 +504,7 @@ def build_resource_scenario_table(duck_conn) -> int:
             md5(
                 COALESCE(CAST(site_code AS VARCHAR), '') || '|' ||
                 COALESCE(CAST(month_key AS VARCHAR), '') || '|' ||
-                COALESCE(CAST(snapshot_id AS VARCHAR), '') || '|' ||
+                COALESCE(CAST(planning_version_id AS VARCHAR), '') || '|' ||
                 COALESCE(CAST(product_number AS VARCHAR), 'None') || '|' ||
                 COALESCE(CAST(test_type AS VARCHAR), '') || '|' ||
                 COALESCE(CAST(equipment_id AS VARCHAR), '') || '|' ||

@@ -60,6 +60,12 @@ def get_raw_run_pointer(runtime_home: Path | None = None) -> Path:
     return (runtime_home or get_runtime_home()) / pointer_name
 
 
+def get_control_run_pointer(runtime_home: Path | None = None) -> Path:
+    """Return the pointer for the active application-owned control catalog."""
+    pointer_name = load_app_config("capacity_twin_core")["runtime"]["control_run_pointer"]
+    return (runtime_home or get_runtime_home()) / pointer_name
+
+
 def load_app_config(app_name: str) -> dict[str, Any]:
     """Load one root app, an app module, or the shared core configuration."""
     config_path = (
@@ -96,6 +102,7 @@ def load_config(config_path: str | Path | None = None) -> dict[str, Any]:
         "silver": str(runtime_home / "silver"),
         "gold": str(runtime_home / "gold"),
         "serving": str(runtime_home / "serving"),
+        "control": str(runtime_home / "control"),
         "logs": str(runtime_home / "logs"),
         "models": str(runtime_home / "models"),
     }

@@ -14,6 +14,9 @@ from data_operations.generator.services.atomic_publication import (
     create_candidate,
     publish_candidate,
 )
+from data_operations.generator.services.control_publication import (
+    publish_control_catalog,
+)
 from data_operations.generator.validations.outputs import validate_outputs
 from data_operations.generator.validations.preflight import validate_preflight
 
@@ -37,10 +40,13 @@ def run_all(
 
     report(3, "Preflight", "Validating dates, bounds, disk, and configuration")
     preflight_report = validate_preflight(config)
+    report(7, "Control catalog", "Publishing mappings, rules, and comparison windows")
+    control_pointer = publish_control_catalog(config)
     run_id, candidate_dir = create_candidate(config)
     final_dir = Path(config["paths"]["raw_sqlite"])
     candidate_config = deepcopy(config)
     candidate_config["paths"]["raw_sqlite"] = str(candidate_dir)
+    candidate_config["control_publication"] = control_pointer
     logger.info(f"Preflight passed; building candidate {run_id}")
 
     logger.info("\n── PASS 1: Reference Data ──────────────────────────────────")

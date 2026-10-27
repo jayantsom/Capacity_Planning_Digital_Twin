@@ -27,7 +27,7 @@ class DateContract:
     actual_end: date
     forecast_start: date
     forecast_end: date
-    snapshot_dates: tuple[date, ...]
+    plan_as_of_dates: tuple[date, ...]
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> DateContract:
@@ -38,7 +38,7 @@ class DateContract:
             actual_end=date.fromisoformat(values["end_date_actual"]),
             forecast_start=date.fromisoformat(values["start_date_forecast"]),
             forecast_end=date.fromisoformat(values["end_date_forecast"]),
-            snapshot_dates=tuple(date.fromisoformat(item) for item in values["snapshot_dates"]),
+            plan_as_of_dates=tuple(date.fromisoformat(item) for item in values["plan_as_of_dates"]),
         )
         if contract.actual_start > contract.actual_end:
             raise ValueError("Actual start must not be after actual end")
@@ -46,10 +46,10 @@ class DateContract:
             raise ValueError("Forecast must begin on the day after the actual cutoff")
         if contract.forecast_start > contract.forecast_end:
             raise ValueError("Forecast start must not be after forecast end")
-        if tuple(sorted(contract.snapshot_dates)) != contract.snapshot_dates:
-            raise ValueError("Snapshot dates must be ordered")
-        if contract.snapshot_dates[-1] != contract.actual_end:
-            raise ValueError("The latest snapshot must equal the actual cutoff")
+        if tuple(sorted(contract.plan_as_of_dates)) != contract.plan_as_of_dates:
+            raise ValueError("Plan as-of dates must be ordered")
+        if contract.plan_as_of_dates[-1] != contract.actual_end:
+            raise ValueError("The latest plan as-of date must equal the actual cutoff")
         return contract
 
 

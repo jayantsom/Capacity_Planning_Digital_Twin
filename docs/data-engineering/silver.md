@@ -6,14 +6,14 @@ Silver converts validated Raw-shaped records into conformed telecom manufacturin
 
 - Deterministically deduplicate rows already flagged in Bronze.
 - Preserve invalid records in quarantine instead of silently dropping them.
-- Conform products, sites, factories, dates, snapshots, routes, resources, and units.
+- Conform products, sites, factories, dates, planning versions, routes, resources, and units.
 - Reconcile execution with test-parameter and log facts.
 - Keep parent BOM-dependent demand separate from independent direct, spare, and service demand.
 - Apply effective-dated sourcing and route qualification.
 - Assert key uniqueness and join cardinality before writes.
 - Write `silver.duckdb` without changing `bronze.duckdb`.
 
-Lag and rolling features used later by ML must be grouped by their declared series and shifted behind the target period. Snapshot and month keys must remain part of the grain wherever they affect identity.
+Lag and rolling features used later by ML must be grouped by their declared series and shifted behind the target period. Planning version and month keys must remain part of the grain wherever they affect identity.
 
 ## Execution
 

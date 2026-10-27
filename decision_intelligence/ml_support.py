@@ -31,7 +31,7 @@ _ACTIVE_MODELS_DIR: Path | None = None
 
 
 def source_database_path() -> Path:
-    """Return the validated Gold/analytics input database."""
+    """Return the self-contained Serving input with Gold facts and dimensions."""
     runtime = get_runtime_home()
     pointer = get_active_run_pointer(runtime)
     if pointer.is_file():
@@ -39,11 +39,16 @@ def source_database_path() -> Path:
         run_id = payload.get("active_run_id")
         if not run_id:
             raise ValueError("Pipeline pointer has no active_run_id")
-        candidate = (runtime / "artifacts" / run_id / "gold.duckdb").resolve()
+        database_name = PIPELINE_CONFIG["databases"].get(
+            "serving", "serving.duckdb"
+        )
+        candidate = (runtime / "artifacts" / run_id / database_name).resolve()
         if runtime.resolve() not in candidate.parents:
             raise ValueError("Pipeline pointer escapes the runtime home")
         return candidate
-    database_name = PIPELINE_CONFIG["databases"].get("gold", "gold.duckdb")
+    database_name = PIPELINE_CONFIG["databases"].get(
+        "serving", "serving.duckdb"
+    )
     return runtime / database_name
 
 
@@ -98,7 +103,7 @@ def load_feature_store(conn: duckdb.DuckDBPyConnection) -> pd.DataFrame:
         "product_number",
         "test_type",
         "month_key",
-        "snapshot_id",
+        "planning_version_id",
         "demand_qty",
         "target_yield",
     }
@@ -106,12 +111,12 @@ def load_feature_store(conn: duckdb.DuckDBPyConnection) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Feature store missing columns: {missing}")
 
-    key_cols = ["site_code", "product_number", "test_type", "month_key", "snapshot_id"]
+    key_cols = ["site_code", "product_number", "test_type", "month_key", "planning_version_id"]
     if fs[key_cols].isna().any().any():
         raise ValueError("Feature store contains null business keys")
 
     # Gold may contain one row per qualified resource. ML labels are defined at
-    # product/site/test/month/snapshot grain, so remove resource fan-out first.
+    # product/site/test/month/planning version grain, so remove resource fan-out first.
     contract_cols = ["demand_qty", "target_yield", "target_test_time_sec", "is_actual"]
     for column in contract_cols:
         if column not in fs:
@@ -190,7 +195,7 @@ def load_feature_store(conn: duckdb.DuckDBPyConnection) -> pd.DataFrame:
             "target_yield": "target_yield",
         }
     )
-    renamed_keys = ["site_id", "product_id", "test_type_id", "month", "snapshot_id"]
+    renamed_keys = ["site_id", "product_id", "test_type_id", "month", "planning_version_id"]
     renamed["feature_row_id"] = stable_row_ids(renamed, renamed_keys)
     return renamed
 

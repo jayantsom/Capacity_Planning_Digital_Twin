@@ -17,7 +17,7 @@ class GeneratorOptions(BaseModel):
     actual_end: date = date(2026, 10, 31)
     forecast_start: date = date(2026, 11, 1)
     forecast_end: date = date(2027, 12, 31)
-    snapshot_dates: list[date] = Field(
+    plan_as_of_dates: list[date] = Field(
         default_factory=lambda: [date(2025, 10, 31), date(2026, 10, 31)],
         min_length=1,
         max_length=6,
@@ -31,20 +31,20 @@ class GeneratorOptions(BaseModel):
 
     @model_validator(mode="after")
     def validate_dates(self) -> GeneratorOptions:
-        """Keep actual, snapshot, and forecast periods consistent."""
+        """Keep actual, plan as-of, and forecast periods consistent."""
         if self.actual_start > self.actual_end:
             raise ValueError("Actual start must be on or before actual end")
         if self.forecast_start <= self.actual_end:
             raise ValueError("Forecast start must be after actual end")
         if self.forecast_start > self.forecast_end:
             raise ValueError("Forecast start must be on or before forecast end")
-        if len(set(self.snapshot_dates)) != len(self.snapshot_dates):
-            raise ValueError("Snapshot dates must be unique")
+        if len(set(self.plan_as_of_dates)) != len(self.plan_as_of_dates):
+            raise ValueError("Plan as-of dates must be unique")
         if any(
-            value < self.actual_start or value > self.actual_end for value in self.snapshot_dates
+            value < self.actual_start or value > self.actual_end for value in self.plan_as_of_dates
         ):
-            raise ValueError("Snapshot dates must stay inside the actual period")
-        self.snapshot_dates = sorted(self.snapshot_dates)
+            raise ValueError("Plan as-of dates must stay inside the actual period")
+        self.plan_as_of_dates = sorted(self.plan_as_of_dates)
         return self
 
 

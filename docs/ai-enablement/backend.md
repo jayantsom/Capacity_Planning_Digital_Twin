@@ -5,17 +5,17 @@ The approved delivery target is one FastAPI server on `127.0.0.1:8000`.
 | Route | Purpose |
 |---|---|
 | `/` | Compact four-card application launcher |
-| `/capacity-assistant/` | Capacity Assistant |
-| `/chat/` | Compatibility redirect to Capacity Assistant |
+| `/operations-assistant/` | Operations Assistant |
+| `/operations-assistant/static/*` | Operations Assistant frontend assets |
 | `/explorer/` | Data Explorer |
 | `/decision-intelligence/` | Five ML workflow dashboards |
 | `/data-operations/` | Generator and Pipeline tabs |
-| `/api/health` | API, promoted data, and optional Ollama status |
-| `/api/chat` | Complete Capacity Assistant response |
-| `/api/chat/stream` | Cancellable SSE stream |
+| `/operations-assistant/api/health` | API, promoted data, and optional Ollama status |
+| `/operations-assistant/api/chat` | Complete Operations Assistant response |
+| `/operations-assistant/api/chat/stream` | Cancellable SSE stream |
 | `/explorer/api/*` | Read-only source, schema, data, and query APIs |
 
-The Home page launches Data Explorer, Decision Intelligence, Capacity Assistant,
+The Home page launches Data Explorer, Decision Intelligence, Operations Assistant,
 and Data Operations. The frontend remains plain HTML/CSS/JavaScript with the
 Graphite/Dark Cyan palette.
 

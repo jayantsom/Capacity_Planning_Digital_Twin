@@ -21,7 +21,7 @@ def build_demand_requirements(
     site_product_source: pd.DataFrame,
 ) -> pd.DataFrame:
     """Return explicit independent and dependent demand without double counting."""
-    required = {"snapshot_id", "snapshot_date", "month_key", "site", "product_number", "quantity"}
+    required = {"planning_version_id", "plan_as_of_date", "month_key", "site", "product_number", "quantity"}
     missing = required - set(independent_totals.columns)
     if missing:
         raise ValueError(f"Independent demand is missing columns: {sorted(missing)}")
@@ -42,7 +42,7 @@ def build_demand_requirements(
                     **record,
                     "demand_id": stable_id(
                         "demand",
-                        record["snapshot_id"],
+                        record["planning_version_id"],
                         record["month_key"],
                         record["site"],
                         record["product_number"],
@@ -62,8 +62,8 @@ def build_demand_requirements(
         quantity = 0 if pd.isna(record["quantity"]) else max(0, int(record["quantity"]))
         parent_totals[
             (
-                record["snapshot_id"],
-                record["snapshot_date"],
+                record["planning_version_id"],
+                record["plan_as_of_date"],
                 record["month_key"],
                 record["product_number"],
                 record.get("knowledge_type"),
@@ -79,8 +79,8 @@ def build_demand_requirements(
         bom_by_parent[component["parent_product_number"]].append(component)
 
     for (
-        snapshot_id,
-        snapshot_date,
+        planning_version_id,
+        plan_as_of_date,
         month_key,
         parent,
         knowledge_type,
@@ -99,13 +99,13 @@ def build_demand_requirements(
                 allocated += quantity
                 rows.append(
                     {
-                        "snapshot_id": snapshot_id,
-                        "snapshot_date": snapshot_date,
+                        "planning_version_id": planning_version_id,
+                        "plan_as_of_date": plan_as_of_date,
                         "month_key": month_key,
                         "site": source["site_code"],
                         "product_number": child,
                         "demand_id": stable_id(
-                            "demand", snapshot_id, month_key, source["site_code"], child, parent
+                            "demand", planning_version_id, month_key, source["site_code"], child, parent
                         ),
                         "demand_class": "BOM_DEPENDENT",
                         "quantity": quantity,
@@ -120,5 +120,5 @@ def build_demand_requirements(
     demand = pd.DataFrame(rows)
     demand["total_requirement"] = demand["independent_quantity"] + demand["dependent_quantity"]
     return demand.sort_values(
-        ["snapshot_id", "month_key", "product_number", "site", "demand_class", "demand_id"]
+        ["planning_version_id", "month_key", "product_number", "site", "demand_class", "demand_id"]
     ).reset_index(drop=True)

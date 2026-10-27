@@ -7,7 +7,7 @@ from capacity_twin_core.runtime.database_paths import PROJECT_ROOT, load_config
 
 APPLICATION_NAMES = {
     "capacity_home",
-    "capacity_assistant",
+    "operations_assistant",
     "data_explorer",
     "data_operations",
     "decision_intelligence",
@@ -62,7 +62,7 @@ def test_apps_do_not_import_other_apps_private_code() -> None:
         if owner == "capacity_home":
             allowed.update(
                 {
-                    "capacity_assistant",
+                    "operations_assistant",
                     "data_explorer",
                     "data_operations",
                     "decision_intelligence",

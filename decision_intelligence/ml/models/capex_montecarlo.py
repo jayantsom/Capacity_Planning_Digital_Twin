@@ -71,7 +71,7 @@ def _fit_beta(values: np.ndarray):
 
 
 def estimate_demand_uncertainty(fs: pd.DataFrame) -> pd.DataFrame:
-    """Estimate demand after removing test and snapshot duplication."""
+    """Estimate demand after removing test and planning version duplication."""
     keys = ["product_number", "site_code", "month_key"]
     demand = fs.sort_values(keys).groupby(keys, as_index=False)["demand_qty"].first()
     s = (

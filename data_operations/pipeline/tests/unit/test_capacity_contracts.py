@@ -57,7 +57,7 @@ def test_resource_scenario_table_handles_paired_alternative_and_shared_resources
         CREATE TABLE gold_cap_normal (
             site_code VARCHAR,
             month_key INTEGER,
-            snapshot_id VARCHAR,
+            planning_version_id VARCHAR,
             product_number VARCHAR,
             test_type VARCHAR,
             equipment_id VARCHAR,
@@ -71,17 +71,17 @@ def test_resource_scenario_table_handles_paired_alternative_and_shared_resources
         """
     )
     rows = [
-        ("S", 202611, "snap", "P1", "RF", "SYS-1", "SYSTEM",
+        ("S", 202611, "plan-2026-10-31", "P1", "RF", "SYS-1", "SYSTEM",
          "NORMAL", "TYPE1", "DEDICATED", 60, 100),
-        ("S", 202611, "snap", "P1", "RF", "FIX-1", "FIXTURE",
+        ("S", 202611, "plan-2026-10-31", "P1", "RF", "FIX-1", "FIXTURE",
          "NORMAL", "TYPE1", "DEDICATED", 60, 80),
-        ("S", 202611, "snap", "P2", "ICT", "ICT-1", "SYSTEM",
+        ("S", 202611, "plan-2026-10-31", "P2", "ICT", "ICT-1", "SYSTEM",
          "NORMAL", "TYPE1", "DEDICATED", 100, 70),
-        ("S", 202611, "snap", "P2", "ICT", "ICT-2", "SYSTEM",
+        ("S", 202611, "plan-2026-10-31", "P2", "ICT", "ICT-2", "SYSTEM",
          "NORMAL", "TYPE1", "DEDICATED", 100, 50),
-        ("S", 202611, "snap", "P3", "OTA", "OTA-1", "SYSTEM",
+        ("S", 202611, "plan-2026-10-31", "P3", "OTA", "OTA-1", "SYSTEM",
          "NORMAL", "TYPE1", "SHARED_POOL", 60, 100),
-        ("S", 202611, "snap", "P4", "OTA", "OTA-1", "SYSTEM",
+        ("S", 202611, "plan-2026-10-31", "P4", "OTA", "OTA-1", "SYSTEM",
          "NORMAL", "TYPE1", "SHARED_POOL", 50, 100),
     ]
     connection.executemany(

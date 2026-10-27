@@ -16,6 +16,7 @@ import duckdb
 
 from capacity_twin_core.runtime.database_paths import (
     get_active_run_pointer,
+    get_control_run_pointer,
     get_raw_run_pointer,
 )
 
@@ -89,12 +90,22 @@ class PipelineRun:
         self.paths.run_dir.mkdir(parents=True, exist_ok=False)
         current = self.read_pointer(runtime_home)
         raw_pointer = self.read_raw_pointer(runtime_home)
+        control_pointer = self.read_control_pointer(runtime_home)
+        if not raw_pointer.get("run_id"):
+            raise ValueError("A published Raw run is required before starting the pipeline")
+        if not control_pointer.get("control_run_id"):
+            raise ValueError("A published control catalog is required before starting the pipeline")
+        if raw_pointer.get("source_control_run_id") != control_pointer.get("control_run_id"):
+            raise ValueError("Raw and control catalog publications are not aligned")
         self.manifest: dict[str, Any] = {
             "manifest_version": 1,
             "run_id": self.paths.run_id,
             "parent_run_id": current.get("active_run_id"),
             "retry_of_run_id": retry_of,
             "source_raw_run_id": raw_pointer.get("run_id"),
+            "source_control_run_id": control_pointer.get("control_run_id"),
+            "source_control_sha256": control_pointer.get("sha256"),
+            "control_catalog_version": control_pointer.get("catalog_version"),
             "config_hash": _config_hash(config),
             "created_at": _utc_now(),
             "completed_at": None,
@@ -120,6 +131,14 @@ class PipelineRun:
     def read_raw_pointer(runtime_home: Path) -> dict[str, Any]:
         """Read the Raw publication used as this pipeline's source."""
         pointer = get_raw_run_pointer(runtime_home)
+        if not pointer.is_file():
+            return {}
+        return json.loads(pointer.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def read_control_pointer(runtime_home: Path) -> dict[str, Any]:
+        """Read the immutable control catalog used by this pipeline."""
+        pointer = get_control_run_pointer(runtime_home)
         if not pointer.is_file():
             return {}
         return json.loads(pointer.read_text(encoding="utf-8"))
@@ -210,6 +229,15 @@ class PipelineRun:
 
     def promote(self) -> None:
         """Atomically point readers at a complete, validated artifact set."""
+        raw_pointer = self.read_raw_pointer(self.paths.runtime_home)
+        control_pointer = self.read_control_pointer(self.paths.runtime_home)
+        if raw_pointer.get("run_id") != self.manifest["source_raw_run_id"]:
+            raise ValueError("Raw publication changed while the pipeline was building")
+        if (
+            control_pointer.get("control_run_id") != self.manifest["source_control_run_id"]
+            or control_pointer.get("sha256") != self.manifest["source_control_sha256"]
+        ):
+            raise ValueError("Control catalog changed while the pipeline was building")
         missing = [name for name in DATABASE_FILES if not (self.paths.run_dir / name).is_file()]
         if missing:
             raise ValueError(f"Cannot promote incomplete run; missing {missing}")
@@ -236,6 +264,9 @@ class PipelineRun:
             "promoted_at": promoted_at,
             "manifest": str(self.paths.manifest),
             "serving_database": str(self.paths.database("serving")),
+            "source_raw_run_id": self.manifest["source_raw_run_id"],
+            "source_control_run_id": self.manifest["source_control_run_id"],
+            "source_control_sha256": self.manifest["source_control_sha256"],
         }
         _atomic_json(self.paths.pointer, pointer)
         self.manifest.update(
@@ -289,6 +320,9 @@ def rollback(runtime_home: Path) -> str:
             "promoted_at": rolled_at,
             "manifest": str(manifest_path),
             "serving_database": str(previous_dir / "serving.duckdb"),
+            "source_raw_run_id": manifest.get("source_raw_run_id"),
+            "source_control_run_id": manifest.get("source_control_run_id"),
+            "source_control_sha256": manifest.get("source_control_sha256"),
             "rollback_from_run_id": active,
         },
     )

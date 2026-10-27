@@ -1,6 +1,6 @@
 # Capacity Planning Fundamentals
 
-The project models telecom/networking manufacturing routes for parent systems and made child modules. Capacity is evaluated against demand at a declared site, route step or test, resource pool, month, and planning snapshot grain.
+The project models telecom/networking manufacturing routes for parent systems and made child modules. Capacity is evaluated against demand at a declared site, route step or test, resource pool, month, and planning-version grain.
 
 ## Demand
 

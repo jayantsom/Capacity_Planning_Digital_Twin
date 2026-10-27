@@ -54,7 +54,7 @@ OEE_ROLL_COLS = [3, 6]
 
 def attach_equipment_ids(feature_rows: pd.DataFrame, gcm: pd.DataFrame) -> pd.DataFrame:
     """Expand product rows only across explicitly qualified equipment IDs."""
-    keys = ["site_id", "product_id", "test_type_id", "month", "snapshot_id"]
+    keys = ["site_id", "product_id", "test_type_id", "month", "planning_version_id"]
     mapping = (
         gcm[
             [
@@ -62,7 +62,7 @@ def attach_equipment_ids(feature_rows: pd.DataFrame, gcm: pd.DataFrame) -> pd.Da
                 "product_number",
                 "test_type",
                 "month_key",
-                "snapshot_id",
+                "planning_version_id",
                 "equipment_id",
             ]
         ]
@@ -94,7 +94,7 @@ def aggregate_equipment_grain(df: pd.DataFrame) -> pd.DataFrame:
     if "equipment_id" not in work:
         work["equipment_id"] = work["site_id"].astype(str) + "|" + work["test_type_id"].astype(str)
     keys = ["equipment_id", "site_id", "test_type_id", "month"]
-    # Product demand is additive, but snapshots/test fan-out are not.
+    # Product demand is additive, but planning versions/test fan-out are not.
     product_keys = keys + ["product_id"]
     product_month = (
         work.sort_values(product_keys)
@@ -156,7 +156,7 @@ def _feat_cols(df: pd.DataFrame) -> list[str]:
         "degradation_label",
         "failure_label",
         "month",
-        "snapshot_id",
+        "planning_version_id",
         "feat_pk",
         "feature_row_id",
         "equipment_id",

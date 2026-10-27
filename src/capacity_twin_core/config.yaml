@@ -4,3 +4,4 @@ runtime:
   windows_default: "%LOCALAPPDATA%\\CapacityPlanningDigitalTwin"
   active_run_pointer: current.json
   raw_run_pointer: raw_current.json
+  control_run_pointer: control_current.json

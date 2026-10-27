@@ -13,7 +13,7 @@ Erivon is fictional. `ERV_*` identifiers are synthetic. Real EMS and equipment-m
 | Actual and execution | 2023-01-01 through 2026-10-31 |
 | Forecast | 2026-11-01 through 2027-12-31 |
 
-Configured planning snapshots are dated 2025-10-31 and 2026-10-31. Each snapshot sees actuals only through its as-of date; later periods remain forecasts.
+Configured planning versions are dated 2025-10-31 and 2026-10-31. Each planning version sees actuals only through its as-of date; later periods remain forecasts.
 
 ## Catalog scope
 

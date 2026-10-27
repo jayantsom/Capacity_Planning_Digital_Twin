@@ -384,17 +384,14 @@ def generate_reference_data(config: dict) -> None:
     logger.info(f"  Equipment: {len(equip_df)} records "
                 f"({len(SYSTEMS)} systems, {len(FIXTURES)} fixtures)")
 
-    # Versioned contracts are additive so legacy consumers keep working.
+    # Manufacturer names simulate a source-owned equipment master attribute.
     from data_operations.generator.catalogs.contract_tables import (
         CATALOG_VERSION,
-        build_resource_contracts,
     )
     from data_operations.generator.catalogs.contract_tables import (
         SYNTHETIC_DISCLAIMER as CONTRACT_DISCLAIMER,
     )
 
-    for table_name, table in build_resource_contracts().items():
-        write_to_sqlite(table, table_name, db_path)
     manufacturers = (
         equip_df[["manufacturer"]]
         .drop_duplicates()
@@ -406,20 +403,6 @@ def generate_reference_data(config: dict) -> None:
         )
     )
     write_to_sqlite(manufacturers, "manufacturer_master", db_path)
-    capabilities = ["PCBA", "RF", "MICROWAVE", "OPTICAL", "SYSTEM_INTEGRATION", "BOX_BUILD", "REPAIR", "NPI"]
-    capability_rows = [
-        {
-            "site_code": site[0],
-            "capability": capabilities[
-                (sum(site[0].encode("utf-8")) + offset) % len(capabilities)
-            ],
-            "is_synthetic_assignment": 1,
-            "synthetic_disclaimer": CONTRACT_DISCLAIMER,
-        }
-        for site in SITES
-        for offset in range(3)
-    ]
-    write_to_sqlite(pd.DataFrame(capability_rows), "site_capability", db_path)
 
     logger.success("raw_reference_data.db complete")
     return site_df, test_type_df, equip_df

@@ -14,11 +14,11 @@ import pandas as pd
 from capacity_twin_core.dates.months import date_to_month_key
 from capacity_twin_core.logging import logger
 from capacity_twin_core.runtime.database_paths import get_sqlite_path
-from data_operations.generator.generators.assignment_matrix import ASSIGNMENT_MATRIX
 from data_operations.generator.generators.reference_data import TEST_TYPES
 from data_operations.generator.rules.contracts import DateContract, VolumeContract
 from data_operations.generator.rules.determinism import stable_id, stable_seed
 from data_operations.generator.rules.npi import npi_ramp
+from data_operations.generator.services.control_catalog import load_assignments
 
 # ── Date range ────────────────────────────────────────────────────────────────
 ACTUAL_START = date(2023, 1, 1)
@@ -92,7 +92,7 @@ def generate_machine_execution_db(config: dict) -> None:
     from collections import defaultdict
 
     site_assignments = defaultdict(list)
-    for a in ASSIGNMENT_MATRIX:
+    for a in load_assignments(config):
         site_assignments[a["site_code"]].append(a)
 
     # Monthly batches

@@ -10,18 +10,20 @@ SERVING_VIEWS = {
     "srv_vw_capacity_summary": """
         SELECT
             dvc.site_code,
+            rs.site_name,
             rs.region,
             rs.country,
             rs.supplier_name,
             dvc.month_key,
             dvc.product_number,
+            pm.product_description,
             dvc.product_family,
             dvc.platform,
             dvc.product_status,
             dvc.test_type,
             dvc.equipment_id,
             dvc.equipment_type,
-            dvc.snapshot_id,
+            dvc.planning_version_id,
             dvc.capacity_mode,
             dvc.retest_type,
             dvc.demand_qty,
@@ -36,10 +38,13 @@ SERVING_VIEWS = {
         FROM gold_dmnd_vs_cap dvc
         LEFT JOIN slvr_ref_site rs
             ON dvc.site_code = rs.site_code
+        LEFT JOIN slvr_prod_master pm
+            ON dvc.product_number = pm.product_number
     """,
     "srv_vw_bottleneck_heatmap": """
         SELECT
             b.site_code,
+            rs.site_name,
             rs.region,
             rs.supplier_name,
             b.month_key,
@@ -47,7 +52,7 @@ SERVING_VIEWS = {
             b.equipment_type,
             b.capacity_mode,
             b.retest_type,
-            b.snapshot_id,
+            b.planning_version_id,
             b.bottleneck_severity,
             b.worst_gap_qty,
             b.total_investment_need_units,
@@ -73,6 +78,7 @@ SERVING_VIEWS = {
     "srv_vw_equipment_utilization": """
         SELECT
             dvc.site_code,
+            rs.site_name,
             rs.region,
             dvc.month_key,
             dvc.test_type,
@@ -80,7 +86,7 @@ SERVING_VIEWS = {
             dvc.equipment_type,
             dvc.capacity_mode,
             dvc.retest_type,
-            dvc.snapshot_id,
+            dvc.planning_version_id,
             AVG(dvc.utilization_pct)        AS avg_utilization_pct,
             MAX(dvc.utilization_pct)        AS max_utilization_pct,
             MIN(dvc.capacity_qty)           AS min_capacity_qty,
@@ -89,13 +95,14 @@ SERVING_VIEWS = {
         FROM gold_dmnd_vs_cap dvc
         LEFT JOIN slvr_ref_site rs ON dvc.site_code = rs.site_code
         GROUP BY
-            dvc.site_code, rs.region, dvc.month_key,
+            dvc.site_code, rs.site_name, rs.region, dvc.month_key,
             dvc.test_type, dvc.equipment_id, dvc.equipment_type,
-            dvc.capacity_mode, dvc.retest_type, dvc.snapshot_id
+            dvc.capacity_mode, dvc.retest_type, dvc.planning_version_id
     """,
     "srv_vw_oee_trend": """
         SELECT
             o.site_code,
+            rs.site_name,
             rs.region,
             rs.supplier_name,
             o.month_key,
@@ -123,14 +130,16 @@ SERVING_VIEWS = {
     "srv_vw_forecast_accuracy": """
         SELECT
             fa.site_code,
+            rs.site_name,
             rs.region,
             fa.product_number,
+            pm.product_description,
             pm.product_family,
             pm.platform,
             pm.product_status,
             fa.month_key,
-            fa.snapshot_id,
-            fa.snapshot_date,
+            fa.planning_version_id,
+            fa.plan_as_of_date,
             fa.forecast_qty,
             fa.actual_qty,
             fa.abs_error,
@@ -151,12 +160,14 @@ SERVING_VIEWS = {
     "srv_vw_machine_actuals_summary": """
         SELECT
             ca.site_code,
+            rs.site_name,
             rs.region,
             ca.product_number,
+            pm.product_description,
             pm.product_family,
             ca.test_type,
             ca.month_key,
-            ca.snapshot_id,
+            ca.planning_version_id,
             ca.actual_passed_qty,
             ca.actual_total_qty,
             ca.actual_yield_avg,
@@ -174,6 +185,67 @@ SERVING_VIEWS = {
         FROM gold_cap_actual ca
         LEFT JOIN slvr_ref_site rs    ON ca.site_code     = rs.site_code
         LEFT JOIN slvr_prod_master pm ON ca.product_number = pm.product_number
+    """,
+    "srv_vw_operational_performance": """
+        SELECT
+            op.period_grain,
+            op.period_key,
+            op.period_start,
+            op.period_end,
+            op.period_complete,
+            op.days_present,
+            op.observation_rows,
+            op.factory_code,
+            op.site_code,
+            rs.site_name,
+            op.product_number,
+            pm.product_description,
+            op.test_type,
+            tt.test_category_name AS test_type_name,
+            op.passed_qty,
+            op.failed_qty,
+            op.tested_qty,
+            op.yield_pct,
+            op.first_pass_qty,
+            op.first_fail_qty,
+            op.first_pass_yield_pct,
+            op.downtime_seconds,
+            op.productive_seconds,
+            op.downtime_hours,
+            op.weighted_test_time_sec,
+            op.weighted_handling_time_sec,
+            op.weighted_throughput_uph,
+            op.availability_pct,
+            op.performance_pct,
+            op.quality_pct,
+            op.oee_pct,
+            op.pipeline_run_id
+        FROM gold_operational_performance op
+        LEFT JOIN slvr_ref_site rs ON op.site_code = rs.site_code
+        LEFT JOIN slvr_prod_master pm ON op.product_number = pm.product_number
+        LEFT JOIN slvr_ref_test_type tt ON op.test_type = tt.test_type
+    """,
+    "srv_vw_operational_events": """
+        SELECT
+            oe.period_grain,
+            oe.period_key,
+            oe.period_start,
+            oe.period_end,
+            oe.factory_code,
+            oe.site_code,
+            rs.site_name,
+            oe.product_number,
+            pm.product_description,
+            oe.test_type,
+            tt.test_category_name AS test_type_name,
+            oe.severity,
+            oe.error_code,
+            oe.event_count,
+            oe.pipeline_run_id
+        FROM gold_operational_events oe
+        LEFT JOIN slvr_ref_site rs ON oe.site_code = rs.site_code
+        LEFT JOIN slvr_prod_master pm ON oe.product_number = pm.product_number
+        LEFT JOIN slvr_ref_test_type tt ON oe.test_type = tt.test_type
     """,
 }
 

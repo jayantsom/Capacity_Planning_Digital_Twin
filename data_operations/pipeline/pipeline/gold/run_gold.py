@@ -18,6 +18,7 @@ from data_operations.pipeline.pipeline.gold.analytics import (
     build_forecast_accuracy,
     build_ml_feature_store,
     build_oee_metrics,
+    build_operational_time_grains,
 )
 from data_operations.pipeline.pipeline.gold.capacity_math import (
     build_capacity_tables,
@@ -59,6 +60,7 @@ def run_gold_pipeline(
     counts["gold_dmnd_vs_cap"]       = build_demand_vs_capacity(duck_conn)
     counts["gold_bottleneck"]        = build_bottleneck_table(duck_conn)
     counts["gold_oee_metrics"]       = build_oee_metrics(duck_conn)
+    counts.update(build_operational_time_grains(duck_conn))
     counts["gold_forecast_accuracy"] = build_forecast_accuracy(duck_conn)
     counts["gold_cap_actual"]        = build_actual_capacity(duck_conn)
     counts["gold_ml_feature_store"]  = build_ml_feature_store(duck_conn)
@@ -72,7 +74,7 @@ def run_gold_pipeline(
             "product_number",
             "test_type",
             "month_key",
-            "snapshot_id",
+            "planning_version_id",
         ],
     )
     assert_unique_grain(
@@ -83,7 +85,19 @@ def run_gold_pipeline(
             "product_number",
             "test_type",
             "month_key",
-            "snapshot_id",
+            "planning_version_id",
+        ],
+    )
+    assert_unique_grain(
+        duck_conn,
+        "gold_operational_performance",
+        [
+            "period_grain",
+            "period_key",
+            "factory_code",
+            "site_code",
+            "product_number",
+            "test_type",
         ],
     )
 

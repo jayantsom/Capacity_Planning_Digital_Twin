@@ -1,10 +1,12 @@
 'use strict';
 
+import { mountComparisonBand } from '/shared/comparison-band.js';
+
 const API = '/explorer/api';
-const LAYERS = ['raw', 'bronze', 'silver', 'gold'];
+const LAYERS = ['raw', 'control', 'bronze', 'silver', 'gold', 'serving', 'ml'];
 const FILTER_PRIORITY = [
-  'site_code', 'site_id', 'factory_code', 'product_number', 'product_id',
-  'test_type', 'test_type_id', 'month_key', 'month', 'snapshot_id',
+  'period_grain', 'site_code', 'site_id', 'factory_code', 'product_number', 'product_id',
+  'test_type', 'test_type_id', 'month_key', 'month', 'planning_version_id',
   'capacity_mode', 'bottleneck_severity', 'risk_tier', 'anomaly_severity',
   'platform', 'product_family', 'region', 'supplier_name', 'equipment_id',
   'equipment_type', 'product_status', 'retest_type',
@@ -24,6 +26,9 @@ const state = {
   filters: {},
   sortColumn: null,
   sortDirection: 'asc',
+  comparisonWindow: 'total',
+  comparisonSupported: false,
+  comparisonController: null,
 };
 
 const ui = {
@@ -64,17 +69,15 @@ function setSourceStatus(kind, label) {
 function normaliseSources(sources) {
   const layers = Object.fromEntries(LAYERS.map((layer) => [layer, []]));
   sources.forEach((source) => {
-    if (source.layer === 'multi' && source.layers) {
-      Object.entries(source.layers).forEach(([layer, metadata]) => {
-        (metadata.tables || []).forEach((table) => layers[layer]?.push({
-          source: source.id, sourceLabel: source.label || source.id, table: table.name, layer,
-        }));
-      });
-    } else {
-      (source.tables || []).forEach((table) => layers.raw.push({
-        source: source.id, sourceLabel: source.label || source.id, table: table.name, layer: 'raw',
-      }));
-    }
+    const layer = LAYERS.includes(source.layer) ? source.layer : 'raw';
+    (source.tables || []).forEach((table) => layers[layer].push({
+      source: source.id,
+      sourceLabel: source.label || source.id,
+      table: table.name,
+      layer,
+      objectType: table.object_type || 'TABLE',
+      rowCount: table.row_count,
+    }));
   });
   return layers;
 }
@@ -118,6 +121,21 @@ function buildCatalog(sources) {
 
 async function initialise() {
   try {
+    try {
+      state.comparisonController = await mountComparisonBand(
+        document.getElementById('comparisonBand'),
+        (windowId) => {
+          state.comparisonWindow = windowId;
+          if (state.comparisonSupported) {
+            state.page = 1;
+            void loadData();
+          }
+        },
+      );
+      state.comparisonWindow = state.comparisonController.windowId;
+    } catch {
+      document.getElementById('comparisonBand').hidden = true;
+    }
     const sources = await jsonRequest(`${API}/sources`);
     state.sources = Array.isArray(sources) ? sources : [];
     buildCatalog(state.sources);
@@ -153,11 +171,21 @@ async function selectTable(entry, button) {
 
   const base = `${encodePath(entry.source)}/${encodePath(entry.table)}`;
   try {
-    const [schema, data] = await Promise.all([
-      jsonRequest(`${API}/schema/${base}`),
-      jsonRequest(`${API}/data/${base}?page=1&page_size=${state.pageSize}`),
-    ]);
+    const schema = await jsonRequest(`${API}/schema/${base}`);
     state.schema = schema.columns || [];
+    const grainBadges = document.getElementById('grainBadges');
+    grainBadges.replaceChildren();
+    [
+      `NATIVE: ${schema.native_grain || 'NONE'}`,
+      `SUPPORTED: ${(schema.supported_grains || []).join(' · ') || 'NONE'}`,
+    ].forEach((text) => grainBadges.append(node('span', 'grain-badge', text)));
+    grainBadges.hidden = false;
+    state.comparisonSupported = Boolean(schema.comparison_supported);
+    document.getElementById('comparisonBand').hidden = !state.comparisonSupported;
+    const activeWindow = state.comparisonSupported ? state.comparisonWindow : 'total';
+    const data = await jsonRequest(
+      `${API}/data/${base}?page=1&page_size=${state.pageSize}&window=${activeWindow}`,
+    );
     applyDataResponse(data);
     updateTableIdentity();
     updateSummary();
@@ -284,8 +312,9 @@ async function loadData() {
     ? `&sort_col=${encodeURIComponent(state.sortColumn)}&sort_dir=${state.sortDirection}`
     : '';
   const base = `${encodePath(state.source)}/${encodePath(state.table)}`;
+  const activeWindow = state.comparisonSupported ? state.comparisonWindow : 'total';
   try {
-    const data = await jsonRequest(`${API}/data/${base}?page=${state.page}&page_size=${state.pageSize}&filters=${filters}${sort}`);
+    const data = await jsonRequest(`${API}/data/${base}?page=${state.page}&page_size=${state.pageSize}&filters=${filters}${sort}&window=${activeWindow}`);
     applyDataResponse(data);
     updateSummary();
   } catch (error) {

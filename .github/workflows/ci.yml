@@ -22,7 +22,7 @@ jobs:
       - name: Check code quality
         run: >-
           uv run ruff check
-          capacity_home capacity_assistant data_explorer data_operations
+          capacity_home operations_assistant data_explorer data_operations
           decision_intelligence src
 
   app-tests:
@@ -32,7 +32,7 @@ jobs:
       matrix:
         target:
           - capacity_home
-          - capacity_assistant
+          - operations_assistant
           - data_explorer
           - data_operations
           - decision_intelligence

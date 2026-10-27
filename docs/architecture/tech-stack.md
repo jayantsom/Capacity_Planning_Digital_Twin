@@ -11,7 +11,7 @@ The essential project uses only free and open-source technologies.
 | Data processing | pandas, Polars, PyArrow, PySpark 4.1.2 | Local transforms and Silver processing |
 | ML | scikit-learn, XGBoost, LightGBM, Prophet, SHAP, imbalanced-learn | Five existing workflows |
 | Assistant | LangGraph, LangChain, MCP | Routing and guarded read-only tools |
-| Local model | Ollama with `llama3.1:8b` | Capacity Assistant baseline |
+| Local model | Ollama with `llama3.1:8b` | Operations Assistant baseline |
 | API | FastAPI, Uvicorn, Pydantic | Local server and typed APIs |
 | UI | HTML, CSS, JavaScript, local SVG/DOM charts | Offline-capable application dashboards |
 | Quality | pytest, coverage, Ruff | App-owned tests and static checks |
@@ -29,6 +29,6 @@ Version truth comes from `pyproject.toml` and `uv.lock`; documentation does not 
 
 ## Future alternatives
 
-Future Capacity Assistant evaluations may benchmark verified, licensed Ollama tags for Qwen 3.5 4B-class, Granite 4.2 8B-class, and Qwen 3.5 9B-class models. Selection must use project-specific numerical, tool-call, latency, and memory tests. `llama.cpp` is the preferred lightweight runtime alternative; LocalAI is conditional, and vLLM is deferred to a Linux GPU environment.
+Future Operations Assistant evaluations may benchmark verified, licensed Ollama tags for Qwen 3.5 4B-class, Granite 4.2 8B-class, and Qwen 3.5 9B-class models. Selection must use project-specific numerical, tool-call, latency, and memory tests. `llama.cpp` is the preferred lightweight runtime alternative; LocalAI is conditional, and vLLM is deferred to a Linux GPU environment.
 
 PostgreSQL, Kafka, cloud services, containers, Kubernetes, dbt, Dagster, MLflow, and a feature-store platform are not part of the essential delivery.

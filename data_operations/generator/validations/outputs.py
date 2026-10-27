@@ -7,6 +7,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from capacity_twin_core.data.ownership import assert_raw_tables
+
 
 def file_checksum(path: Path) -> str:
     """Return a streaming SHA-256 checksum for one generated database."""
@@ -41,6 +43,10 @@ def validate_outputs(raw_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
                     "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
                 )
             ]
+            try:
+                assert_raw_tables(set(tables))
+            except ValueError as error:
+                errors.append(str(error))
             row_counts[filename] = {
                 table: int(_scalar(connection, f'SELECT COUNT(*) FROM "{table}"'))
                 for table in tables

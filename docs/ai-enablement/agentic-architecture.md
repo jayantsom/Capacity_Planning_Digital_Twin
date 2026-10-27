@@ -1,9 +1,9 @@
-# Capacity Assistant Agentic Architecture
+# Operations Assistant Agentic Architecture
 
-Capacity Assistant is the local **Capacity Planning Assistant**. It routes questions to five existing domains: capacity, yield, OEE degradation risk, forecast, and CapEx. Operational numbers must come from read-only data tools, not model memory.
+Operations Assistant is the local grounded operations-analysis application. It routes questions to five existing domains: capacity, yield, OEE degradation risk, forecast, and CapEx. Operational numbers must come from read-only data tools, not model memory.
 
 ```mermaid
-%% Show Capacity Assistant's grounded request path.
+%% Show Operations Assistant's grounded request path.
 flowchart LR
   U[User] --> R[LangGraph router]
   R --> A[Domain agent]
@@ -14,7 +14,7 @@ flowchart LR
   L --> U
 ```
 
-Implementation lives under `capacity_assistant/agentic/` and `capacity_assistant/backend/`. The baseline model and router are `llama3.1:8b`, configured in `capacity_assistant/config.yaml`.
+Implementation lives under `operations_assistant/agentic/` and `operations_assistant/backend/`. The baseline model and router are `llama3.1:8b`, configured in `operations_assistant/config.yaml`.
 
 ## Safety and behavior
 
@@ -23,7 +23,7 @@ Implementation lives under `capacity_assistant/agentic/` and `capacity_assistant
 - Identifiers, row limits, and time limits are validated.
 - Client errors are sanitized and local logs retain correlation details.
 - CORS is restricted to configured localhost origins.
-- Capacity Assistant binds to `127.0.0.1` by default.
+- Operations Assistant binds to `127.0.0.1` by default.
 - Ollama and tool calls require timeouts and graceful degraded behavior.
 - Model and tool output is escaped before the browser renders a small sanitized Markdown subset.
 

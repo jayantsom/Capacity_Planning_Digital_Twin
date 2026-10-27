@@ -8,7 +8,7 @@ from data_operations.pipeline.pipeline.silver.transforms_planning import (
 )
 
 
-def test_silver_derives_missing_bom_knowledge_type_from_snapshot() -> None:
+def test_silver_derives_missing_bom_knowledge_type_from_planning_version() -> None:
     """Repair missing Raw demand type before Gold combines demand classes."""
     connection = duckdb.connect(":memory:")
     connection.execute(
@@ -16,8 +16,8 @@ def test_silver_derives_missing_bom_knowledge_type_from_snapshot() -> None:
         CREATE TABLE brnz_demand_requirement AS
         SELECT
             'demand-1' AS demand_id,
-            'snap' AS snapshot_id,
-            '2026-10-31' AS snapshot_date,
+            'plan-2026-10-31' AS planning_version_id,
+            '2026-10-31' AS plan_as_of_date,
             202609 AS month_key,
             'S' AS site,
             'CHILD' AS product_number,
@@ -52,16 +52,16 @@ def test_gcm_sums_independent_and_dependent_child_demand_once() -> None:
         CREATE TABLE slvr_demand_requirement AS
         SELECT * FROM (
             VALUES
-                ('S', 'CHILD', 202611, 'snap', DATE '2026-10-31', 'FORECAST',
+                ('S', 'CHILD', 202611, 'plan-2026-10-31', DATE '2026-10-31', 'FORECAST',
                  10.0, 0.0, 10.0, 'DIRECT_CUSTOMER', NULL, true),
-                ('S', 'CHILD', 202611, 'snap', DATE '2026-10-31', 'FORECAST',
+                ('S', 'CHILD', 202611, 'plan-2026-10-31', DATE '2026-10-31', 'FORECAST',
                  5.0, 0.0, 5.0, 'SPARE', NULL, true),
-                ('S', 'CHILD', 202611, 'snap', DATE '2026-10-31', 'FORECAST',
+                ('S', 'CHILD', 202611, 'plan-2026-10-31', DATE '2026-10-31', 'FORECAST',
                  0.0, 20.0, 20.0, 'BOM_DEPENDENT', 'PARENT-A', true),
-                ('S', 'CHILD', 202611, 'snap', DATE '2026-10-31', 'FORECAST',
+                ('S', 'CHILD', 202611, 'plan-2026-10-31', DATE '2026-10-31', 'FORECAST',
                  0.0, 30.0, 30.0, 'BOM_DEPENDENT', 'PARENT-B', true)
         ) AS source(
-            site_code, product_number, month_key, snapshot_id, snapshot_date,
+            site_code, product_number, month_key, planning_version_id, plan_as_of_date,
             data_type, independent_demand_qty, dependent_demand_qty,
             total_requirement_qty, demand_class, parent_product_number, is_valid
         )
@@ -81,7 +81,7 @@ def test_gcm_sums_independent_and_dependent_child_demand_once() -> None:
         """
         CREATE TABLE slvr_tgt_test_time AS
         SELECT 'S' AS site_code, 'CHILD' AS product_number, 202611 AS month_key,
-               'snap' AS snapshot_id, 'ICT' AS test_type, 'CAT' AS test_category_id,
+               'plan-2026-10-31' AS planning_version_id, 'ICT' AS test_type, 'CAT' AS test_category_id,
                'Owner' AS responsible_person, 30.0 AS target_test_time_sec,
                true AS is_valid
         """
@@ -90,7 +90,7 @@ def test_gcm_sums_independent_and_dependent_child_demand_once() -> None:
         """
         CREATE TABLE slvr_tgt_yield AS
         SELECT 'S' AS site_code, 'CHILD' AS product_number, 202611 AS month_key,
-               'snap' AS snapshot_id, 'ICT' AS test_type, 0.95 AS target_yield,
+               'plan-2026-10-31' AS planning_version_id, 'ICT' AS test_type, 0.95 AS target_yield,
                false AS is_forward_filled, true AS is_valid
         """
     )

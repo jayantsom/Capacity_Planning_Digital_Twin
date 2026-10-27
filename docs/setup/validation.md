@@ -9,13 +9,13 @@ Validation is contract-based; fixed row counts and performance numbers are not a
 uv run pytest -q
 
 # Check Python source style.
-uv run ruff check capacity_home capacity_assistant data_explorer data_operations decision_intelligence src
+uv run ruff check capacity_home operations_assistant data_explorer data_operations decision_intelligence src
 ```
 
 ## Generator gates
 
 - Stable keys and checksums for identical seed/configuration
-- Valid actual, forecast, snapshot, and NPI dates
+- Valid actual, forecast, plan as-of, and NPI dates
 - Acyclic BOMs and conserved child demand
 - Valid routes, sourcing, resource pools, and qualifications
 - Physical tester/fixture/handler/licence constraints
@@ -46,7 +46,7 @@ uv run ruff check capacity_home capacity_assistant data_explorer data_operations
 
 ## UI/API gates
 
-- `/`, `/capacity-assistant/`, `/chat/`, `/explorer/`,
+- `/`, `/operations-assistant/`, `/explorer/`,
   `/decision-intelligence/`, and `/data-operations/` on one server
 - Exactly four Home cards in the approved order
 - Read-only query restrictions and identifier validation

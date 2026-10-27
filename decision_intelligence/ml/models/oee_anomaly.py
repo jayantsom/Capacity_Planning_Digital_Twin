@@ -73,7 +73,7 @@ def build_oee_features(df: pd.DataFrame) -> pd.DataFrame:
 def _feat_cols(df: pd.DataFrame) -> list[str]:
     exclude = {
         "month",
-        "snapshot_id",
+        "planning_version_id",
         "feat_pk",
         "feature_row_id",
         "equipment_id",

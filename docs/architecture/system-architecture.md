@@ -4,7 +4,7 @@
 
 The project is a local telecom/networking manufacturing digital twin with five root
 applications and one shared core package. Capacity Home launches Data Explorer,
-Decision Intelligence, Capacity Assistant, and Data Operations. Capacity Twin Core
+Decision Intelligence, Operations Assistant, and Data Operations. Capacity Twin Core
 contains shared runtime, job, and business contracts.
 
 ```mermaid
@@ -20,7 +20,7 @@ flowchart LR
   M --> MD[ml.duckdb]
   O --> V[serving.duckdb]
   MD --> V
-  V --> Y[Capacity Assistant]
+  V --> Y[Operations Assistant]
   V --> E[Data Explorer]
   H[Capacity Home] --> Y
   H --> E
@@ -45,14 +45,15 @@ Runtime files belong under `CAPACITY_TWIN_HOME`, not in the repository. The appr
 The target is one FastAPI process bound to `127.0.0.1`. It serves:
 
 - `/` — compact launcher for all four workspaces;
-- `/capacity-assistant/` — Capacity Assistant;
-- `/chat/` — compatibility redirect;
+- `/operations-assistant/` — Operations Assistant;
+- `/operations-assistant/api/*` — Operations Assistant API;
+- `/operations-assistant/static/*` — Operations Assistant frontend assets;
 - `/explorer/` — Data Explorer;
 - `/decision-intelligence/` — five ML workflow dashboards;
 - `/data-operations/` — Generator and Pipeline tabs;
-- `/api/health` — API, promoted-data, and optional Ollama status.
+- `/operations-assistant/api/health` — API, promoted-data, and optional Ollama status.
 
-The Graphite/Dark Cyan UI uses `#F7F8FA`, `#20242A`, `#006D77`, `#1597A5`, and `#D9F0F2`. Ollama being offline may degrade Capacity Assistant but must not make Data Explorer unavailable.
+The Graphite/Dark Cyan UI uses `#F7F8FA`, `#20242A`, `#006D77`, `#1597A5`, and `#D9F0F2`. Ollama being offline may degrade Operations Assistant but must not make Data Explorer unavailable.
 
 ## Verification boundary
 

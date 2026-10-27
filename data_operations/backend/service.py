@@ -12,6 +12,7 @@ from typing import Any
 from capacity_twin_core.jobs import GLOBAL_JOBS
 from capacity_twin_core.runtime.database_paths import (
     get_active_run_pointer,
+    get_control_run_pointer,
     get_raw_run_pointer,
     get_runtime_home,
     load_app_config,
@@ -39,8 +40,7 @@ def build_run_config(options: GeneratorOptions) -> dict[str, Any]:
             "end_date_actual": options.actual_end.isoformat(),
             "start_date_forecast": options.forecast_start.isoformat(),
             "end_date_forecast": options.forecast_end.isoformat(),
-            "n_snapshots": len(options.snapshot_dates),
-            "snapshot_dates": [value.isoformat() for value in options.snapshot_dates],
+            "plan_as_of_dates": [value.isoformat() for value in options.plan_as_of_dates],
             "noise_profile": options.noise_profile,
         }
     )
@@ -140,6 +140,8 @@ def _raw_publication(runtime: Path) -> dict[str, Any]:
     return {
         "run_id": manifest.get("run_id"),
         "generated_at_utc": manifest.get("generated_at_utc"),
+        "source_control_run_id": manifest.get("source_control_run_id"),
+        "source_control_sha256": manifest.get("source_control_sha256"),
         "manifest": str(manifests[0]),
         "inferred": True,
     }
@@ -153,6 +155,17 @@ def _pipeline_publication(runtime: Path) -> tuple[dict[str, Any], dict[str, Any]
         manifest_path = runtime / manifest_path
     manifest = _read_json(manifest_path) if manifest_path else {}
     return pointer, manifest
+
+
+def _control_publication(runtime: Path) -> dict[str, Any]:
+    """Read the active control pointer when its immutable database exists."""
+    pointer = _read_json(get_control_run_pointer(runtime))
+    database = Path(pointer.get("database", "")) if pointer.get("database") else None
+    if database and not database.is_absolute():
+        database = runtime / database
+    if not pointer or not database or not database.is_file():
+        return {}
+    return {**pointer, "database": str(database)}
 
 
 def _raw_clear_targets(runtime: Path) -> list[Path]:
@@ -172,12 +185,14 @@ def _all_clear_targets(runtime: Path) -> list[Path]:
         runtime / "artifacts",
         runtime / ".staging",
         runtime / "models",
+        runtime / "control",
         *(runtime / layer for layer in ("bronze", "silver", "gold", "serving")),
         *(
             runtime / config["databases"][layer]
             for layer in ("bronze", "silver", "gold", "serving")
         ),
         get_raw_run_pointer(runtime),
+        get_control_run_pointer(runtime),
         get_active_run_pointer(runtime),
         runtime / "ml_current.json",
     ]
@@ -190,7 +205,7 @@ def _data_size(runtime: Path) -> int:
 
 
 def health_payload() -> dict[str, Any]:
-    """Report component readiness and Raw-to-pipeline lineage."""
+    """Report control, Raw, and pipeline readiness with exact lineage."""
     runtime = get_runtime_home()
     config = load_config()
     raw_dir = runtime / "raw" / "sqlite"
@@ -198,8 +213,23 @@ def health_payload() -> dict[str, Any]:
     expected_raw = set(config["databases"]["raw"].values())
     available_raw = {path.name for path in raw_files}
     raw_complete = expected_raw.issubset(available_raw)
+    control_publication = _control_publication(runtime)
+    control_run_id = control_publication.get("control_run_id")
+    control_sha256 = control_publication.get("sha256")
+    control_status = "ready" if control_publication else "no-data"
     raw_publication = _raw_publication(runtime)
-    generator_status = "ready" if raw_complete else "no-data" if not raw_files else "failed"
+    raw_run_id = raw_publication.get("run_id")
+    raw_matches_control = bool(
+        control_run_id
+        and raw_publication.get("source_control_run_id") == control_run_id
+        and raw_publication.get("source_control_sha256") == control_sha256
+    )
+    if not raw_complete:
+        generator_status = "no-data" if not raw_files else "failed"
+    elif not raw_run_id or not raw_matches_control:
+        generator_status = "stale"
+    else:
+        generator_status = "ready"
 
     pipeline_pointer, pipeline_manifest = _pipeline_publication(runtime)
     active_run_id = pipeline_pointer.get("active_run_id")
@@ -210,10 +240,18 @@ def health_payload() -> dict[str, Any]:
         and all((pipeline_dir / filename).is_file() for filename in DATABASE_FILES)
     )
     source_raw_run_id = pipeline_manifest.get("source_raw_run_id")
-    raw_run_id = raw_publication.get("run_id")
+    source_control_run_id = pipeline_manifest.get("source_control_run_id")
+    source_control_sha256 = pipeline_manifest.get("source_control_sha256")
+    pipeline_matches_lineage = bool(
+        raw_run_id
+        and control_run_id
+        and source_raw_run_id == raw_run_id
+        and source_control_run_id == control_run_id
+        and source_control_sha256 == control_sha256
+    )
     if not pipeline_complete:
         pipeline_status = "no-data" if not active_run_id else "failed"
-    elif generator_status != "ready" or not raw_run_id or source_raw_run_id != raw_run_id:
+    elif generator_status != "ready" or control_status != "ready" or not pipeline_matches_lineage:
         pipeline_status = "stale"
     else:
         pipeline_status = "ready"
@@ -222,13 +260,16 @@ def health_payload() -> dict[str, Any]:
     if active_job and active_job.get("kind") in {"generator", "pipeline", "rebuild"}:
         kind = active_job["kind"]
         if kind in {"generator", "rebuild"}:
+            control_status = "running"
             generator_status = "running"
         if kind in {"pipeline", "rebuild"}:
             pipeline_status = "running"
         overall_status = "running"
     else:
         overall_status = (
-            "ready" if generator_status == "ready" and pipeline_status == "ready" else "degraded"
+            "ready"
+            if control_status == generator_status == pipeline_status == "ready"
+            else "degraded"
         )
 
     previous_run_id = pipeline_pointer.get("previous_run_id")
@@ -243,6 +284,14 @@ def health_payload() -> dict[str, Any]:
     total_file_count = sum(_file_count(path) for path in all_targets)
     return {
         "status": overall_status,
+        "control": {
+            "status": control_status,
+            "run_id": control_run_id,
+            "catalog_version": control_publication.get("catalog_version"),
+            "published_at": control_publication.get("promoted_at"),
+            "database": control_publication.get("database"),
+            "sha256": control_sha256,
+        },
         "generator": {
             "status": generator_status,
             "run_id": raw_run_id,
@@ -255,6 +304,8 @@ def health_payload() -> dict[str, Any]:
             "status": pipeline_status,
             "run_id": active_run_id,
             "source_raw_run_id": source_raw_run_id,
+            "source_control_run_id": source_control_run_id,
+            "source_control_sha256": source_control_sha256,
             "promoted_at": pipeline_pointer.get("promoted_at"),
             "rollback_available": rollback_available,
             "size_bytes": _path_size(pipeline_dir) if active_run_id else 0,
@@ -287,6 +338,9 @@ def promoted_run_payload() -> dict[str, Any]:
         "previous_run_id": active.get("previous_run_id"),
         "promoted_at": active.get("promoted_at"),
         "status": manifest.get("status"),
+        "source_raw_run_id": manifest.get("source_raw_run_id"),
+        "source_control_run_id": manifest.get("source_control_run_id"),
+        "source_control_sha256": manifest.get("source_control_sha256"),
         "stages": manifest.get("stages", {}),
         "validations": manifest.get("validations", []),
         "files": {
@@ -300,7 +354,7 @@ def promoted_run_payload() -> dict[str, Any]:
 
 
 def run_generator(options: GeneratorOptions, report) -> dict[str, Any]:
-    """Run the generator with one validated override snapshot."""
+    """Run the generator with one validated override configuration."""
     return run_all(build_run_config(options), progress_callback=report)
 
 
@@ -413,6 +467,6 @@ def default_options() -> GeneratorOptions:
         actual_end=date.fromisoformat(generation["end_date_actual"]),
         forecast_start=date.fromisoformat(generation["start_date_forecast"]),
         forecast_end=date.fromisoformat(generation["end_date_forecast"]),
-        snapshot_dates=[date.fromisoformat(value) for value in generation["snapshot_dates"]],
+        plan_as_of_dates=[date.fromisoformat(value) for value in generation["plan_as_of_dates"]],
         noise_profile=generation["noise_profile"],
     )

@@ -12,7 +12,7 @@ uv run capacity-generate
 
 Erivon is the single fictional primary brand and uses `ERV_*` codes. Products cover telecom/networking parent systems and child PCB, RF, optical, power, and access modules. Sites, routes, volumes, capabilities, and performance are synthetic. Real EMS or equipment-vendor references do not imply affiliation or actual production assignments.
 
-Actual and execution records span 2023-01-01 through 2026-10-31. Forecast records span 2026-11-01 through 2027-12-31. Historical actuals are stable across later snapshots, and each snapshot sees actuals only through its own as-of date.
+Actual and execution records span 2023-01-01 through 2026-10-31. Forecast records span 2026-11-01 through 2027-12-31. Historical actuals are stable across later planning versions, and each planning version sees actuals only through its own as-of date.
 
 ## Ten Raw databases
 

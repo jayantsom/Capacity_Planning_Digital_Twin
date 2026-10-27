@@ -9,8 +9,8 @@ def test_dependent_and_independent_child_demand_reconcile() -> None:
     independent = pd.DataFrame(
         [
             {
-                "snapshot_id": "snap",
-                "snapshot_date": "2026-10-31",
+                "planning_version_id": "plan-2026-10-31",
+                "plan_as_of_date": "2026-10-31",
                 "month_key": 202611,
                 "site": "ASSEMBLY",
                 "product_number": "PARENT",
@@ -18,8 +18,8 @@ def test_dependent_and_independent_child_demand_reconcile() -> None:
                 "knowledge_type": "FORECAST",
             },
             {
-                "snapshot_id": "snap",
-                "snapshot_date": "2026-10-31",
+                "planning_version_id": "plan-2026-10-31",
+                "plan_as_of_date": "2026-10-31",
                 "month_key": 202611,
                 "site": "CHILD_SITE",
                 "product_number": "CHILD",

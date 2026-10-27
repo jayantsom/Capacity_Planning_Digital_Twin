@@ -24,7 +24,7 @@ def test_invalid_date_order_is_rejected() -> None:
             "actual_end": "2026-10-31",
             "forecast_start": "2026-10-01",
             "forecast_end": "2027-12-31",
-            "snapshot_dates": ["2026-10-31"],
+            "plan_as_of_dates": ["2026-10-31"],
         },
     )
     assert response.status_code == 422

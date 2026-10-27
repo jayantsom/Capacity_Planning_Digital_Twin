@@ -1,7 +1,7 @@
 """
 Generator: raw_demand_forecast.db
 Horizontal monthly demand forecast for all site-product pairs.
-Covers Jan 2023 → Dec 2027 (60 months) with 2 planning snapshots.
+Covers Jan 2023 → Dec 2027 (60 months) with 2 planning versions.
 """
 
 from datetime import date
@@ -25,6 +25,7 @@ from data_operations.generator.generators.reference_data import write_to_sqlite
 from data_operations.generator.rules.contracts import DateContract
 from data_operations.generator.rules.determinism import stable_seed
 from data_operations.generator.rules.npi import npi_ramp
+from data_operations.generator.services.control_catalog import load_assignments
 from data_operations.generator.services.demand_reconciliation import build_demand_requirements
 
 # ── Demand profile per product family ─────────────────────────────────────────
@@ -79,40 +80,41 @@ def _seasonality_factor(mk: int, amplitude: float, q4_peak: bool) -> float:
     return 1.0
 
 
-def _snapshot_noise(
+def _planning_version_noise(
     root_seed: int,
     business_key: tuple[str, str],
     mk: int,
-    snapshot_id: str,
-    snapshot_date: str,
+    planning_version_id: str,
+    plan_as_of_date: str,
 ) -> float:
     """
-    Forecast snapshots diverge from actuals.
-    snap_1 (Jan 2023): rougher long-range estimate.
-    snap_2 (Jan 2024): more refined, closer to actuals.
+    Forecast planning versions diverge from actuals.
+    The earlier version is a rougher long-range estimate.
+    The later version is more refined and closer to actuals.
     """
-    snapshot_month = int(snapshot_date[:4]) * 100 + int(snapshot_date[5:7])
-    if mk <= snapshot_month:
+    plan_as_of_month = int(plan_as_of_date[:4]) * 100 + int(plan_as_of_date[5:7])
+    if mk <= plan_as_of_month:
         return 1.0
-    months_ahead = (mk // 100 - snapshot_month // 100) * 12 + (mk % 100 - snapshot_month % 100)
+    months_ahead = (mk // 100 - plan_as_of_month // 100) * 12 + (mk % 100 - plan_as_of_month % 100)
     months_ahead = max(0, months_ahead)
     std = 0.03 + 0.008 * months_ahead
     rng = np.random.default_rng(
-        stable_seed(root_seed, *business_key, snapshot_id, mk, "forecast-error")
+        stable_seed(root_seed, *business_key, planning_version_id, mk, "forecast-error")
     )
     return max(0.5, rng.normal(1.0, std))
 
 
-def generate_demand_for_snapshot(
-    snapshot_id: str,
-    snapshot_date: str,
+def generate_demand_for_planning_version(
+    planning_version_id: str,
+    plan_as_of_date: str,
     all_month_keys: list[int],
     rng: np.random.Generator,
     root_seed: int = RANDOM_SEED,
+    assignments: list[dict] | None = None,
 ) -> pd.DataFrame:
     rows = []
 
-    for assignment in ASSIGNMENT_MATRIX:
+    for assignment in assignments or ASSIGNMENT_MATRIX:
         site_code   = assignment["site_code"]
         product_num = assignment["product_number"]
         family      = assignment["product_family"]
@@ -124,7 +126,7 @@ def generate_demand_for_snapshot(
         site_factor = SITE_SIZE_FACTORS.get(site_code, 1.0)
 
         # Deterministic base demand per site-product
-        # Excluding snapshot keeps all already-known actuals immutable.
+        # Excluding planning version keeps all already-known actuals immutable.
         seed_val = stable_seed(root_seed, site_code, product_num, "demand")
         local_rng = np.random.default_rng(seed_val)
         base_demand = local_rng.uniform(base_min, base_max) * site_factor
@@ -135,8 +137,8 @@ def generate_demand_for_snapshot(
             "product_family":     family,
             "product_number":     product_num,
             "product_status":     status,
-            "snapshot_id":        snapshot_id,
-            "snapshot_date":      snapshot_date,
+            "planning_version_id":        planning_version_id,
+            "plan_as_of_date":      plan_as_of_date,
             "forecast_source":    FORECAST_SOURCE_PLANNER,
         }
 
@@ -147,18 +149,18 @@ def generate_demand_for_snapshot(
             seas = _seasonality_factor(mk, seas_amp, q4_peak)
             # NPI ramp
             npi_factor = _npi_ramp_factor(product_num, mk) if status == "NPI" else 1.0
-            # Forecast snapshot noise (FORECAST months only)
-            snap_noise = _snapshot_noise(
+            # Forecast planning version noise (FORECAST months only)
+            planning_version_noise = _planning_version_noise(
                 root_seed,
                 (site_code, product_num),
                 mk,
-                snapshot_id,
-                snapshot_date,
+                planning_version_id,
+                plan_as_of_date,
             )
             # Unit noise ±15%
             noise = local_rng.uniform(0.85, 1.15)
 
-            raw_demand = base_demand * trend * seas * npi_factor * snap_noise * noise
+            raw_demand = base_demand * trend * seas * npi_factor * planning_version_noise * noise
 
             col = month_key_label(mk)
             demand_row[col] = (
@@ -184,17 +186,18 @@ def generate_demand_forecast_db(config: dict) -> pd.DataFrame:
     root_seed = int(config["data_generation"]["random_seed"])
     rng = np.random.default_rng(root_seed)
     date_contract = DateContract.from_config(config)
-    snapshots = [
-        (f"snap-{snapshot_date.isoformat()}", snapshot_date.isoformat())
-        for snapshot_date in date_contract.snapshot_dates
+    planning_versions = [
+        (f"plan-{plan_as_of_date.isoformat()}", plan_as_of_date.isoformat())
+        for plan_as_of_date in date_contract.plan_as_of_dates
     ]
+    assignments = load_assignments(config)
 
     all_dfs = []
-    for snap_id, snap_date in snapshots:
-        logger.info(f"  Generating snapshot: {snap_id}")
-        df = generate_demand_for_snapshot(
-            snap_id, snap_date, all_month_keys, rng
-            , root_seed
+    for planning_version_id, plan_as_of_date in planning_versions:
+        logger.info(f"  Generating planning version: {planning_version_id}")
+        df = generate_demand_for_planning_version(
+            planning_version_id, plan_as_of_date, all_month_keys, rng
+            , root_seed, assignments
         )
         all_dfs.append(df)
         logger.info(f"    Rows: {len(df):,}")
@@ -207,16 +210,16 @@ def generate_demand_forecast_db(config: dict) -> pd.DataFrame:
         for month_key in all_month_keys:
             independent_rows.append(
                 {
-                    "snapshot_id": record["snapshot_id"],
-                    "snapshot_date": record["snapshot_date"],
+                    "planning_version_id": record["planning_version_id"],
+                    "plan_as_of_date": record["plan_as_of_date"],
                     "month_key": month_key,
                     "site": record["site"],
                     "product_number": record["product_number"],
                     "quantity": record[month_key_label(month_key)] or 0,
                     "knowledge_type": (
                         "ACTUAL"
-                        if month_key <= int(record["snapshot_date"][:4]) * 100
-                        + int(record["snapshot_date"][5:7])
+                        if month_key <= int(record["plan_as_of_date"][:4]) * 100
+                        + int(record["plan_as_of_date"][5:7])
                         else "FORECAST"
                     ),
                 }
@@ -224,13 +227,14 @@ def generate_demand_forecast_db(config: dict) -> pd.DataFrame:
     demand_requirements = build_demand_requirements(
         pd.DataFrame(independent_rows),
         build_product_bom(),
-        build_site_product_sources(),
+        build_site_product_sources(assignments),
     )
     write_to_sqlite(demand_requirements, "demand_requirement", db_path)
 
     logger.info(f"  Total rows: {len(combined):,} "
                 f"({len(all_month_keys)} months × "
-                f"{len(ASSIGNMENT_MATRIX)} assignments × 2 snapshots)")
+                f"{len(assignments)} assignments × "
+                f"{len(planning_versions)} planning versions)")
     logger.success("raw_demand_forecast.db complete")
     return combined
 

@@ -40,7 +40,7 @@ from decision_intelligence.ml_support import (
 warnings.filterwarnings("ignore")
 
 TARGET = "measured_yield"
-SERIES_COLS = ["site_id", "product_id", "test_type_id", "snapshot_id"]
+SERIES_COLS = ["site_id", "product_id", "test_type_id", "planning_version_id"]
 LAG_COLS = [1, 2, 3, 6]
 ROLL_COLS = [3, 6]
 TOP_SHAP = 10
@@ -65,7 +65,7 @@ XGB_PARAMS = {
 EXCLUDE = {
     TARGET,
     "month",
-    "snapshot_id",
+    "planning_version_id",
     "feat_pk",
     "feature_row_id",
     "site_id",
@@ -191,7 +191,7 @@ def recalculate_capacity_with_ml_yield(conn, yield_pred_df: pd.DataFrame) -> pd.
     gcm = load_table(conn, "gold_gcm_base")
 
     # yield_pred_df uses internal names; map back to gcm join keys
-    join_cols = ["product_id", "site_id", "test_type_id", "month", "snapshot_id"]
+    join_cols = ["product_id", "site_id", "test_type_id", "month", "planning_version_id"]
     if yield_pred_df.duplicated(join_cols).any():
         raise ValueError("Yield predictions are not unique at their declared grain")
     ml_yield = yield_pred_df[join_cols + ["predicted_yield"]].rename(
@@ -205,12 +205,12 @@ def recalculate_capacity_with_ml_yield(conn, yield_pred_df: pd.DataFrame) -> pd.
     before = len(gcm)
     gcm = gcm.merge(
         ml_yield,
-        on=["product_number", "site_code", "test_type", "month_key", "snapshot_id"],
+        on=["product_number", "site_code", "test_type", "month_key", "planning_version_id"],
         how="left",
         validate="many_to_one",
     )
     if len(gcm) != before:
-        raise ValueError("Snapshot-aware yield merge changed capacity row count")
+        raise ValueError("Planning version-aware yield merge changed capacity row count")
     gcm["yield_used"] = gcm["predicted_yield"].fillna(gcm["target_yield"])
 
     # Step 1 — Type1 retest (retest_times=2, test_x_param=0.75)
@@ -243,7 +243,7 @@ def recalculate_capacity_with_ml_yield(conn, yield_pred_df: pd.DataFrame) -> pd.
         "site_code",
         "test_type",
         "month_key",
-        "snapshot_id",
+        "planning_version_id",
         "yield_used",
         "target_yield",
         "step1",
@@ -286,7 +286,7 @@ def run_yield_prediction() -> dict:
             "site_id",
             "test_type_id",
             "month",
-            "snapshot_id",
+            "planning_version_id",
             TARGET,
             "target_yield",
             "predicted_yield",

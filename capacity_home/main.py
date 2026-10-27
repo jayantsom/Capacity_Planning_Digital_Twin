@@ -4,15 +4,16 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 import capacity_twin_core
-from capacity_assistant.backend.main import app as capacity_assistant_app
+from capacity_twin_core.comparison.api import router as comparison_router
 from capacity_twin_core.runtime.database_paths import load_app_config
 from data_explorer.backend.main import app as explorer_app
 from data_operations.backend.main import app as data_operations_app
 from decision_intelligence.backend.main import app as decision_intelligence_app
+from operations_assistant.backend.main import app as operations_assistant_app
 
 APP_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = APP_DIR / "frontend"
@@ -32,6 +33,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+app.include_router(comparison_router)
 app.mount("/home/static", StaticFiles(directory=str(FRONTEND_DIR)), name="home_static")
 app.mount(
     "/shared",
@@ -46,16 +48,10 @@ async def home_index() -> FileResponse:
     return FileResponse(FRONTEND_DIR / "index.html")
 
 
-@app.get("/capacity-assistant", include_in_schema=False)
-async def capacity_assistant_redirect() -> RedirectResponse:
-    """Use one canonical URL for Capacity Assistant assets and navigation."""
-    return RedirectResponse("/capacity-assistant/", status_code=307)
-
-
-@app.get("/capacity-assistant/", include_in_schema=False)
-async def capacity_assistant_index() -> FileResponse:
-    """Serve Capacity Assistant from the shared local web process."""
-    return FileResponse(APP_DIR.parent / "capacity_assistant" / "frontend" / "index.html")
+@app.get("/operations-assistant/", include_in_schema=False)
+async def operations_assistant_index() -> FileResponse:
+    """Serve Operations Assistant from the shared local web process."""
+    return FileResponse(APP_DIR.parent / "operations_assistant" / "frontend" / "index.html")
 
 
 def _adopt_routes(source: FastAPI, prefixes: tuple[str, ...]) -> None:
@@ -67,7 +63,10 @@ def _adopt_routes(source: FastAPI, prefixes: tuple[str, ...]) -> None:
 
 
 # Keep each app's routes in its own module while exposing one local server.
-_adopt_routes(capacity_assistant_app, ("/api", "/static"))
+_adopt_routes(
+    operations_assistant_app,
+    ("/operations-assistant/api", "/operations-assistant/static"),
+)
 _adopt_routes(explorer_app, ("/explorer",))
 _adopt_routes(data_operations_app, ("/data-operations",))
 _adopt_routes(decision_intelligence_app, ("/decision-intelligence",))

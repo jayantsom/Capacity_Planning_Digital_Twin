@@ -15,12 +15,14 @@ from capacity_twin_core.domain.constants import RANDOM_SEED
 from capacity_twin_core.logging import logger
 from capacity_twin_core.runtime.database_paths import get_sqlite_path, load_config
 from data_operations.generator.catalogs.contract_tables import (
-    build_resource_contracts,
     build_routes,
 )
-from data_operations.generator.generators.assignment_matrix import ASSIGNMENT_MATRIX
 from data_operations.generator.generators.reference_data import FIXTURES, SYSTEMS, write_to_sqlite
 from data_operations.generator.rules.determinism import stable_seed
+from data_operations.generator.services.control_catalog import (
+    load_assignments,
+    load_resource_contracts,
+)
 
 # ── Equipment parameters by test type ─────────────────────────────────────────
 EQUIP_PARAMS = {
@@ -77,18 +79,19 @@ def generate_site_equipment_inventory_db(config: dict) -> pd.DataFrame:
 
     all_month_keys = get_all_month_keys()
     rows = []
+    assignments = load_assignments(config)
 
     # Get unique site-test_type combinations from assignment matrix
     site_test_pairs = set()
     site_family_map = defaultdict(set)
-    for a in ASSIGNMENT_MATRIX:
+    for a in assignments:
         for tt in a["test_types"]:
             site_test_pairs.add((a["site_code"], tt))
             site_family_map[(a["site_code"], tt)].add(a["product_family"])
 
     # Build exactly the qualified inventory relationships accepted by preflight.
-    contracts = build_resource_contracts()
-    route_df, route_step_df = build_routes()
+    contracts = load_resource_contracts(config)
+    route_df, route_step_df = build_routes(assignments)
     product_by_route = dict(
         zip(route_df["route_id"], route_df["product_number"], strict=True)
     )

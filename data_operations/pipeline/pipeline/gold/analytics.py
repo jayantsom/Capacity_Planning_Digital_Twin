@@ -6,6 +6,7 @@ DuckDB is faster than Spark for these aggregation patterns.
 
 from capacity_twin_core.capacity.formulas import calculate_oee
 from capacity_twin_core.logging import logger
+from capacity_twin_core.planning import latest_planning_version_predicate
 from data_operations.pipeline.pipeline.gold.utils import write_gold_table
 
 
@@ -18,14 +19,14 @@ def build_demand_vs_capacity(duck_conn) -> int:
             md5(
                 n.site_code || '|' || n.product_number || '|' ||
                 n.test_type  || '|' || n.equipment_id  || '|' ||
-                CAST(n.month_key AS VARCHAR) || '|' || n.snapshot_id ||
+                CAST(n.month_key AS VARCHAR) || '|' || n.planning_version_id ||
                 '|' || n.capacity_mode || '|' || n.retest_type
             )                           AS gap_pk,
             n.gcm_pk,
             n.site_code,
             n.factory_code,
             n.month_key,
-            n.snapshot_id,
+            n.planning_version_id,
             n.product_number,
             n.product_family,
             n.platform,
@@ -79,11 +80,11 @@ def build_bottleneck_table(duck_conn) -> int:
                 site_code || '|' || test_type || '|' ||
                 equipment_type || '|' ||
                 CAST(month_key AS VARCHAR) || '|' ||
-                snapshot_id || '|' || capacity_mode || '|' || retest_type
+                planning_version_id || '|' || capacity_mode || '|' || retest_type
             )                               AS bottleneck_pk,
             site_code,
             month_key,
-            snapshot_id,
+            planning_version_id,
             capacity_mode,
             retest_type,
             test_type,
@@ -109,7 +110,7 @@ def build_bottleneck_table(duck_conn) -> int:
             AVG(utilization_pct)            AS avg_utilization_pct
         FROM gold_dmnd_vs_cap
         GROUP BY
-            site_code, month_key, snapshot_id, capacity_mode,
+            site_code, month_key, planning_version_id, capacity_mode,
             retest_type, test_type, equipment_type
     """)
     count = duck_conn.execute("SELECT COUNT(*) FROM gold_bottleneck").fetchone()[0]
@@ -166,6 +167,266 @@ def build_oee_metrics(duck_conn) -> int:
     return count
 
 
+def build_operational_time_grains(duck_conn) -> dict[str, int]:
+    """Publish honest weekly/monthly rollups from daily and event facts."""
+    logger.info("  Building gold_operational_performance")
+    duck_conn.execute("DROP TABLE IF EXISTS gold_operational_performance")
+    duck_conn.execute(
+        """
+        CREATE TABLE gold_operational_performance AS
+        WITH parameter_source AS (
+            SELECT
+                factory_code,
+                site_code,
+                product_number,
+                test_type,
+                CAST(execution_date AS DATE) AS execution_date,
+                SUM(first_pass_qty_sum) AS first_pass_qty_sum,
+                SUM(first_fail_qty_sum) AS first_fail_qty_sum
+            FROM slvr_machine_test_param
+            WHERE is_valid
+            GROUP BY ALL
+        ),
+        source AS (
+            SELECT
+                execution.factory_code,
+                execution.site_code,
+                execution.product_number,
+                execution.test_type,
+                CAST(execution.execution_date AS DATE) AS execution_date,
+                execution.passed_qty_sum,
+                execution.failed_qty_sum,
+                execution.total_qty_sum,
+                parameters.first_pass_qty_sum,
+                parameters.first_fail_qty_sum,
+                execution.test_duration_avg,
+                execution.handling_time_avg,
+                execution.idle_time_avg,
+                execution.equipment_downtime_avg,
+                execution.actual_throughput,
+                execution.pipeline_run_id
+            FROM slvr_machine_execution AS execution
+            LEFT JOIN parameter_source AS parameters
+              ON execution.factory_code = parameters.factory_code
+             AND execution.site_code = parameters.site_code
+             AND execution.product_number = parameters.product_number
+             AND execution.test_type = parameters.test_type
+             AND CAST(execution.execution_date AS DATE) = parameters.execution_date
+            WHERE execution.is_valid
+        ),
+        bounds AS (
+            SELECT MIN(execution_date) AS min_date, MAX(execution_date) AS max_date
+            FROM source
+        ),
+        periods AS (
+            SELECT
+                'WEEK' AS period_grain,
+                strftime(execution_date, '%G-W%V') AS period_key,
+                CAST(date_trunc('week', execution_date) AS DATE) AS period_start,
+                CAST(date_trunc('week', execution_date) + INTERVAL 6 DAY AS DATE)
+                    AS period_end,
+                execution_date,
+                * EXCLUDE (execution_date)
+            FROM source
+            UNION ALL
+            SELECT
+                'MONTH' AS period_grain,
+                strftime(execution_date, '%Y-%m') AS period_key,
+                CAST(date_trunc('month', execution_date) AS DATE) AS period_start,
+                CAST(last_day(execution_date) AS DATE) AS period_end,
+                execution_date,
+                * EXCLUDE (execution_date)
+            FROM source
+        ),
+        aggregated AS (
+            SELECT
+                period_grain,
+                period_key,
+                period_start,
+                period_end,
+                factory_code,
+                site_code,
+                product_number,
+                test_type,
+                COUNT(DISTINCT execution_date) AS days_present,
+                COUNT(*) AS observation_rows,
+                SUM(passed_qty_sum) AS passed_qty,
+                SUM(failed_qty_sum) AS failed_qty,
+                SUM(total_qty_sum) AS tested_qty,
+                SUM(first_pass_qty_sum) AS first_pass_qty,
+                SUM(first_fail_qty_sum) AS first_fail_qty,
+                SUM(equipment_downtime_avg) AS downtime_seconds,
+                SUM((test_duration_avg + handling_time_avg) * total_qty_sum)
+                    AS productive_seconds,
+                SUM(test_duration_avg * total_qty_sum)
+                    / NULLIF(SUM(total_qty_sum), 0) AS weighted_test_time_sec,
+                SUM(handling_time_avg * total_qty_sum)
+                    / NULLIF(SUM(total_qty_sum), 0) AS weighted_handling_time_sec,
+                SUM(actual_throughput * total_qty_sum)
+                    / NULLIF(SUM(total_qty_sum), 0) AS weighted_throughput_uph,
+                SUM(idle_time_avg * total_qty_sum)
+                    / NULLIF(SUM(total_qty_sum), 0) AS weighted_idle_time_sec,
+                MAX(pipeline_run_id) AS pipeline_run_id
+            FROM periods
+            GROUP BY ALL
+        ),
+        rates AS (
+            SELECT
+                *,
+                LEAST(
+                    1.0,
+                    GREATEST(
+                        0.0,
+                        1.0 - downtime_seconds
+                            / NULLIF(observation_rows * 8.0 * 3600.0, 0)
+                    )
+                ) AS availability_pct,
+                LEAST(
+                    1.0,
+                    GREATEST(
+                        0.0,
+                        productive_seconds
+                            / NULLIF(
+                                observation_rows * 8.0 * 3600.0 - downtime_seconds,
+                                0
+                            )
+                    )
+                ) AS performance_pct,
+                LEAST(1.0, GREATEST(0.0, passed_qty / NULLIF(tested_qty, 0)))
+                    AS quality_pct
+            FROM aggregated
+        )
+        SELECT
+            md5(
+                period_grain || '|' || period_key || '|' || factory_code || '|' ||
+                site_code || '|' || product_number || '|' || test_type
+            ) AS operational_period_pk,
+            period_grain,
+            period_key,
+            period_start,
+            period_end,
+            factory_code,
+            site_code,
+            product_number,
+            test_type,
+            days_present,
+            observation_rows,
+            (
+                SELECT COUNT(*)
+                FROM generate_series(
+                    CAST(period_start AS TIMESTAMP),
+                    CAST(period_end AS TIMESTAMP),
+                    INTERVAL 1 DAY
+                ) AS calendar(day)
+                WHERE isodow(day) BETWEEN 1 AND 5
+            ) AS expected_working_days,
+            period_start >= bounds.min_date AND period_end <= bounds.max_date
+                AS period_complete,
+            passed_qty,
+            failed_qty,
+            tested_qty,
+            passed_qty / NULLIF(tested_qty, 0) AS yield_pct,
+            first_pass_qty,
+            first_fail_qty,
+            first_pass_qty / NULLIF(first_pass_qty + first_fail_qty, 0)
+                AS first_pass_yield_pct,
+            downtime_seconds,
+            productive_seconds,
+            downtime_seconds / 3600.0 AS downtime_hours,
+            weighted_test_time_sec,
+            weighted_handling_time_sec,
+            weighted_throughput_uph,
+            availability_pct,
+            performance_pct,
+            quality_pct,
+            LEAST(1.0, GREATEST(0.0, availability_pct * performance_pct * quality_pct))
+                AS oee_pct,
+            pipeline_run_id
+        FROM rates
+        CROSS JOIN bounds
+        """
+    )
+    duck_conn.execute(
+        """
+        CREATE INDEX idx_gold_operational_period
+        ON gold_operational_performance (period_grain, period_key)
+        """
+    )
+    performance_count = duck_conn.execute(
+        "SELECT COUNT(*) FROM gold_operational_performance"
+    ).fetchone()[0]
+
+    logger.info("  Building gold_operational_events")
+    duck_conn.execute("DROP TABLE IF EXISTS gold_operational_events")
+    duck_conn.execute(
+        """
+        CREATE TABLE gold_operational_events AS
+        WITH source AS (
+            SELECT
+                factory_code,
+                site_code,
+                product_number,
+                test_type,
+                CAST(execution_date AS DATE) AS execution_date,
+                severity,
+                error_code,
+                pipeline_run_id
+            FROM slvr_machine_logs
+            WHERE is_valid
+        ),
+        periods AS (
+            SELECT
+                'WEEK' AS period_grain,
+                strftime(execution_date, '%G-W%V') AS period_key,
+                CAST(date_trunc('week', execution_date) AS DATE) AS period_start,
+                CAST(date_trunc('week', execution_date) + INTERVAL 6 DAY AS DATE)
+                    AS period_end,
+                * EXCLUDE (execution_date)
+            FROM source
+            UNION ALL
+            SELECT
+                'MONTH' AS period_grain,
+                strftime(execution_date, '%Y-%m') AS period_key,
+                CAST(date_trunc('month', execution_date) AS DATE) AS period_start,
+                CAST(last_day(execution_date) AS DATE) AS period_end,
+                * EXCLUDE (execution_date)
+            FROM source
+        )
+        SELECT
+            md5(
+                period_grain || '|' || period_key || '|' || factory_code || '|' ||
+                site_code || '|' || product_number || '|' || test_type || '|' ||
+                severity || '|' || error_code
+            ) AS operational_event_pk,
+            period_grain,
+            period_key,
+            period_start,
+            period_end,
+            factory_code,
+            site_code,
+            product_number,
+            test_type,
+            severity,
+            error_code,
+            COUNT(*) AS event_count,
+            MAX(pipeline_run_id) AS pipeline_run_id
+        FROM periods
+        GROUP BY ALL
+        """
+    )
+    event_count = duck_conn.execute(
+        "SELECT COUNT(*) FROM gold_operational_events"
+    ).fetchone()[0]
+    logger.info(
+        f"    operational performance: {performance_count:,} rows | "
+        f"events: {event_count:,} rows"
+    )
+    return {
+        "gold_operational_performance": performance_count,
+        "gold_operational_events": event_count,
+    }
+
+
 def build_forecast_accuracy(duck_conn) -> int:
     logger.info("  Building gold_forecast_accuracy")
     duck_conn.execute("DROP TABLE IF EXISTS gold_forecast_accuracy")
@@ -176,8 +437,8 @@ def build_forecast_accuracy(duck_conn) -> int:
                 site_code,
                 product_number,
                 month_key,
-                snapshot_id,
-                snapshot_date,
+                planning_version_id,
+                plan_as_of_date,
                 data_type,
                 SUM(total_requirement_qty) AS demand_qty
             FROM slvr_demand_requirement
@@ -186,8 +447,8 @@ def build_forecast_accuracy(duck_conn) -> int:
                 site_code,
                 product_number,
                 month_key,
-                snapshot_id,
-                snapshot_date,
+                planning_version_id,
+                plan_as_of_date,
                 data_type
         ),
         actuals AS (
@@ -199,7 +460,7 @@ def build_forecast_accuracy(duck_conn) -> int:
                     *,
                     ROW_NUMBER() OVER (
                         PARTITION BY site_code, product_number, month_key
-                        ORDER BY snapshot_date DESC, snapshot_id DESC
+                        ORDER BY plan_as_of_date DESC, planning_version_id DESC
                     ) AS recency
                 FROM requirements
                 WHERE data_type = 'ACTUAL'
@@ -210,7 +471,7 @@ def build_forecast_accuracy(duck_conn) -> int:
             SELECT
                 site_code, product_number, month_key,
                 demand_qty AS forecast_qty,
-                snapshot_id, snapshot_date,
+                planning_version_id, plan_as_of_date,
                 'SYNTHETIC_REQUIREMENT' AS forecast_source
             FROM requirements
             WHERE data_type = 'FORECAST'
@@ -218,13 +479,13 @@ def build_forecast_accuracy(duck_conn) -> int:
         SELECT
             md5(
                 f.site_code || '|' || f.product_number || '|' ||
-                CAST(f.month_key AS VARCHAR) || '|' || f.snapshot_id
+                CAST(f.month_key AS VARCHAR) || '|' || f.planning_version_id
             )                               AS fa_pk,
             f.site_code,
             f.product_number,
             f.month_key,
-            f.snapshot_id,
-            f.snapshot_date,
+            f.planning_version_id,
+            f.plan_as_of_date,
             f.forecast_source,
             f.forecast_qty,
             a.actual_qty,
@@ -284,14 +545,14 @@ def build_actual_capacity(duck_conn) -> int:
                 test_category_id,
                 test_type,
                 month_key,
-                snapshot_id,
+                planning_version_id,
                 MIN(target_yield) AS target_yield,
                 MIN(target_test_time_sec) AS target_test_time_sec
             FROM gold_gcm_base
             WHERE data_type = 'ACTUAL'
             GROUP BY
                 site_code, factory_code, product_number,
-                test_category_id, test_type, month_key, snapshot_id
+                test_category_id, test_type, month_key, planning_version_id
             HAVING
                 MIN(target_yield) = MAX(target_yield)
                 AND MIN(target_test_time_sec) = MAX(target_test_time_sec)
@@ -300,14 +561,14 @@ def build_actual_capacity(duck_conn) -> int:
             md5(
                 g.site_code || '|' || g.product_number || '|' ||
                 g.test_type || '|' || CAST(m.month_key AS VARCHAR) || '|' ||
-                g.snapshot_id
+                g.planning_version_id
             )                               AS cap_act_pk,
             g.factory_code || '|' || g.test_category_id
                 || '|' || g.product_number AS gcm_machine_join_key,
             g.site_code,
             g.factory_code,
             m.month_key,
-            g.snapshot_id,
+            g.planning_version_id,
             g.product_number,
             m.test_category_id,
             m.test_type,
@@ -347,18 +608,20 @@ def build_actual_capacity(duck_conn) -> int:
 
 def build_ml_feature_store(duck_conn) -> int:
     logger.info("  Building gold_ml_feature_store")
+    latest_version = latest_planning_version_predicate("gold_gcm_base")
+    latest_version_aliased = latest_planning_version_predicate(
+        "gold_gcm_base", row_alias="g"
+    )
     conflicts = duck_conn.execute(
-        """
+        f"""
         SELECT COUNT(*)
         FROM (
             SELECT
-                site_code, product_number, test_type, month_key, snapshot_id
+                site_code, product_number, test_type, month_key, planning_version_id
             FROM gold_gcm_base
-            WHERE snapshot_date = (
-                SELECT MAX(snapshot_date) FROM gold_gcm_base
-            )
+            WHERE {latest_version}
             GROUP BY
-                site_code, product_number, test_type, month_key, snapshot_id
+                site_code, product_number, test_type, month_key, planning_version_id
             HAVING
                 COUNT(DISTINCT effective_demand_qty) > 1
                 OR COUNT(DISTINCT target_yield) > 1
@@ -372,7 +635,7 @@ def build_ml_feature_store(duck_conn) -> int:
         )
 
     duck_conn.execute("DROP TABLE IF EXISTS gold_ml_feature_store")
-    duck_conn.execute("""
+    duck_conn.execute(f"""
         CREATE TABLE gold_ml_feature_store AS
         WITH resource_rows AS (
             SELECT
@@ -383,7 +646,7 @@ def build_ml_feature_store(duck_conn) -> int:
                 g.product_status,
                 g.test_type,
                 g.month_key,
-                g.snapshot_id,
+                g.planning_version_id,
                 g.effective_demand_qty      AS demand_qty,
                 g.target_yield,
                 g.target_test_time_sec,
@@ -407,9 +670,7 @@ def build_ml_feature_store(duck_conn) -> int:
                     ELSE 0
                 END                         AS is_actual
             FROM gold_gcm_base g
-            WHERE g.snapshot_date = (
-                SELECT MAX(snapshot_date) FROM gold_gcm_base
-            )
+            WHERE {latest_version_aliased}
         ),
         base AS (
             SELECT
@@ -420,7 +681,7 @@ def build_ml_feature_store(duck_conn) -> int:
                 MAX(product_status) AS product_status,
                 test_type,
                 month_key,
-                snapshot_id,
+                planning_version_id,
                 MAX(demand_qty) AS demand_qty,
                 MAX(target_yield) AS target_yield,
                 MAX(target_test_time_sec) AS target_test_time_sec,
@@ -433,7 +694,7 @@ def build_ml_feature_store(duck_conn) -> int:
                 MAX(is_actual) AS is_actual
             FROM resource_rows
             GROUP BY
-                site_code, product_number, test_type, month_key, snapshot_id
+                site_code, product_number, test_type, month_key, planning_version_id
         ),
         with_lags AS (
             SELECT
@@ -484,7 +745,7 @@ def build_ml_feature_store(duck_conn) -> int:
             md5(
                 site_code || '|' || product_number || '|' ||
                 test_type || '|' || CAST(month_key AS VARCHAR) || '|' ||
-                snapshot_id
+                planning_version_id
             )                           AS feat_pk,
             *
         FROM with_lags

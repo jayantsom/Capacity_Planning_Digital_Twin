@@ -121,7 +121,7 @@ def test_feature_store_removes_resource_fanout_before_ml() -> None:
             "product_number": ["P", "P"],
             "test_type": ["ICT", "ICT"],
             "month_key": [202401, 202401],
-            "snapshot_id": ["snap", "snap"],
+            "planning_version_id": ["plan-2026-10-31", "plan-2026-10-31"],
             "demand_qty": [100.0, 100.0],
             "target_yield": [0.95, 0.95],
             "target_test_time_sec": [60.0, 60.0],
@@ -148,7 +148,7 @@ def test_yield_features_use_measured_label_and_keep_stable_ids() -> None:
             "site_id": ["S", "S"],
             "product_id": ["P", "P"],
             "test_type_id": ["ICT", "ICT"],
-            "snapshot_id": ["snap", "snap"],
+            "planning_version_id": ["plan-2026-10-31", "plan-2026-10-31"],
             "month": [202402, 202401],
             "measured_yield": [0.70, 0.90],
             "target_yield": [0.99, 0.99],
@@ -237,7 +237,7 @@ def test_model_artifact_checksum_blocks_modified_pickle(tmp_path, monkeypatch) -
         ml_support.load_model("tiny")
 
 
-def test_capacity_merge_keeps_snapshots_and_gap_units() -> None:
+def test_capacity_merge_keeps_planning_versions_and_gap_units() -> None:
     conn = duckdb.connect()
     gcm = pd.DataFrame(
         {
@@ -245,7 +245,7 @@ def test_capacity_merge_keeps_snapshots_and_gap_units() -> None:
             "site_code": ["S", "S"],
             "test_type": ["ICT", "ICT"],
             "month_key": [202401, 202401],
-            "snapshot_id": ["snap-a", "snap-b"],
+            "planning_version_id": ["plan-2025-10-31", "plan-2026-10-31"],
             "target_yield": [0.8, 0.8],
             "handling_time_sec": [10.0, 10.0],
             "target_test_time_sec": [90.0, 90.0],
@@ -267,7 +267,7 @@ def test_capacity_merge_keeps_snapshots_and_gap_units() -> None:
             "site_id": ["S", "S"],
             "test_type_id": ["ICT", "ICT"],
             "month": [202401, 202401],
-            "snapshot_id": ["snap-a", "snap-b"],
+            "planning_version_id": ["plan-2025-10-31", "plan-2026-10-31"],
             "predicted_yield": [0.7, 0.9],
         }
     )

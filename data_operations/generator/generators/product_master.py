@@ -300,12 +300,16 @@ def generate_product_master_db(config: dict) -> pd.DataFrame:
         build_routes,
         build_site_product_sources,
     )
+    from data_operations.generator.services.control_catalog import load_assignments
 
-    route_df, route_step_df = build_routes()
+    assignments = load_assignments(config)
+    route_df, route_step_df = build_routes(assignments)
     write_to_sqlite(build_product_bom(), "product_bom", db_path)
     write_to_sqlite(route_df, "product_route", db_path)
     write_to_sqlite(route_step_df, "route_step", db_path)
-    write_to_sqlite(build_site_product_sources(), "site_product_source", db_path)
+    write_to_sqlite(
+        build_site_product_sources(assignments), "site_product_source", db_path
+    )
 
     parents = df[df["is_parent"] == 1]
     npi = df[df["product_status"] == "NPI"]

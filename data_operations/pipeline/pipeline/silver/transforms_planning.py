@@ -30,8 +30,8 @@ def transform_demand_requirements(duck_conn, run_id: str, ts: str) -> int:
         CREATE TABLE slvr_demand_requirement AS
         SELECT
             demand_id,
-            CAST(snapshot_id AS VARCHAR) AS snapshot_id,
-            CAST(snapshot_date AS DATE) AS snapshot_date,
+            CAST(planning_version_id AS VARCHAR) AS planning_version_id,
+            CAST(plan_as_of_date AS DATE) AS plan_as_of_date,
             CAST(month_key AS INTEGER) AS month_key,
             CAST(site AS VARCHAR) AS site_code,
             CAST(product_number AS VARCHAR) AS product_number,
@@ -41,8 +41,8 @@ def transform_demand_requirements(duck_conn, run_id: str, ts: str) -> int:
                 WHEN UPPER(CAST(knowledge_type AS VARCHAR)) IN ('ACTUAL', 'FORECAST')
                     THEN UPPER(CAST(knowledge_type AS VARCHAR))
                 WHEN CAST(month_key AS INTEGER) <=
-                    EXTRACT(YEAR FROM CAST(snapshot_date AS DATE)) * 100
-                    + EXTRACT(MONTH FROM CAST(snapshot_date AS DATE))
+                    EXTRACT(YEAR FROM CAST(plan_as_of_date AS DATE)) * 100
+                    + EXTRACT(MONTH FROM CAST(plan_as_of_date AS DATE))
                     THEN 'ACTUAL'
                 ELSE 'FORECAST'
             END AS data_type,
@@ -68,7 +68,7 @@ def transform_demand_requirements(duck_conn, run_id: str, ts: str) -> int:
         """
         CREATE INDEX idx_slvr_demand_requirement_grain
         ON slvr_demand_requirement (
-            site_code, product_number, month_key, snapshot_id, demand_class
+            site_code, product_number, month_key, planning_version_id, demand_class
         )
         """
     )
@@ -115,8 +115,8 @@ def transform_target_test_time(duck_conn, spark, run_id: str, ts: str) -> int:
         F.when(
             F.col("month_key")
             <= (
-                F.year(F.to_date("snapshot_date")) * 100
-                + F.month(F.to_date("snapshot_date"))
+                F.year(F.to_date("plan_as_of_date")) * 100
+                + F.month(F.to_date("plan_as_of_date"))
             ),
             "ACTUAL",
         ).otherwise("FORECAST")
@@ -124,7 +124,7 @@ def transform_target_test_time(duck_conn, spark, run_id: str, ts: str) -> int:
 
     exploded = md5_surrogate_key(
         exploded,
-        ["site_code", "product_number", "test_type", "month_key", "snapshot_id"],
+        ["site_code", "product_number", "test_type", "month_key", "planning_version_id"],
         "ttt_pk"
     )
     exploded = add_silver_metadata(exploded, run_id, ts)
@@ -163,7 +163,7 @@ def transform_target_yield(duck_conn, spark, run_id: str, ts: str) -> int:
         exploded,
         value_col="target_yield",
         partition_cols=["site_code", "product_number", "test_type",
-                        "snapshot_id"],
+                        "planning_version_id"],
         order_col="month_key"
     )
 
@@ -179,8 +179,8 @@ def transform_target_yield(duck_conn, spark, run_id: str, ts: str) -> int:
         F.when(
             F.col("month_key")
             <= (
-                F.year(F.to_date("snapshot_date")) * 100
-                + F.month(F.to_date("snapshot_date"))
+                F.year(F.to_date("plan_as_of_date")) * 100
+                + F.month(F.to_date("plan_as_of_date"))
             ),
             "ACTUAL",
         ).otherwise("FORECAST")
@@ -188,7 +188,7 @@ def transform_target_yield(duck_conn, spark, run_id: str, ts: str) -> int:
 
     exploded = md5_surrogate_key(
         exploded,
-        ["site_code", "product_number", "test_type", "month_key", "snapshot_id"],
+        ["site_code", "product_number", "test_type", "month_key", "planning_version_id"],
         "tgt_yield_pk"
     )
     exploded = add_silver_metadata(exploded, run_id, ts)

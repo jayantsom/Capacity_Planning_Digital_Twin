@@ -19,8 +19,7 @@ def test_tiny_candidate_validates_before_publish(tmp_path: Path) -> None:
             "end_date_actual": "2026-10-31",
             "start_date_forecast": "2026-11-01",
             "end_date_forecast": "2026-12-31",
-            "snapshot_dates": ["2026-10-31"],
-            "n_snapshots": 1,
+            "plan_as_of_dates": ["2026-10-31"],
             "volume": "low",
         }
     )

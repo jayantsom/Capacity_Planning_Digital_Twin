@@ -15,6 +15,30 @@ def _config(runtime_home: Path) -> dict:
     }
 
 
+def _publish_inputs(runtime_home: Path) -> None:
+    """Create the immutable source pointers required by a pipeline candidate."""
+    (runtime_home / "raw_current.json").write_text(
+        json.dumps(
+            {
+                "run_id": "raw-test",
+                "source_control_run_id": "control-test",
+                "source_control_sha256": "control-sha",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (runtime_home / "control_current.json").write_text(
+        json.dumps(
+            {
+                "control_run_id": "control-test",
+                "sha256": "control-sha",
+                "catalog_version": "test",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _seal_minimal_run(candidate: PipelineRun) -> None:
     for layer in ("bronze", "silver", "gold", "serving"):
         staging = candidate.paths.database(layer, staging=True)
@@ -26,6 +50,7 @@ def _seal_minimal_run(candidate: PipelineRun) -> None:
 
 def test_promotion_is_atomic_and_rollback_restores_previous(tmp_path: Path) -> None:
     """Keep a complete previous run available by changing only current.json."""
+    _publish_inputs(tmp_path)
     first = PipelineRun(_config(tmp_path))
     _seal_minimal_run(first)
     first.promote()
@@ -51,6 +76,7 @@ def test_promotion_is_atomic_and_rollback_restores_previous(tmp_path: Path) -> N
 
 def test_failed_candidate_never_changes_active_pointer(tmp_path: Path) -> None:
     """A candidate failure must leave the known-good reader pointer untouched."""
+    _publish_inputs(tmp_path)
     active = PipelineRun(_config(tmp_path))
     _seal_minimal_run(active)
     active.promote()
