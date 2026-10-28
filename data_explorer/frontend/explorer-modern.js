@@ -7,7 +7,7 @@ const FILTER_PRIORITY = [
   'test_type', 'test_type_id', 'month_key', 'month', 'planning_version_id',
   'capacity_mode', 'bottleneck_severity', 'risk_tier', 'anomaly_severity',
   'platform', 'product_family', 'region', 'supplier_name', 'equipment_id',
-  'equipment_type', 'product_status', 'retest_type',
+  'equipment_type', 'retest_type',
 ];
 const state = {
   sources: [],
@@ -65,7 +65,7 @@ function normaliseSources(sources) {
   const layers = Object.fromEntries(LAYERS.map((layer) => [layer, []]));
   sources.forEach((source) => {
     const layer = LAYERS.includes(source.layer) ? source.layer : 'raw';
-    (source.tables || []).forEach((table) => layers[layer].push({
+    const tables = (source.tables || []).map((table) => ({
       source: source.id,
       sourceLabel: source.label || source.id,
       table: table.name,
@@ -73,6 +73,13 @@ function normaliseSources(sources) {
       objectType: table.object_type || 'TABLE',
       rowCount: table.row_count,
     }));
+    layers[layer].push({
+      source: source.id,
+      sourceLabel: source.label || source.id,
+      databaseName: source.database_name || source.label || source.id,
+      status: source.status || 'READY',
+      tables,
+    });
   });
   return layers;
 }
@@ -89,28 +96,60 @@ function buildCatalog(sources) {
     dot.setAttribute('aria-hidden', 'true');
     const layerName = layer === 'ml' ? 'ML' : `${layer[0].toUpperCase()}${layer.slice(1)}`;
     const name = node('span', '', `${layerName} layer`);
-    const count = node('span', 'count', String(layers[layer].length));
-    const list = node('div', 'table-list');
+    const tableCount = layers[layer].reduce((total, database) => total + database.tables.length, 0);
+    const count = node('span', 'count', String(tableCount));
+    const databaseList = node('div', 'database-list');
     toggle.append(dot, name, count);
     toggle.addEventListener('click', () => {
       const expanded = toggle.getAttribute('aria-expanded') === 'true';
       toggle.setAttribute('aria-expanded', String(!expanded));
-      list.hidden = expanded;
+      databaseList.hidden = expanded;
     });
     if (!layers[layer].length) {
-      list.append(node('p', 'layer-empty', 'No tables published'));
+      databaseList.append(node('p', 'layer-empty', 'No databases published'));
     } else {
-      layers[layer].forEach((entry) => {
-        const button = node('button', 'table-link', entry.table);
-        button.type = 'button';
-        button.title = `${entry.sourceLabel} → ${entry.table}`;
-        button.dataset.source = entry.source;
-        button.dataset.table = entry.table;
-        button.addEventListener('click', () => void selectTable(entry, button));
-        list.append(button);
+      layers[layer].forEach((database, databaseIndex) => {
+        const databaseSection = node('section', 'database-section');
+        const databaseToggle = node('button', 'database-toggle');
+        const databaseTables = node('div', 'table-list');
+        const databaseId = `catalog-${layer}-${databaseIndex}`;
+        databaseToggle.type = 'button';
+        databaseToggle.setAttribute('aria-expanded', 'false');
+        databaseToggle.setAttribute('aria-controls', databaseId);
+        databaseTables.id = databaseId;
+        databaseTables.hidden = true;
+        const caret = node('span', 'database-caret', '›');
+        caret.setAttribute('aria-hidden', 'true');
+        const databaseIcon = node('span', 'database-icon', 'DB');
+        databaseIcon.setAttribute('aria-hidden', 'true');
+        const databaseName = node('span', 'database-name', database.databaseName);
+        const databaseCount = node('span', 'count', String(database.tables.length));
+        databaseToggle.append(caret, databaseIcon, databaseName, databaseCount);
+        databaseToggle.title = `${database.databaseName} · ${database.status}`;
+        databaseToggle.addEventListener('click', () => {
+          const expanded = databaseToggle.getAttribute('aria-expanded') === 'true';
+          databaseToggle.setAttribute('aria-expanded', String(!expanded));
+          databaseTables.hidden = expanded;
+          caret.textContent = expanded ? '›' : '⌄';
+        });
+        if (!database.tables.length) {
+          databaseTables.append(node('p', 'database-empty', database.status));
+        } else {
+          database.tables.forEach((entry) => {
+            const button = node('button', 'table-link', entry.table);
+            button.type = 'button';
+            button.title = `${database.databaseName} → ${entry.table}`;
+            button.dataset.source = entry.source;
+            button.dataset.table = entry.table;
+            button.addEventListener('click', () => void selectTable(entry, button));
+            databaseTables.append(button);
+          });
+        }
+        databaseSection.append(databaseToggle, databaseTables);
+        databaseList.append(databaseSection);
       });
     }
-    section.append(toggle, list);
+    section.append(toggle, databaseList);
     ui.navigation.append(section);
   });
 }

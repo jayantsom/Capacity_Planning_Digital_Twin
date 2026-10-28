@@ -72,7 +72,7 @@ def test_gcm_sums_independent_and_dependent_child_demand_once() -> None:
         CREATE TABLE slvr_prod_master AS
         SELECT 'CHILD' AS product_number, 'Child board' AS product_description,
                'Board' AS product_family, 'Platform' AS platform,
-               'ACTIVE' AS product_status, 'PCBA' AS product_type,
+               'PCBA' AS product_type,
                'Owner' AS product_poc, 0 AS is_parent, 0 AS has_children,
                true AS is_valid
         """

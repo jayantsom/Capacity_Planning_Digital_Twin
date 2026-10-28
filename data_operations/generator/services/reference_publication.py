@@ -16,7 +16,7 @@ from data_operations.generator.generators.reference_data import (
     generate_test_type_master,
 )
 
-REFERENCE_SCHEMA_VERSION = "reference-1.0"
+REFERENCE_SCHEMA_VERSION = "reference-2.0"
 
 
 def _write_table(

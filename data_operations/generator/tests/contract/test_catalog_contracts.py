@@ -2,6 +2,7 @@
 
 from capacity_twin_core.runtime.database_paths import load_config
 from data_operations.generator.catalogs.contract_tables import (
+    build_product_bom,
     build_resource_contracts,
     build_routes,
 )
@@ -24,6 +25,19 @@ def test_catalog_uses_erivon_and_sparse_assignments() -> None:
     assert "Eric" + "sson" not in rendered_sites
     assert all(site[0].startswith("ERV_") or site[3] != "Erivon" for site in SITES)
     assert len(ASSIGNMENT_MATRIX) <= 120
+
+
+def test_ebu_bom_references_only_retained_components() -> None:
+    bom = build_product_bom()
+    retained = {product[0] for product in PRODUCTS}
+    ebu_children = set(
+        bom.loc[
+            bom["parent_product_number"] == "MWT-EBU-80G-020",
+            "child_product_number",
+        ]
+    )
+    assert ebu_children == {"PWR-PAB-35G-033"}
+    assert set(bom["child_product_number"]) <= retained
 
 
 def test_every_parent_and_child_has_a_separate_route() -> None:

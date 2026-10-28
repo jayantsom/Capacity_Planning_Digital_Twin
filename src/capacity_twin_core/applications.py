@@ -11,7 +11,7 @@ from fastapi import APIRouter
 
 from capacity_twin_core.runtime.database_paths import PROJECT_ROOT
 
-ApplicationGroup = Literal["primary", "planning", "operations", "reference"]
+ApplicationGroup = Literal["primary", "operations", "reference"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,50 +93,6 @@ APPLICATIONS: tuple[Application, ...] = (
         "/decision-intelligence/api/health",
         "decision_intelligence.backend.main",
         "decision_intelligence/frontend",
-    ),
-    Application(
-        "scenario-planning",
-        "Scenario & What-If Planning",
-        "/scenario-planning/",
-        "SW",
-        "Session-scoped scenario planning",
-        "planning",
-        "/scenario-planning/api/health",
-        "scenario_planning.backend.main",
-        "scenario_planning/frontend",
-    ),
-    Application(
-        "demand-supply-planning",
-        "S&OP Planning",
-        "/demand-supply-planning/",
-        "SO",
-        "Demand and supply planning",
-        "planning",
-        "/demand-supply-planning/api/health",
-        "demand_supply_planning.backend.main",
-        "demand_supply_planning/frontend",
-    ),
-    Application(
-        "npi-ramp-planning",
-        "NPI Ramp Planning",
-        "/npi-ramp-planning/",
-        "NP",
-        "Launch readiness and ramp planning",
-        "planning",
-        "/npi-ramp-planning/api/health",
-        "npi_ramp_planning.backend.main",
-        "npi_ramp_planning/frontend",
-    ),
-    Application(
-        "operations-flow",
-        "Operations Flow",
-        "/operations-flow/",
-        "OF",
-        "Production flow and queues",
-        "planning",
-        "/operations-flow/api/health",
-        "operations_flow.backend.main",
-        "operations_flow/frontend",
     ),
     Application(
         "data-operations",

@@ -3,8 +3,6 @@ Generator: raw_target_yield.db
 Monthly target yield per site-product-test_type combination.
 """
 
-from datetime import date
-
 import numpy as np
 import pandas as pd
 
@@ -19,7 +17,6 @@ from data_operations.generator.generators.assignment_matrix import ASSIGNMENT_MA
 from data_operations.generator.generators.reference_data import TEST_TYPES, write_to_sqlite
 from data_operations.generator.rules.contracts import DateContract
 from data_operations.generator.rules.determinism import stable_seed
-from data_operations.generator.rules.npi import npi_ramp
 from data_operations.generator.services.control_catalog import load_assignments
 
 # ── Base yield ranges by test type ────────────────────────────────────────────
@@ -63,7 +60,6 @@ def generate_yield_for_planning_version(
         product_num = assignment["product_number"]
         family      = assignment["product_family"]
         platform    = assignment["platform"]
-        status      = assignment["product_status"]
         test_types  = assignment["test_types"]
 
         site_quality = SITE_QUALITY_FACTORS.get(site_code, 1.0)
@@ -80,9 +76,6 @@ def generate_yield_for_planning_version(
             # Base yield adjusted for site quality
             base_yield = local_rng.uniform(base_min, base_max) * site_quality
 
-            # NPI: starts 12% lower, improves over 12 months
-            npi_initial_penalty = 0.88 if status == "NPI" else 1.0
-
             yield_row = {
                 "platform":           platform,
                 "product_family":     family,
@@ -97,23 +90,11 @@ def generate_yield_for_planning_version(
             }
 
             for i, mk in enumerate(all_month_keys):
-                month_date = date(mk // 100, mk % 100, 1)
-                if status == "NPI" and npi_ramp(product_num, month_date) == 0:
-                    yield_row[month_key_label(mk)] = None
-                    continue
-                if status == "NPI":
-                    ramp = npi_ramp(product_num, month_date)
-                    improvement = npi_initial_penalty + (
-                        (1.0 - npi_initial_penalty) * ramp
-                    )
-                    learning = 1.0
-                else:
-                    improvement = 1.0
-                    # Slow continuous improvement +0.1-0.3%/month
-                    learning = (1 + local_rng.uniform(0.001, 0.003)) ** i
+                # Slow continuous improvement +0.1-0.3%/month.
+                learning = (1 + local_rng.uniform(0.001, 0.003)) ** i
 
                 noise = local_rng.normal(0, 0.005)
-                yield_val = base_yield * improvement * learning + noise
+                yield_val = base_yield * learning + noise
                 yield_val = float(np.clip(yield_val, 0.50, 0.99))
 
                 col = month_key_label(mk)

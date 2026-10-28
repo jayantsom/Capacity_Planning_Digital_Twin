@@ -9,8 +9,8 @@ from importlib import import_module
 
 from capacity_twin_core.logging import logger
 from capacity_twin_core.runtime.database_paths import load_config
-from data_operations.generator.generators.planning_foundation import (
-    generate_planning_foundation,
+from data_operations.generator.generators.equipment_cost_reference import (
+    generate_equipment_cost_reference,
 )
 from data_operations.generator.services.atomic_publication import (
     add_source_metadata,
@@ -80,8 +80,8 @@ def run_all(
     report(91, "7 Logs", "Generating operational logs")
     _run_step("7_logs", candidate_config)
 
-    report(94, "8 Planning foundation", "Generating S&OP, NPI, flow, and scenario facts")
-    planning_counts = generate_planning_foundation(candidate_config)
+    report(94, "8 Equipment costs", "Generating equipment cost references")
+    equipment_cost_df = generate_equipment_cost_reference(candidate_config)
 
     report(96, "Validation", "Validating candidate databases before publication")
     add_source_metadata(
@@ -129,7 +129,7 @@ def run_all(
         "test_types": len(test_type_df),
         "products": len(product_df),
         "demand_rows": len(demand_df),
-        "planning_foundation_rows": sum(planning_counts.values()),
+        "equipment_cost_rows": len(equipment_cost_df),
     }
 
 

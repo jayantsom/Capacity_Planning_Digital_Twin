@@ -17,10 +17,6 @@ def test_home_uses_registry_driven_application_cards() -> None:
         "data-explorer",
         "capacity-analysis",
         "decision-intelligence",
-        "scenario-planning",
-        "demand-supply-planning",
-        "npi-ramp-planning",
-        "operations-flow",
         "data-operations",
         "documentation",
     ]
@@ -32,10 +28,6 @@ def test_user_interfaces_share_one_fastapi_application() -> None:
     assert client.get("/explorer/").status_code == 200
     assert client.get("/capacity-analysis/").status_code == 200
     assert client.get("/decision-intelligence/").status_code == 200
-    assert client.get("/scenario-planning/").status_code == 200
-    assert client.get("/demand-supply-planning/").status_code == 200
-    assert client.get("/npi-ramp-planning/").status_code == 200
-    assert client.get("/operations-flow/").status_code == 200
     assert client.get("/data-operations/").status_code == 200
     assert client.get("/documentation/").status_code == 200
     assert client.get("/shared/static/dashboard.js").status_code == 200

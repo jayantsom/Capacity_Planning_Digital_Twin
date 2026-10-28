@@ -165,7 +165,6 @@ def _feat_cols(df: pd.DataFrame) -> list[str]:
         "test_type_id",
         "platform_id",
         "family_id",
-        "product_status",
         "region",
         "supplier_name",
         "demand",

@@ -151,7 +151,6 @@ def generate_site_equipment_inventory_db(config: dict) -> pd.DataFrame:
             qual_time      = round(local_rng.uniform(10, 60), 1)
             ttbf           = round(local_rng.uniform(ttbf_min, ttbf_max), 1)
             repair_tester  = int(local_rng.random() < 0.3)
-            is_npi         = int(local_rng.random() < 0.6)
             base_qty       = int(local_rng.integers(qty_min, qty_max + 1))
 
             # Monthly equipment quantity with realistic changes
@@ -182,7 +181,6 @@ def generate_site_equipment_inventory_db(config: dict) -> pd.DataFrame:
                 "test_time_before_failure_hr": ttbf,
                 "retest_quote":       retest_quote,
                 "repair_tester":      repair_tester,
-                "is_npi_capable":     is_npi,
                 "resource_pool_id":   f"POOL-{test_type}",
                 "data_provenance":    "SYNTHETIC_SITE_RESOURCE_ASSIGNMENT",
             }

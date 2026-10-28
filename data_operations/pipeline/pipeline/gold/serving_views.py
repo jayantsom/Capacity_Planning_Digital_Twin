@@ -9,8 +9,7 @@ SERVING_VIEWS = {
         WHERE is_valid
     """,
     "srv_reference_product": """
-        SELECT product_number, product_description, product_family, platform,
-               product_status
+        SELECT product_number, product_description, product_family, platform
         FROM slvr_prod_master
         WHERE is_valid
     """,
@@ -36,7 +35,6 @@ SERVING_VIEWS = {
             pm.product_description,
             dvc.product_family,
             dvc.platform,
-            dvc.product_status,
             dvc.test_type,
             dvc.equipment_id,
             dvc.equipment_type,
@@ -157,7 +155,6 @@ SERVING_VIEWS = {
             pm.product_description,
             pm.product_family,
             pm.platform,
-            pm.product_status,
             fa.month_key,
             fa.planning_version_id,
             fa.plan_as_of_date,
@@ -295,130 +292,6 @@ SERVING_VIEWS = {
         LEFT JOIN slvr_ref_site rs ON oe.site_code = rs.site_code
         LEFT JOIN slvr_prod_master pm ON oe.product_number = pm.product_number
         LEFT JOIN slvr_ref_test_type tt ON oe.test_type = tt.test_type
-    """,
-    "srv_sop_balance": """
-        SELECT balance.*, site.site_name, product.product_description
-        FROM gold_sop_balance balance
-        LEFT JOIN slvr_ref_site site USING (site_code)
-        LEFT JOIN slvr_prod_master product USING (product_number)
-    """,
-    "srv_npi_readiness": """
-        SELECT readiness.*, site.site_name, product.product_description
-        FROM gold_npi_readiness readiness
-        LEFT JOIN slvr_ref_site site ON readiness.lead_site_code = site.site_code
-        LEFT JOIN slvr_prod_master product USING (product_number)
-    """,
-    "srv_npi_ramp": """
-        SELECT ramp.*, site.site_name, product.product_description
-        FROM gold_npi_ramp ramp
-        LEFT JOIN slvr_ref_site site USING (site_code)
-        LEFT JOIN slvr_prod_master product USING (product_number)
-    """,
-    "srv_npi_stage_gate": """
-        SELECT
-            gate.stage_gate_id,
-            gate.program_id,
-            program.program_name,
-            program.product_number,
-            program.lead_site_code,
-            site.site_name,
-            product.product_description,
-            gate.gate_sequence,
-            gate.gate_name,
-            gate.planned_gate_date,
-            gate.actual_gate_date,
-            gate.gate_status,
-            gate.approval_evidence_id
-        FROM slvr_npi_stage_gate gate
-        JOIN slvr_npi_program program USING (program_id)
-        LEFT JOIN slvr_ref_site site ON program.lead_site_code = site.site_code
-        LEFT JOIN slvr_prod_master product USING (product_number)
-        WHERE gate.is_valid AND program.is_valid
-    """,
-    "srv_operations_wip": """
-        SELECT flow.*, site.site_name, product.product_description,
-               equipment.equipment_name
-        FROM gold_operations_wip flow
-        LEFT JOIN slvr_ref_site site USING (site_code)
-        LEFT JOIN slvr_prod_master product USING (product_number)
-        LEFT JOIN slvr_ref_equipment equipment ON flow.resource_id = equipment.equipment_id
-    """,
-    "srv_operations_queue": """
-        SELECT flow.*, site.site_name, equipment.equipment_name
-        FROM gold_operations_queue flow
-        LEFT JOIN slvr_ref_site site USING (site_code)
-        LEFT JOIN slvr_ref_equipment equipment ON flow.resource_id = equipment.equipment_id
-    """,
-    "srv_operations_cycle_time": """
-        SELECT flow.*, site.site_name, product.product_description
-        FROM gold_operations_cycle_time flow
-        LEFT JOIN slvr_ref_site site USING (site_code)
-        LEFT JOIN slvr_prod_master product USING (product_number)
-    """,
-    "srv_operations_throughput": """
-        SELECT flow.*, site.site_name, equipment.equipment_name
-        FROM gold_operations_throughput flow
-        LEFT JOIN slvr_ref_site site USING (site_code)
-        LEFT JOIN slvr_ref_equipment equipment ON flow.resource_id = equipment.equipment_id
-    """,
-    "srv_operations_rework": """
-        SELECT flow.*, site.site_name, product.product_description
-        FROM gold_operations_rework flow
-        LEFT JOIN slvr_ref_site site USING (site_code)
-        LEFT JOIN slvr_prod_master product USING (product_number)
-    """,
-    "srv_operations_route_adherence": """
-        SELECT flow.*, site.site_name, product.product_description
-        FROM gold_operations_route_adherence flow
-        LEFT JOIN slvr_ref_site site USING (site_code)
-        LEFT JOIN slvr_prod_master product USING (product_number)
-    """,
-    "srv_operations_schedule_attainment": """
-        SELECT flow.*, site.site_name, product.product_description
-        FROM gold_operations_schedule_attainment flow
-        LEFT JOIN slvr_ref_site site USING (site_code)
-        LEFT JOIN slvr_prod_master product USING (product_number)
-    """,
-    "srv_operations_bottleneck_movement": """
-        SELECT flow.*, site.site_name, equipment.equipment_name
-        FROM gold_operations_bottleneck_movement flow
-        LEFT JOIN slvr_ref_site site USING (site_code)
-        LEFT JOIN slvr_ref_equipment equipment ON flow.resource_id = equipment.equipment_id
-    """,
-    "srv_operations_route_flow": """
-        WITH flow AS (
-            SELECT
-                movement_date,
-                site_code,
-                product_number,
-                route_id,
-                route_step_sequence,
-                from_operation,
-                to_operation,
-                resource_id,
-                COUNT(*) AS movement_count,
-                COUNT(DISTINCT lot_id) AS lot_count,
-                SUM(input_quantity_ea) AS input_quantity_ea,
-                SUM(output_quantity_ea) AS output_quantity_ea,
-                COUNT(*) FILTER (WHERE disposition_code = 'REWORK') AS rework_count,
-                'EA' AS quantity_unit
-            FROM gold_operations_event
-            GROUP BY ALL
-        )
-        SELECT flow.*, site.site_name, product.product_description,
-               equipment.equipment_name
-        FROM flow
-        LEFT JOIN slvr_ref_site site USING (site_code)
-        LEFT JOIN slvr_prod_master product USING (product_number)
-        LEFT JOIN slvr_ref_equipment equipment ON flow.resource_id = equipment.equipment_id
-    """,
-    "srv_scenario_inputs": """
-        SELECT scenario.*, site.site_name, product.product_description,
-               equipment.equipment_name
-        FROM gold_scenario_inputs scenario
-        LEFT JOIN slvr_ref_site site USING (site_code)
-        LEFT JOIN slvr_prod_master product USING (product_number)
-        LEFT JOIN slvr_ref_equipment equipment ON scenario.resource_id = equipment.equipment_id
     """,
     "srv_equipment_cost_reference": """
         SELECT cost.*, equipment.equipment_name, equipment.manufacturer

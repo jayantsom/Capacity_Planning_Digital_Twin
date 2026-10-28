@@ -1,1 +1,0 @@
-"""NPI Ramp Planning application."""

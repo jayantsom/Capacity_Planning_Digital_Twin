@@ -8,10 +8,6 @@ Configuration is app-owned and validated before startup.
 | `operations_assistant/config.yaml` | Yukti, Ollama, streaming, and tool limits |
 | `data_explorer/config.yaml` | Explorer route and query limits |
 | `capacity_analysis/config.yaml` | Capacity and bottleneck dashboards |
-| `scenario_planning/config.yaml` | Scenario and what-if analysis |
-| `demand_supply_planning/config.yaml` | S&OP planning |
-| `npi_ramp_planning/config.yaml` | NPI ramp planning |
-| `operations_flow/config.yaml` | Operations flow analysis |
 | `data_operations/config.yaml` | Dashboard origins, job policy, and Small/Medium/Full mappings |
 | `data_operations/generator/config.yaml` | Erivon brand, dates, noise, budgets, and Raw filenames |
 | `data_operations/pipeline/config.yaml` | Database filenames, Spark settings, and capacity thresholds |

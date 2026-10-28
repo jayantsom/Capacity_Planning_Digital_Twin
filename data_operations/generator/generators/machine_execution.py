@@ -17,7 +17,6 @@ from capacity_twin_core.runtime.database_paths import get_sqlite_path
 from data_operations.generator.generators.reference_data import TEST_TYPES
 from data_operations.generator.rules.contracts import DateContract, VolumeContract
 from data_operations.generator.rules.determinism import stable_id, stable_seed
-from data_operations.generator.rules.npi import npi_ramp
 from data_operations.generator.services.control_catalog import load_assignments
 
 # ── Base throughput ranges by test type (units/day/site) ──────────────────────
@@ -113,7 +112,6 @@ def generate_machine_execution_db(config: dict) -> None:
 
             for assignment in assignments:
                 product_num = assignment["product_number"]
-                status = assignment["product_status"]
                 test_types = assignment["test_types"]
 
                 for tt in test_types:
@@ -132,10 +130,6 @@ def generate_machine_execution_db(config: dict) -> None:
                     # Base daily throughput
                     tp_min, tp_max = DAILY_THROUGHPUT_BASE.get(tt, (50, 300))
                     base_throughput = local_rng.uniform(tp_min, tp_max) * volume.demand_scale
-
-                    # NPI: lower throughput until ramp complete
-                    if status == "NPI":
-                        base_throughput *= npi_ramp(product_num, current)
 
                     # Base yield from approximate target
                     from data_operations.generator.generators.target_yield import YIELD_BASE
@@ -174,8 +168,6 @@ def generate_machine_execution_db(config: dict) -> None:
                             d not in (actual_start, actual_end)
                             and day_offset % volume.execution_day_stride != 0
                         ):
-                            continue
-                        if status == "NPI" and npi_ramp(product_num, d) == 0:
                             continue
                         # Skip missing days
                         if i in missing_day_indices:

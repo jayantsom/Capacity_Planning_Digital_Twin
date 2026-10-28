@@ -1,4 +1,4 @@
-"""Isolated end-to-end publication checks for the planning data foundation."""
+"""Isolated end-to-end checks for retained pipeline publications."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from data_operations.generator.generators.run_all_generators import run_all
 from data_operations.pipeline.runner import run_pipeline
 
 
-def test_phase6_serving_publication_reconciles(tmp_path: Path) -> None:
+def test_retained_serving_publications_are_complete(tmp_path: Path) -> None:
     pytest.importorskip("pyspark")
     config = deepcopy(load_config())
     config["paths"]["runtime_home"] = str(tmp_path)
@@ -32,20 +32,14 @@ def test_phase6_serving_publication_reconciles(tmp_path: Path) -> None:
 
     serving_path = candidate.paths.database("serving")
     with duckdb.connect(str(serving_path), read_only=True) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM srv_sop_balance").fetchone()[0] > 0
-        assert connection.execute(
-            "SELECT COUNT(*) FROM srv_sop_balance "
-            "WHERE ABS(inventory_balance_variance_ea) > 0.000001"
-        ).fetchone()[0] == 0
-        assert connection.execute("SELECT COUNT(*) FROM srv_npi_readiness").fetchone()[0] > 0
-        assert connection.execute("SELECT COUNT(*) FROM srv_npi_ramp").fetchone()[0] > 0
-        assert connection.execute("SELECT COUNT(*) FROM srv_operations_queue").fetchone()[0] > 0
-        assert connection.execute(
-            "SELECT COUNT(*) FROM srv_operations_schedule_attainment"
-        ).fetchone()[0] > 0
-        assert connection.execute("SELECT COUNT(*) FROM srv_scenario_inputs").fetchone()[0] > 0
         assert connection.execute(
             "SELECT COUNT(*) FROM srv_equipment_cost_reference"
+        ).fetchone()[0] > 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM srv_resource_constraints"
+        ).fetchone()[0] > 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM srv_vw_operational_performance"
         ).fetchone()[0] > 0
         assert connection.execute(
             """

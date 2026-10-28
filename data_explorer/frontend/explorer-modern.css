@@ -79,11 +79,20 @@ a { color: inherit; }
 .layer-toggle:hover { background: var(--surface-muted); }
 .layer-dot { width: 9px; height: 9px; border: 1px solid currentColor; background: currentColor; }
 .layer-toggle .count { margin-left: auto; color: var(--muted); font: 10px var(--mono); }
-.table-list { padding: 2px 0 8px; }
-.table-link { width: 100%; min-height: 30px; display: block; overflow: hidden; padding: 5px 12px 5px 30px; border: 0; border-left: 3px solid transparent; background: white; color: var(--muted); text-align: left; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--mono); }
+.database-list { padding: 2px 0 8px; }
+.database-section { min-width: 0; }
+.database-toggle { width: 100%; min-height: 32px; display: flex; align-items: center; gap: 6px; padding: 4px 12px 4px 22px; overflow: hidden; border: 0; background: white; color: var(--graphite-2); text-align: left; }
+.database-toggle:hover { background: var(--surface-muted); }
+.database-caret { flex: 0 0 10px; color: var(--muted); font: 700 14px var(--mono); }
+.database-icon { flex: 0 0 auto; padding: 1px 3px; border: 1px solid var(--border); color: var(--cyan); font: 700 7px var(--mono); }
+.database-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--mono); }
+.database-toggle .count { margin-left: auto; color: var(--muted); font: 9px var(--mono); }
+.table-list { padding: 0 0 3px; }
+.table-link { width: 100%; min-height: 29px; display: block; overflow: hidden; padding: 5px 12px 5px 51px; border: 0; border-left: 3px solid transparent; background: white; color: var(--muted); text-align: left; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--mono); }
 .table-link:hover { color: var(--graphite); background: var(--surface-muted); }
 .table-link.active { color: var(--cyan); border-left-color: var(--cyan); background: var(--cyan-pale); }
 .layer-empty { padding: 6px 30px 10px; color: var(--muted); font-size: 11px; }
+.database-empty { margin: 0; padding: 4px 12px 7px 51px; color: var(--muted); font-size: 10px; }
 
 .filter-panel { flex: 0 0 auto; border-bottom: 1px solid var(--graphite); background: var(--surface-muted); }
 .filter-panel.closed { display: none; }

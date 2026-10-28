@@ -121,10 +121,6 @@ APP_PATHS = {
     "data-explorer": "/explorer/",
     "capacity-analysis": "/capacity-analysis/",
     "decision-intelligence": "/decision-intelligence/",
-    "scenario-planning": "/scenario-planning/",
-    "demand-supply-planning": "/demand-supply-planning/",
-    "npi-ramp-planning": "/npi-ramp-planning/",
-    "operations-flow": "/operations-flow/",
     "data-operations": "/data-operations/",
     "documentation": "/documentation/",
 }
@@ -137,14 +133,9 @@ FILTER_ALLOWLIST = frozenset(
         "planning_version",
         "month_from",
         "month_to",
-        "date_from",
-        "date_to",
         "grain",
         "capacity_mode",
         "retest_type",
-        "program",
-        "operation",
-        "resource",
         "layer",
     }
 )
@@ -306,14 +297,8 @@ def _validated_context(context: PageContext) -> dict:
 def _contextual_request(req: ChatRequest) -> tuple[str, str, frozenset[str]]:
     context = _validated_context(req.context)
     agent = WORKFLOW_AGENT.get(str(context["view"]))
-    if not agent:
-        agent = {
-            "capacity-analysis": "capacity",
-            "scenario-planning": "capacity",
-            "demand-supply-planning": "forecast",
-            "npi-ramp-planning": "forecast",
-            "operations-flow": "capacity",
-        }.get(str(context["app_id"]))
+    if not agent and context["app_id"] == "capacity-analysis":
+        agent = "capacity"
     prompt = (
         "Validated current page context:\n"
         f"{json.dumps(context, sort_keys=True, default=str)}\n\n"

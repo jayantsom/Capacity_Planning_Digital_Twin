@@ -101,9 +101,7 @@ def prepare_demand_series(df: pd.DataFrame) -> pd.DataFrame:
     varying = actual.groupby(keys)["demand"].nunique(dropna=True)
     if (varying > 1).any():
         raise ValueError("Conflicting demand values at product/site/month grain")
-    metadata = [
-        col for col in ["platform_id", "family_id", "product_status"] if col in actual.columns
-    ]
+    metadata = [col for col in ["platform_id", "family_id"] if col in actual.columns]
     aggregations = {"demand": "first", **{col: "first" for col in metadata}}
     return (
         actual.sort_values(keys + (["planning_version_id"] if "planning_version_id" in actual else []))
@@ -145,7 +143,6 @@ def _feat_cols(df: pd.DataFrame) -> list[str]:
         "platform_id",
         "family_id",
         "test_type_id",
-        "product_status",
         "region",
         "supplier_name",
         "is_actual",
@@ -378,8 +375,8 @@ def run_demand_forecast() -> dict:
     fs = prepare_demand_series(load_feature_store(conn))
 
     history_len = fs.groupby(["product_id", "site_id"])["month"].nunique()
-    npi_keys = set(history_len[history_len < MIN_HISTORY].index.tolist())
-    log.info(f"  Short-history product-site combos: {len(npi_keys)}")
+    short_history_keys = set(history_len[history_len < MIN_HISTORY].index.tolist())
+    log.info(f"  Short-history product-site combos: {len(short_history_keys)}")
 
     log.info("Engineering features...")
     fs_feat = build_features(fs)

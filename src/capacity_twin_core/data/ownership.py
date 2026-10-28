@@ -32,28 +32,6 @@ SOURCE_RAW_TABLES = frozenset(
         "machine_execution",
         "machine_test_param",
         "machine_logs",
-        "customer_order",
-        "backlog_position",
-        "constrained_production_plan",
-        "shared_resource_allocation",
-        "material_inventory_position",
-        "inbound_receipt",
-        "shipment",
-        "safety_stock_policy",
-        "service_target",
-        "npi_program",
-        "npi_stage_gate",
-        "npi_milestone",
-        "npi_qualification_evidence",
-        "npi_pilot_lot",
-        "npi_tooling_readiness",
-        "npi_ramp_target",
-        "npi_ramp_actual",
-        "npi_risk",
-        "npi_owner",
-        "npi_status_history",
-        "lot_route_movement_event",
-        "production_schedule",
         "equipment_cost_reference",
     }
 )
@@ -80,7 +58,6 @@ MAPPING_TABLES = frozenset(
         "quality.noise_rule",
         "quality.mapping_exception",
         "calendar.calendar_override",
-        "calendar.npi_ramp",
         "resource.resource_master",
         "resource.resource_pool",
         "resource.product_resource_qualification",
@@ -92,15 +69,7 @@ MAPPING_TABLES = frozenset(
 APPLICATION_CONTROL_TABLES = REFERENCE_TABLES | MAPPING_TABLES
 
 RAW_DATABASE_TABLES = {
-    "demand": frozenset(
-        {
-            "demand_requirement",
-            "customer_order",
-            "backlog_position",
-            "constrained_production_plan",
-            "shared_resource_allocation",
-        }
-    ),
+    "demand": frozenset({"demand_requirement"}),
     "product": frozenset(
         {
             "manufacturer_master",
@@ -124,33 +93,7 @@ RAW_DATABASE_TABLES = {
         {"test_type_master", "target_test_time", "machine_test_param"}
     ),
     "yield": frozenset({"target_yield"}),
-    "execution": frozenset(
-        {"machine_execution", "lot_route_movement_event", "production_schedule"}
-    ),
-    "inventory": frozenset(
-        {
-            "material_inventory_position",
-            "inbound_receipt",
-            "shipment",
-            "safety_stock_policy",
-            "service_target",
-        }
-    ),
-    "npi": frozenset(
-        {
-            "npi_program",
-            "npi_stage_gate",
-            "npi_milestone",
-            "npi_qualification_evidence",
-            "npi_pilot_lot",
-            "npi_tooling_readiness",
-            "npi_ramp_target",
-            "npi_ramp_actual",
-            "npi_risk",
-            "npi_owner",
-            "npi_status_history",
-        }
-    ),
+    "execution": frozenset({"machine_execution"}),
 }
 
 _OWNERSHIP = {

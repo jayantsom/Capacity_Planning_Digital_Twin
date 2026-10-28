@@ -28,7 +28,7 @@ DOMAINS = {
     ),
     "forecast": (
         "Questions about demand forecasting, future demand predictions, forecast accuracy, "
-        "MAPE, Prophet or ensemble model forecasts, NPI product ramp, or planning horizon demand."
+        "MAPE, Prophet or ensemble model forecasts, or planning horizon demand."
     ),
     "capex": (
         "Questions about capital expenditure, CapEx recommendations, Monte Carlo equipment "

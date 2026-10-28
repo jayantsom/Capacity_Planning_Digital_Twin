@@ -1,5 +1,5 @@
 import { apiJson } from '/shared/static/dashboard.js';
-import { installYuktiWidget } from '/shared/static/yukti.js';
+import { installYuktiWidget } from '/shared/static/yukti.js?v=20261027a';
 
 const shellHost = document.querySelector('[data-shared-shell]');
 const pageHeader = document.querySelector('[data-shared-page-header]');
@@ -10,7 +10,7 @@ function applicationIsActive(application) {
   return window.location.pathname.startsWith(application.route);
 }
 
-function linkFor(application, { menu = false } = {}) {
+function linkFor(application) {
   const link = document.createElement('a');
   link.textContent = application.title;
   link.href = application.enabled ? application.route : '#';
@@ -20,87 +20,7 @@ function linkFor(application, { menu = false } = {}) {
     link.setAttribute('aria-disabled', 'true');
     link.addEventListener('click', (event) => event.preventDefault());
   }
-  if (menu) {
-    link.setAttribute('role', 'menuitem');
-    link.tabIndex = -1;
-    const state = document.createElement('small');
-    state.textContent = application.enabled ? '' : 'PLANNED';
-    link.append(state);
-  }
   return link;
-}
-
-function installPlanningMenu(container, applications) {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'ct-menu';
-  const button = document.createElement('button');
-  button.className = 'ct-menu-button';
-  button.type = 'button';
-  button.textContent = 'Planning';
-  button.setAttribute('aria-haspopup', 'menu');
-  button.setAttribute('aria-expanded', 'false');
-
-  const list = document.createElement('ul');
-  list.className = 'ct-menu-list';
-  list.id = 'ct-planning-menu';
-  list.hidden = true;
-  list.setAttribute('role', 'menu');
-  button.setAttribute('aria-controls', list.id);
-  applications.forEach((application) => {
-    const item = document.createElement('li');
-    item.setAttribute('role', 'none');
-    item.append(linkFor(application, { menu: true }));
-    list.append(item);
-  });
-
-  const items = () => [...list.querySelectorAll('[role="menuitem"]')];
-  const open = (focus = true) => {
-    list.hidden = false;
-    button.setAttribute('aria-expanded', 'true');
-    if (focus) items()[0]?.focus();
-  };
-  const close = (restoreFocus = true) => {
-    list.hidden = true;
-    button.setAttribute('aria-expanded', 'false');
-    if (restoreFocus) button.focus();
-  };
-
-  button.addEventListener('click', () => {
-    if (list.hidden) open(false);
-    else close(false);
-  });
-  button.addEventListener('keydown', (event) => {
-    if (['ArrowDown', 'Enter', ' '].includes(event.key)) {
-      event.preventDefault();
-      open();
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      open(false);
-      items().at(-1)?.focus();
-    }
-  });
-  list.addEventListener('keydown', (event) => {
-    const menuItems = items();
-    const index = menuItems.indexOf(document.activeElement);
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      close();
-    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      const delta = event.key === 'ArrowDown' ? 1 : -1;
-      menuItems[(index + delta + menuItems.length) % menuItems.length]?.focus();
-    } else if (event.key === 'Home' || event.key === 'End') {
-      event.preventDefault();
-      menuItems[event.key === 'Home' ? 0 : menuItems.length - 1]?.focus();
-    } else if (event.key === 'Tab') {
-      close(false);
-    }
-  });
-  document.addEventListener('pointerdown', (event) => {
-    if (!wrapper.contains(event.target)) close(false);
-  });
-  wrapper.append(button, list);
-  container.append(wrapper);
 }
 
 function renderShell(applications) {
@@ -124,7 +44,6 @@ function renderShell(applications) {
   const byId = new Map(applications.map((application) => [application.app_id, application]));
   ['home', 'data-explorer', 'capacity-analysis', 'decision-intelligence']
     .forEach((id) => nav.append(linkFor(byId.get(id))));
-  installPlanningMenu(nav, applications.filter((application) => application.group === 'planning'));
   ['data-operations', 'documentation'].forEach((id) => nav.append(linkFor(byId.get(id))));
   installYuktiWidget(nav, applications);
   header.append(brand, nav);

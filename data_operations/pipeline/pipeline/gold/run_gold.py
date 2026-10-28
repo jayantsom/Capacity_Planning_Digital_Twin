@@ -25,10 +25,10 @@ from data_operations.pipeline.pipeline.gold.capacity_math import (
     build_capacity_tables,
     build_resource_scenario_table,
 )
-from data_operations.pipeline.pipeline.gold.gcm_base import build_gcm_base
-from data_operations.pipeline.pipeline.gold.planning_foundation import (
-    build_planning_foundation,
+from data_operations.pipeline.pipeline.gold.equipment_cost_reference import (
+    build_equipment_cost_reference,
 )
+from data_operations.pipeline.pipeline.gold.gcm_base import build_gcm_base
 
 
 def run_gold_pipeline(
@@ -69,7 +69,7 @@ def run_gold_pipeline(
     counts["gold_cap_actual"]        = build_actual_capacity(duck_conn)
     counts["gold_demonstrated_capacity"] = build_demonstrated_capacity(duck_conn)
     counts["gold_ml_feature_store"]  = build_ml_feature_store(duck_conn)
-    counts.update(build_planning_foundation(duck_conn))
+    counts["gold_equipment_cost_reference"] = build_equipment_cost_reference(duck_conn)
     assert_unique_grain(duck_conn, "gold_gcm_base", ["gcm_pk"])
     assert_unique_grain(duck_conn, "gold_dmnd_vs_cap", ["gap_pk"])
     assert_unique_grain(

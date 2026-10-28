@@ -12,7 +12,7 @@ from data_operations.generator.generators.reference_data import FIXTURES, SYSTEM
 from data_operations.generator.rules.contracts import RESOURCE_SCENARIOS
 from data_operations.generator.rules.determinism import stable_id
 
-CATALOG_VERSION = "telecom-1.0"
+CATALOG_VERSION = "telecom-2.0"
 SYNTHETIC_DISCLAIMER = (
     "Synthetic educational data. Names of real manufacturers are references only; "
     "sites, capabilities, products, volumes, routes, and performance imply no affiliation."
@@ -28,7 +28,11 @@ def build_product_bom() -> pd.DataFrame:
     rows: list[dict] = []
     for product in PRODUCTS:
         parent = product[0]
-        for child, quantity in ((product[7], product[8]), (product[9], product[10]), (product[11], product[12])):
+        for child, quantity in (
+            (product[6], product[7]),
+            (product[8], product[9]),
+            (product[10], product[11]),
+        ):
             if child:
                 rows.append(
                     {
@@ -109,9 +113,9 @@ def build_site_product_sources(
     for product_number, product_assignments in sorted(grouped.items()):
         count = len(product_assignments)
         policy = "MAKE"
-        if product_rows[product_number][7] is None and product_number.endswith(("041", "043")):
+        if product_rows[product_number][6] is None and product_number.endswith(("041", "043")):
             policy = "BUY_TESTED"
-        elif product_rows[product_number][7] is None and product_number.endswith(("042", "044")):
+        elif product_rows[product_number][6] is None and product_number.endswith(("042", "044")):
             policy = "BUY_REQUIRES_INCOMING_TEST"
         allocations = [round(1 / count, 6)] * count
         allocations[-1] = round(1 - sum(allocations[:-1]), 6)

@@ -40,6 +40,9 @@ def test_control_publication_keeps_application_mappings_out_of_raw(
         assignments = connection.execute(
             "SELECT COUNT(*) FROM crosswalk.site_product_assignment"
         ).fetchone()[0]
+        source_count = connection.execute(
+            "SELECT COUNT(*) FROM meta.source_registry"
+        ).fetchone()[0]
 
     with duckdb.connect(str(reference), read_only=True) as connection:
         reference_tables = {
@@ -56,3 +59,4 @@ def test_control_publication_keeps_application_mappings_out_of_raw(
     assert tables == MAPPING_TABLES
     assert reference_tables == REFERENCE_TABLES
     assert assignments > 0
+    assert source_count == 7

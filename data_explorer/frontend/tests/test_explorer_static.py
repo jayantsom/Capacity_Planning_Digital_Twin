@@ -56,10 +56,17 @@ class ExplorerStaticTests(unittest.TestCase):
     def test_catalog_and_horizontal_filters_are_collapsible(self):
         """Keep both dense controls available in compact collapsible panels."""
         script = (FRONTEND / "explorer-modern.js").read_text(encoding="utf-8")
+        css = (FRONTEND / "explorer-modern.css").read_text(encoding="utf-8")
 
         self.assertIn("function toggleSourcePanel()", script)
         self.assertIn("function updateSourceToggle(expanded)", script)
         self.assertIn("function toggleFilterPanel()", script)
+        self.assertIn("databaseName: source.database_name", script)
+        self.assertIn("node('button', 'database-toggle')", script)
+        self.assertIn("databaseTables.hidden = true", script)
+        self.assertIn("databaseSection.append(databaseToggle, databaseTables)", script)
+        self.assertIn(".database-toggle", css)
+        self.assertIn(".database-name", css)
         self.assertIn(".slice(0, 6)", script)
         for label in ("READY", "NO SOURCES", "OFFLINE"):
             self.assertIn(f"'{label}'", script)

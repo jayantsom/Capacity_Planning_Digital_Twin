@@ -52,10 +52,6 @@ def test_every_current_page_loads_the_shared_shell() -> None:
         "/explorer/",
         "/capacity-analysis/",
         "/decision-intelligence/",
-        "/scenario-planning/",
-        "/demand-supply-planning/",
-        "/npi-ramp-planning/",
-        "/operations-flow/",
         "/data-operations/",
     ):
         html = client.get(route).text
@@ -63,23 +59,6 @@ def test_every_current_page_loads_the_shared_shell() -> None:
         assert '/shared/static/shell.css' in html
         assert '/shared/static/shell.js' in html
         assert "product-nav" not in html
-
-
-def test_planning_menu_declares_keyboard_menu_semantics() -> None:
-    """Keep the shared Planning menu operable without a pointer."""
-    script = (CORE_FRONTEND / "shell.js").read_text(encoding="utf-8")
-    for token in (
-        "aria-haspopup",
-        "aria-expanded",
-        'role="menuitem"',
-        "ArrowDown",
-        "ArrowUp",
-        "Escape",
-        "Home",
-        "End",
-    ):
-        assert token in script
-
 
 def test_chart_contract_covers_governance_and_accessibility() -> None:
     """Keep the governed wrapper complete before applications adopt it."""

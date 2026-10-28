@@ -9,10 +9,6 @@
 | `data_explorer/` | Read-only browser and query UI |
 | `capacity_analysis/` | Tactical capacity and bottleneck analysis |
 | `decision_intelligence/` | Five ML workflows, dashboards, publication, and tests |
-| `scenario_planning/` | Scenario and what-if dashboards |
-| `demand_supply_planning/` | S&OP planning dashboards |
-| `npi_ramp_planning/` | NPI ramp dashboards |
-| `operations_flow/` | Flow and constraint dashboards |
 | `data_operations/` | Generator, pipeline, architecture, configuration, and tests |
 | `documentation/` | Markdown-backed documentation app |
 | `src/capacity_twin_core/` | Shared runtime paths, dates, logging, contracts, formulas, and fixtures |
@@ -50,8 +46,6 @@ CapacityPlanningDigitalTwin/
         raw_test.db
         raw_yield.db
         raw_execution.db
-        raw_inventory.db
-        raw_npi.db
       reference.duckdb
       mapping.duckdb
       bronze.duckdb

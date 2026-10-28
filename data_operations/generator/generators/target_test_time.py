@@ -3,8 +3,6 @@ Generator: raw_target_test_time.db
 Monthly target test time (seconds) per site-product-test_type combination.
 """
 
-from datetime import date
-
 import numpy as np
 import pandas as pd
 
@@ -21,7 +19,6 @@ from data_operations.generator.generators.assignment_matrix import (
 from data_operations.generator.generators.reference_data import TEST_TYPES, write_to_sqlite
 from data_operations.generator.rules.contracts import DateContract
 from data_operations.generator.rules.determinism import stable_seed
-from data_operations.generator.rules.npi import npi_ramp
 from data_operations.generator.services.control_catalog import load_assignments
 
 # ── Base test time ranges by test type (seconds) ──────────────────────────────
@@ -66,7 +63,6 @@ def generate_test_time_for_planning_version(
         product_num = assignment["product_number"]
         family      = assignment["product_family"]
         platform    = assignment["platform"]
-        status      = assignment["product_status"]
         test_types  = assignment["test_types"]
 
         for tt in test_types:
@@ -90,9 +86,6 @@ def generate_test_time_for_planning_version(
             site_factor = local_rng.uniform(0.90, 1.10)
             base_time *= site_factor
 
-            # NPI: +20% test time (first 12 months, then normalises)
-            npi_initial_penalty = 1.20 if status == "NPI" else 1.0
-
             time_row = {
                 "platform":           platform,
                 "product_family":     family,
@@ -107,18 +100,8 @@ def generate_test_time_for_planning_version(
             }
 
             for i, mk in enumerate(all_month_keys):
-                month_date = date(mk // 100, mk % 100, 1)
-                if status == "NPI" and npi_ramp(product_num, month_date) == 0:
-                    time_row[month_key_label(mk)] = None
-                    continue
-                # Continuous improvement: -0.5%/month for OLD products
-                if status == "OLD":
-                    improvement = (1 - 0.005) ** i
-                else:
-                    # NPI: penalty shrinks over 12 months then improves
-                    ramp = npi_ramp(product_num, month_date)
-                    npi_factor = 1.0 + (npi_initial_penalty - 1.0) * (1.0 - ramp)
-                    improvement = npi_factor
+                # Continuous improvement: -0.5%/month.
+                improvement = (1 - 0.005) ** i
 
                 # Monthly noise ±3%
                 noise = local_rng.uniform(0.97, 1.03)

@@ -84,30 +84,11 @@ FAMILY_TEST_TYPE_MAP = {
     "Optical Pluggable":       ["AXI", "SER", "OPT", "ENV"],
 }
 
-# ── NPI site restriction ───────────────────────────────────────────────────────
-# NPI products only manufactured at 2-3 qualified sites.
-NPI_QUALIFIED_SITES = {
-    "RAN-AAU-35128-004": ["ERV_STK", "JAB_SGP"],
-    "RAN-MWR-3900-009":  ["ERV_STK", "INF_TSE"],
-    "BBP-BBU-6GPR-013":  ["ERV_STK", "SAN_AUS"],
-    "BBP-DPU-G4-015":    ["ERV_STK", "SAN_AUS"],
-    "MWT-DBU-150G-021":  ["ERV_STK", "INF_MUN"],
-    "RFC-TFL-S6G-026":   ["INF_MUN", "INF_SEO"],
-    "RFC-DUP-WB-030":    ["INF_MUN", "FLX_SZN"],
-    "PWR-PAB-28G-034":   ["INF_MUN", "INF_TSE", "SAN_AUS"],
-    "WLS-CPE-5GF-045":   ["ERV_MAD", "BCH_ALM"],
-    "BBP-CUA-EDGE-046":  ["ERV_STK", "CEL_ORD"],
-    "BBP-DUA-EDGE-047":  ["ERV_STK", "CEL_JHR"],
-    "OPT-MOD-RXTX-048":  ["GPC_SYD", "NAU_AKL"],
-}
-
-
 def build_assignment_matrix() -> list[dict]:
     """
     Build the full site-product assignment matrix.
     Returns list of dicts: {site_code, supplier, product_number,
-                            product_family, platform, product_status,
-                            test_types}
+                            product_family, platform, test_types}
     """
     product_map = {}
     for p in PRODUCTS:
@@ -116,36 +97,30 @@ def build_assignment_matrix() -> list[dict]:
             "product_number":  pn,
             "product_family":  p[3],
             "platform":        p[4],
-            "product_status":  p[6],
         }
 
     assignments = []
     child_products = {
         child
         for product in PRODUCTS
-        for child in (product[7], product[9], product[11])
+        for child in (product[6], product[8], product[10])
         if child is not None
     }
     site_rows = list(SITES)
 
     for pn, prod in sorted(product_map.items()):
         platform = prod["platform"]
-        status = prod["product_status"]
         family = prod["product_family"]
-        qualified = NPI_QUALIFIED_SITES.get(pn)
-        if qualified:
-            selected_codes = qualified[:2]
-        else:
-            candidates = [
-                site[0]
-                for site in site_rows
-                if platform in SUPPLIER_PLATFORM_MAP.get(site[3], [])
-            ]
-            if not candidates:
-                candidates = [site[0] for site in site_rows if site[3] == "Erivon"]
-            # Products share qualified platform sites so the local profile does
-            # not create a duplicate tester and fixture pool at every factory.
-            selected_codes = candidates[:2]
+        candidates = [
+            site[0]
+            for site in site_rows
+            if platform in SUPPLIER_PLATFORM_MAP.get(site[3], [])
+        ]
+        if not candidates:
+            candidates = [site[0] for site in site_rows if site[3] == "Erivon"]
+        # Products share qualified platform sites so the local profile does
+        # not create a duplicate tester and fixture pool at every factory.
+        selected_codes = candidates[:2]
 
         for site_code in dict.fromkeys(selected_codes):
             site = next(item for item in site_rows if item[0] == site_code)
@@ -159,7 +134,6 @@ def build_assignment_matrix() -> list[dict]:
                 "product_number": pn,
                 "product_family": family,
                 "platform": platform,
-                "product_status": status,
                 "product_level": "CHILD" if pn in child_products else "PARENT",
                 "test_types": FAMILY_TEST_TYPE_MAP.get(family, ["AT"]),
             })

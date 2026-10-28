@@ -84,93 +84,10 @@ GOLD_LINEAGE: dict[str, tuple[list[str], str, str]] = {
         "Publishes point-in-time features and measured labels at the declared ML grain.",
         "site, product, test, month, planning version",
     ),
-    "gold_sop_balance": (
-        [
-            "slvr_customer_order",
-            "slvr_backlog_position",
-            "slvr_constrained_production_plan",
-            "slvr_material_inventory_position",
-            "slvr_inbound_receipt",
-            "slvr_shipment",
-            "slvr_safety_stock_policy",
-            "slvr_service_target",
-        ],
-        "Beginning inventory + constrained production + receipts - shipments = ending inventory. Backlog remains separate.",
-        "site, product, month, planning version",
-    ),
-    "gold_npi_readiness": (
-        [
-            "slvr_npi_program",
-            "slvr_npi_stage_gate",
-            "slvr_npi_milestone",
-            "slvr_npi_qualification_evidence",
-            "slvr_npi_tooling_readiness",
-            "slvr_npi_pilot_lot",
-            "slvr_npi_risk",
-            "slvr_npi_owner",
-        ],
-        "Combines gate, milestone, qualification, tooling, pilot-lot, risk, and owner evidence into readiness.",
-        "NPI program",
-    ),
-    "gold_npi_ramp": (
-        ["slvr_npi_program", "slvr_npi_ramp_target", "slvr_npi_ramp_actual"],
-        "Compares target and actual launch quantity and yield.",
-        "NPI program, site, month",
-    ),
-    "gold_operations_event": (
-        ["slvr_lot_route_movement_event"],
-        "Derives queue age, processing time, and movement date from immutable route events.",
-        "route movement event",
-    ),
-    "gold_operations_wip": (
-        ["gold_operations_event", "slvr_production_schedule"],
-        "Selects the latest event for each in-progress work order.",
-        "site, product, operation, resource",
-    ),
-    "gold_operations_queue": (
-        ["gold_operations_event"],
-        "Calculates queue quantity and queue-age percentiles.",
-        "day, site, operation, resource",
-    ),
-    "gold_operations_cycle_time": (
-        ["gold_operations_event"],
-        "Calculates lot cycle-time percentiles from first queue entry to last movement.",
-        "release day, site, product",
-    ),
-    "gold_operations_throughput": (
-        ["gold_operations_event"],
-        "Calculates output quantity and throughput per processing hour.",
-        "day, site, operation, resource",
-    ),
-    "gold_operations_rework": (
-        ["gold_operations_event"],
-        "Counts rework and scrap dispositions.",
-        "day, site, product, operation",
-    ),
-    "gold_operations_route_adherence": (
-        ["gold_operations_event", "slvr_route_step"],
-        "Compares observed route steps with expected route steps.",
-        "site, product, work order, lot, route",
-    ),
-    "gold_operations_schedule_attainment": (
-        ["gold_operations_event", "slvr_production_schedule"],
-        "Compares completed work orders and quantity with the production schedule.",
-        "schedule day, site, product",
-    ),
-    "gold_operations_bottleneck_movement": (
-        ["gold_operations_queue"],
-        "Tracks the daily operation with the highest P90 queue age.",
-        "day, site",
-    ),
     "gold_equipment_cost_reference": (
         ["slvr_equipment_cost_reference"],
         "Publishes effective-dated equipment purchase, installation, and maintenance costs.",
         "equipment, effective interval",
-    ),
-    "gold_scenario_inputs": (
-        ["gold_sop_balance", "slvr_shared_resource_allocation"],
-        "Publishes bounded demand, service, and shared-resource assumptions.",
-        "assumption type, site, product, month, planning version, resource",
     ),
 }
 

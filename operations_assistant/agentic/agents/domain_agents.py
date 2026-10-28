@@ -130,11 +130,10 @@ class MaintenanceAgent(BaseAgent):
 
 class ForecastAgent(BaseAgent):
     name        = "forecast"
-    description = "Handles demand forecasting, forecast accuracy metrics, and NPI product ramp."
+    description = "Handles demand forecasting and forecast accuracy metrics."
     system_prompt = (
         "You are an expert in manufacturing demand forecasting. "
         "You interpret the versioned demand forecasts and model metadata returned by tools. "
-        "NPI means New Product Introduction and may have intermittent ramp demand. "
         "Forecast accuracy is measured by MAPE (Mean Absolute Percentage Error) — "
         "lower is better; <10% is good, 10–20% is acceptable, >20% needs review. "
         "Forecast months are integers in yyyymm format (e.g. 202307 = July 2023). "

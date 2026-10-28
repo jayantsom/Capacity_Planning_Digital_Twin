@@ -41,7 +41,7 @@ def test_tiny_candidate_validates_before_publish(tmp_path: Path) -> None:
     manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
     assert manifest["source_run_id"] == pointer["source_run_id"]
     assert manifest["bundle_checksum"] == pointer["bundle_checksum"]
-    assert len(manifest["files"]) == 11
+    assert len(manifest["files"]) == 9
     assert all(
         {
             "sha256",
@@ -60,10 +60,12 @@ def test_tiny_candidate_validates_before_publish(tmp_path: Path) -> None:
         for table in details["tables"]
     }
     assert raw_tables == SOURCE_RAW_TABLES
-    assert manifest["files"]["raw_inventory.db"]["table_count"] == 5
-    assert manifest["files"]["raw_npi.db"]["table_count"] == 11
-    assert manifest["files"]["raw_demand.db"]["tables"]["customer_order"] > 0
-    assert manifest["files"]["raw_execution.db"]["tables"]["lot_route_movement_event"] > 0
+    assert manifest["files"]["raw_demand.db"]["table_count"] == 1
+    assert manifest["files"]["raw_execution.db"]["table_count"] == 1
+    assert (
+        manifest["files"]["raw_machine.db"]["tables"]["equipment_cost_reference"]
+        > 0
+    )
     for name, schema, table in (
         ("reference.duckdb", "meta", "reference_publication"),
         ("mapping.duckdb", "meta", "mapping_publication"),

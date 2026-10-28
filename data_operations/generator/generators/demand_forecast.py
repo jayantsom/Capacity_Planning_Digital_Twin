@@ -4,8 +4,6 @@ Horizontal monthly demand forecast for all site-product pairs.
 Covers Jan 2023 → Dec 2027 (60 months) with 2 planning versions.
 """
 
-from datetime import date
-
 import numpy as np
 import pandas as pd
 
@@ -24,7 +22,6 @@ from data_operations.generator.generators.assignment_matrix import ASSIGNMENT_MA
 from data_operations.generator.generators.reference_data import write_to_sqlite
 from data_operations.generator.rules.contracts import DateContract
 from data_operations.generator.rules.determinism import stable_seed
-from data_operations.generator.rules.npi import npi_ramp
 from data_operations.generator.services.control_catalog import load_assignments
 from data_operations.generator.services.demand_reconciliation import build_demand_requirements
 
@@ -60,14 +57,6 @@ SITE_SIZE_FACTORS = {
     "SAN_AUS": 0.8, "SAN_MXC": 0.7, "SAN_PEN": 1.0, "LUX_SZN": 1.2,
     "LUX_TWN": 1.0, "LUX_HNI": 0.8,
 }
-
-
-def _npi_ramp_factor(product_number: str, mk: int) -> float:
-    """
-    NPI products ramp from 0 to full demand over 12 months.
-    Returns a multiplier [0.0 → 1.0].
-    """
-    return npi_ramp(product_number, date(mk // 100, mk % 100, 1))
 
 
 def _seasonality_factor(mk: int, amplitude: float, q4_peak: bool) -> float:
@@ -118,7 +107,6 @@ def generate_demand_for_planning_version(
         site_code   = assignment["site_code"]
         product_num = assignment["product_number"]
         family      = assignment["product_family"]
-        status      = assignment["product_status"]
 
         profile = DEMAND_PROFILES.get(family, (200, 1000, 0.002, 0.08, False))
         base_min, base_max, trend_mo, seas_amp, q4_peak = profile
@@ -136,7 +124,6 @@ def generate_demand_for_planning_version(
             "product_platform":   assignment["platform"],
             "product_family":     family,
             "product_number":     product_num,
-            "product_status":     status,
             "planning_version_id":        planning_version_id,
             "plan_as_of_date":      plan_as_of_date,
             "forecast_source":    FORECAST_SOURCE_PLANNER,
@@ -147,8 +134,6 @@ def generate_demand_for_planning_version(
             trend = (1 + trend_mo) ** i
             # Seasonality
             seas = _seasonality_factor(mk, seas_amp, q4_peak)
-            # NPI ramp
-            npi_factor = _npi_ramp_factor(product_num, mk) if status == "NPI" else 1.0
             # Forecast planning version noise (FORECAST months only)
             planning_version_noise = _planning_version_noise(
                 root_seed,
@@ -160,7 +145,7 @@ def generate_demand_for_planning_version(
             # Unit noise ±15%
             noise = local_rng.uniform(0.85, 1.15)
 
-            raw_demand = base_demand * trend * seas * npi_factor * planning_version_noise * noise
+            raw_demand = base_demand * trend * seas * planning_version_noise * noise
 
             col = month_key_label(mk)
             demand_row[col] = (

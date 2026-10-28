@@ -13,10 +13,11 @@ from typing import Any
 import duckdb
 
 from capacity_twin_core.runtime.database_paths import get_source_bundle_pointer
+from data_operations.generator.catalogs.contract_tables import CATALOG_VERSION
 from data_operations.generator.rules.determinism import stable_id
 
-RAW_SCHEMA_VERSION = "raw-source-1.0"
-BUNDLE_SCHEMA_VERSION = "source-bundle-1.0"
+RAW_SCHEMA_VERSION = "raw-source-2.0"
+BUNDLE_SCHEMA_VERSION = "source-bundle-2.0"
 
 
 def _atomic_json(path: Path, value: dict[str, Any]) -> None:
@@ -42,10 +43,10 @@ def create_candidate(config: dict[str, Any]) -> tuple[str, Path]:
 
 
 def initialize_raw_databases(raw_dir: Path, config: dict[str, Any]) -> None:
-    """Create exactly the nine configured source files before generation."""
+    """Create exactly the seven configured Raw source files before generation."""
     names = list(config["databases"]["raw"].values())
-    if len(names) != 9 or len(set(names)) != 9:
-        raise ValueError("Source bundle requires exactly nine unique Raw databases")
+    if len(names) != 7 or len(set(names)) != 7:
+        raise ValueError("Source bundle requires exactly seven unique Raw databases")
     for filename in names:
         with sqlite3.connect(raw_dir / filename):
             pass
@@ -164,7 +165,7 @@ def publish_candidate(
     preflight_report: dict[str, Any],
     catalog_report: dict[str, Any],
 ) -> Path:
-    """Seal all eleven source files and atomically select the bundle."""
+    """Seal all nine source files and atomically select the bundle."""
     runtime_home = Path(config["paths"]["runtime_home"]).resolve()
     raw_dir = candidate_dir / "raw"
     file_details: dict[str, dict[str, Any]] = {}
@@ -192,8 +193,8 @@ def publish_candidate(
             "table_count": len(tables),
             "tables": tables,
         }
-    if len(file_details) != 11:
-        raise ValueError("A source bundle must contain nine Raw files and two DuckDB files")
+    if len(file_details) != 9:
+        raise ValueError("A source bundle must contain seven Raw files and two DuckDB files")
     checksum_payload = json.dumps(
         file_details, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
@@ -210,7 +211,7 @@ def publish_candidate(
             "raw": RAW_SCHEMA_VERSION,
             **catalog_report["schema_versions"],
         },
-        "catalog_version": "telecom-1.0",
+        "catalog_version": CATALOG_VERSION,
         "generated_at_utc": generated_at,
         "bundle_checksum": bundle_checksum,
         "seed": config["data_generation"]["random_seed"],

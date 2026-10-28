@@ -36,7 +36,6 @@ ERROR_CATALOG = {
     "W-002": ("Test Time Increasing Trend Detected", "WARN", 0.04),
     "W-003": ("Equipment Utilization Above 95%", "WARN", 0.03),
     "I-001": ("Planned Maintenance Scheduled", "INFO", 0.015),
-    "I-002": ("NPI Product First Article Inspection", "INFO", 0.01),
     "C-001": ("Equipment Calibration Due", "INFO", 0.012),
 }
 
@@ -87,7 +86,6 @@ def generate_machine_logs_db(config: dict) -> None:
 
             for assignment in assignments:
                 product_num = assignment["product_number"]
-                status = assignment["product_status"]
                 test_types = assignment["test_types"]
 
                 for tt in test_types:
@@ -108,14 +106,7 @@ def generate_machine_logs_db(config: dict) -> None:
                             continue
 
                         for error_code, (desc, severity, prob) in ERROR_CATALOG.items():
-                            # NPI products: higher probability of INFO logs
-                            adjusted_prob = prob
-                            if status == "NPI" and error_code == "I-002":
-                                adjusted_prob = 0.05
-                            if status == "NPI" and error_code.startswith("E"):
-                                adjusted_prob *= 1.5
-
-                            if local_rng.random() < adjusted_prob:
+                            if local_rng.random() < prob:
                                 # 5% of records have unknown description
                                 final_desc = "Unknown" if local_rng.random() < 0.05 else desc
 

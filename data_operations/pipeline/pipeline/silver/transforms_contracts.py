@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import duckdb
 
+from data_operations.pipeline.pipeline.silver.equipment_cost_reference import (
+    build_equipment_cost_reference,
+)
+
 
 def _replace(connection: duckdb.DuckDBPyConnection, table: str, sql: str) -> int:
     temporary = f"_{table}_conformed"
@@ -27,248 +31,6 @@ def _require_complete_mapping(
     )
     if missing:
         raise ValueError(f"{table} has {missing} rows with unresolved canonical keys")
-
-
-def build_planning_foundation(
-    connection: duckdb.DuckDBPyConnection,
-    run_id: str,
-    created_at: str,
-) -> dict[str, int]:
-    """Conform Phase 6 source facts without changing their source-level meaning."""
-    statements = {
-        "slvr_customer_order": """
-            SELECT b.*, site.site_code AS canonical_site_id,
-                   product.product_number AS canonical_product_id
-            FROM brnz_customer_order b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-            LEFT JOIN reference.canonical.product product
-              ON b.product_number = product.product_number
-        """,
-        "slvr_backlog_position": """
-            SELECT b.*, site.site_code AS canonical_site_id,
-                   product.product_number AS canonical_product_id
-            FROM brnz_backlog_position b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-            LEFT JOIN reference.canonical.product product
-              ON b.product_number = product.product_number
-        """,
-        "slvr_constrained_production_plan": """
-            SELECT b.*, site.site_code AS canonical_site_id,
-                   product.product_number AS canonical_product_id
-            FROM brnz_constrained_production_plan b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-            LEFT JOIN reference.canonical.product product
-              ON b.product_number = product.product_number
-        """,
-        "slvr_shared_resource_allocation": """
-            SELECT b.*, site.site_code AS canonical_site_id,
-                   product.product_number AS canonical_product_id,
-                   machine.equipment_id AS canonical_resource_id
-            FROM brnz_shared_resource_allocation b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-            LEFT JOIN reference.canonical.product product
-              ON b.product_number = product.product_number
-            LEFT JOIN reference.canonical.machine machine
-              ON b.resource_id = machine.equipment_id
-        """,
-        "slvr_material_inventory_position": """
-            SELECT b.*, site.site_code AS canonical_site_id,
-                   product.product_number AS canonical_product_id
-            FROM brnz_material_inventory_position b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-            LEFT JOIN reference.canonical.product product
-              ON b.product_number = product.product_number
-        """,
-        "slvr_inbound_receipt": """
-            SELECT b.*, site.site_code AS canonical_site_id,
-                   product.product_number AS canonical_product_id
-            FROM brnz_inbound_receipt b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-            LEFT JOIN reference.canonical.product product
-              ON b.product_number = product.product_number
-        """,
-        "slvr_shipment": """
-            SELECT b.*, site.site_code AS canonical_site_id,
-                   product.product_number AS canonical_product_id
-            FROM brnz_shipment b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-            LEFT JOIN reference.canonical.product product
-              ON b.product_number = product.product_number
-        """,
-        "slvr_safety_stock_policy": """
-            SELECT b.*, site.site_code AS canonical_site_id,
-                   product.product_number AS canonical_product_id
-            FROM brnz_safety_stock_policy b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-            LEFT JOIN reference.canonical.product product
-              ON b.product_number = product.product_number
-        """,
-        "slvr_service_target": """
-            SELECT b.*, site.site_code AS canonical_site_id,
-                   product.product_number AS canonical_product_id
-            FROM brnz_service_target b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-            LEFT JOIN reference.canonical.product product
-              ON b.product_number = product.product_number
-        """,
-        "slvr_equipment_cost_reference": """
-            SELECT b.*, machine.equipment_id AS canonical_equipment_id
-            FROM brnz_equipment_cost_reference b
-            LEFT JOIN reference.canonical.machine machine
-              ON b.equipment_id = machine.equipment_id
-        """,
-        "slvr_lot_route_movement_event": """
-            SELECT b.*, site.site_code AS canonical_site_id,
-                   product.product_number AS canonical_product_id,
-                   machine.equipment_id AS canonical_machine_id,
-                   CAST(b.route_id AS VARCHAR) AS canonical_route_id,
-                   CAST(b.route_step_id AS VARCHAR) AS canonical_route_step_id
-            FROM brnz_lot_route_movement_event b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-            LEFT JOIN reference.canonical.product product
-              ON b.product_number = product.product_number
-            LEFT JOIN reference.canonical.machine machine
-              ON b.machine_id = machine.equipment_id
-        """,
-        "slvr_production_schedule": """
-            SELECT b.*, site.site_code AS canonical_site_id,
-                   product.product_number AS canonical_product_id
-            FROM brnz_production_schedule b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-            LEFT JOIN reference.canonical.product product
-              ON b.product_number = product.product_number
-        """,
-        "slvr_npi_program": """
-            SELECT b.*, CAST(b.program_id AS VARCHAR) AS canonical_program_id,
-                   site.site_code AS canonical_site_id,
-                   product.product_number AS canonical_product_id
-            FROM brnz_npi_program b
-            LEFT JOIN reference.canonical.site site ON b.lead_site_code = site.site_code
-            LEFT JOIN reference.canonical.product product
-              ON b.product_number = product.product_number
-        """,
-        "slvr_npi_stage_gate": """
-            SELECT b.*, CAST(b.program_id AS VARCHAR) AS canonical_program_id
-            FROM brnz_npi_stage_gate b
-        """,
-        "slvr_npi_milestone": """
-            SELECT b.*, CAST(b.program_id AS VARCHAR) AS canonical_program_id
-            FROM brnz_npi_milestone b
-        """,
-        "slvr_npi_qualification_evidence": """
-            SELECT b.*, CAST(b.program_id AS VARCHAR) AS canonical_program_id,
-                   site.site_code AS canonical_site_id
-            FROM brnz_npi_qualification_evidence b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-        """,
-        "slvr_npi_pilot_lot": """
-            SELECT b.*, CAST(b.program_id AS VARCHAR) AS canonical_program_id,
-                   site.site_code AS canonical_site_id
-            FROM brnz_npi_pilot_lot b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-        """,
-        "slvr_npi_tooling_readiness": """
-            SELECT b.*, CAST(b.program_id AS VARCHAR) AS canonical_program_id,
-                   site.site_code AS canonical_site_id
-            FROM brnz_npi_tooling_readiness b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-        """,
-        "slvr_npi_ramp_target": """
-            SELECT b.*, CAST(b.program_id AS VARCHAR) AS canonical_program_id,
-                   site.site_code AS canonical_site_id
-            FROM brnz_npi_ramp_target b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-        """,
-        "slvr_npi_ramp_actual": """
-            SELECT b.*, CAST(b.program_id AS VARCHAR) AS canonical_program_id,
-                   site.site_code AS canonical_site_id
-            FROM brnz_npi_ramp_actual b
-            LEFT JOIN reference.canonical.site site ON b.site_code = site.site_code
-        """,
-        "slvr_npi_risk": """
-            SELECT b.*, CAST(b.program_id AS VARCHAR) AS canonical_program_id
-            FROM brnz_npi_risk b
-        """,
-        "slvr_npi_owner": """
-            SELECT b.*, CAST(b.program_id AS VARCHAR) AS canonical_program_id
-            FROM brnz_npi_owner b
-        """,
-        "slvr_npi_status_history": """
-            SELECT b.*, CAST(b.program_id AS VARCHAR) AS canonical_program_id
-            FROM brnz_npi_status_history b
-        """,
-    }
-    counts: dict[str, int] = {}
-    for table, query in statements.items():
-        connection.execute(f'DROP TABLE IF EXISTS "{table}"')
-        connection.execute(
-            f"""
-            CREATE TABLE "{table}" AS
-            SELECT source.*, ? AS silver_created_at
-            FROM ({query}) source
-            """,
-            [created_at],
-        )
-        counts[table] = int(connection.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0])
-
-    required = {
-        "slvr_customer_order": ["canonical_site_id", "canonical_product_id"],
-        "slvr_backlog_position": ["canonical_site_id", "canonical_product_id"],
-        "slvr_constrained_production_plan": [
-            "canonical_site_id",
-            "canonical_product_id",
-        ],
-        "slvr_shared_resource_allocation": [
-            "canonical_site_id",
-            "canonical_product_id",
-            "canonical_resource_id",
-        ],
-        "slvr_material_inventory_position": [
-            "canonical_site_id",
-            "canonical_product_id",
-        ],
-        "slvr_inbound_receipt": ["canonical_site_id", "canonical_product_id"],
-        "slvr_shipment": ["canonical_site_id", "canonical_product_id"],
-        "slvr_safety_stock_policy": ["canonical_site_id", "canonical_product_id"],
-        "slvr_service_target": ["canonical_site_id", "canonical_product_id"],
-        "slvr_equipment_cost_reference": ["canonical_equipment_id"],
-        "slvr_lot_route_movement_event": [
-            "canonical_site_id",
-            "canonical_product_id",
-            "canonical_machine_id",
-        ],
-        "slvr_production_schedule": ["canonical_site_id", "canonical_product_id"],
-        "slvr_npi_program": [
-            "canonical_program_id",
-            "canonical_site_id",
-            "canonical_product_id",
-        ],
-    }
-    for table, columns in required.items():
-        _require_complete_mapping(connection, table, columns)
-
-    orphan_programs = connection.execute(
-        """
-        SELECT COUNT(*)
-        FROM (
-            SELECT program_id FROM slvr_npi_stage_gate
-            UNION ALL SELECT program_id FROM slvr_npi_milestone
-            UNION ALL SELECT program_id FROM slvr_npi_qualification_evidence
-            UNION ALL SELECT program_id FROM slvr_npi_pilot_lot
-            UNION ALL SELECT program_id FROM slvr_npi_tooling_readiness
-            UNION ALL SELECT program_id FROM slvr_npi_ramp_target
-            UNION ALL SELECT program_id FROM slvr_npi_ramp_actual
-            UNION ALL SELECT program_id FROM slvr_npi_risk
-            UNION ALL SELECT program_id FROM slvr_npi_owner
-            UNION ALL SELECT program_id FROM slvr_npi_status_history
-        ) child
-        LEFT JOIN slvr_npi_program program USING (program_id)
-        WHERE program.program_id IS NULL
-        """
-    ).fetchone()[0]
-    if orphan_programs:
-        raise ValueError(f"NPI facts contain {orphan_programs} orphan program references")
-    return counts
 
 
 def build_conformed_contracts(
@@ -570,7 +332,10 @@ def build_conformed_contracts(
     counts["slvr_resource_contract"] = int(
         connection.execute("SELECT COUNT(*) FROM slvr_resource_contract").fetchone()[0]
     )
-    counts.update(build_planning_foundation(connection, run_id, created_at))
+    counts["slvr_equipment_cost_reference"] = build_equipment_cost_reference(
+        connection,
+        created_at,
+    )
 
     connection.execute("DROP TABLE IF EXISTS slvr_source_publication")
     connection.execute(

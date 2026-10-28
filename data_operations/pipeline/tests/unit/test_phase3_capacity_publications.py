@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 
@@ -18,7 +19,10 @@ from data_operations.pipeline.pipeline.gold.capacity_math import (
     _build_workload_resource_scenario_table,
     compute_capacity_for_mode,
 )
-from data_operations.pipeline.pipeline.gold.serving_views import build_serving_views
+from data_operations.pipeline.pipeline.gold.serving_views import (
+    SERVING_VIEWS,
+    build_serving_views,
+)
 from decision_intelligence import publication as ml_publication
 from decision_intelligence.ml_support import ML_OUTPUT_NAME_MAP, file_sha256
 
@@ -35,7 +39,6 @@ def _capacity_input() -> pd.DataFrame:
                 "product_number": "P",
                 "product_family": "Family",
                 "platform": "Platform",
-                "product_status": "ACTIVE",
                 "test_type": "ICT",
                 "test_category_id": "CAT",
                 "equipment_id": "SYS-1",
@@ -75,7 +78,7 @@ def _capacity_input() -> pd.DataFrame:
 
 
 def test_bronze_contract_covers_all_source_tables() -> None:
-    assert len(BRONZE_CONFIGS) == 40
+    assert len(BRONZE_CONFIGS) == 18
     assert {config.source_table for config in BRONZE_CONFIGS} >= {
         "manufacturer_master",
         "product_bom",
@@ -83,6 +86,16 @@ def test_bronze_contract_covers_all_source_tables() -> None:
         "route_step",
         "site_product_source",
     }
+
+
+def test_layer_manifests_have_exact_retained_object_counts() -> None:
+    silver = importlib.import_module("data_operations.pipeline.steps.2_silver")
+    gold = importlib.import_module("data_operations.pipeline.steps.3_gold")
+
+    assert len(silver.REQUIRED_TABLES) == 22
+    assert len(gold.REQUIRED_TABLES) == 14
+    assert len(SERVING_VIEWS) == 19
+    assert len(ML_OUTPUT_NAME_MAP) + 1 == 12  # model registry is created at publication
 
 
 def test_capacity_modes_and_all_retest_modes_are_distinct() -> None:

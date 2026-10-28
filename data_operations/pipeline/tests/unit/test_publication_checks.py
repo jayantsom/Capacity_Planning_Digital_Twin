@@ -57,14 +57,14 @@ def test_ml_feature_store_collapses_qualified_resource_fanout() -> None:
         CREATE TABLE gold_gcm_base AS
         SELECT * FROM (
             VALUES
-                ('S', 'P', 'Family', 'Platform', 'ACTIVE', 'ICT', 202610,
+                ('S', 'P', 'Family', 'Platform', 'ICT', 202610,
                  'plan-2026-10-31', 80.0, 100.0, 0.95, 60.0, 'Region', 'SYSTEM-1',
                  DATE '2026-10-31', 'ACTUAL'),
-                ('S', 'P', 'Family', 'Platform', 'ACTIVE', 'ICT', 202610,
+                ('S', 'P', 'Family', 'Platform', 'ICT', 202610,
                  'plan-2026-10-31', 80.0, 100.0, 0.95, 60.0, 'Region', 'FIXTURE-1',
                  DATE '2026-10-31', 'ACTUAL')
         ) AS source(
-            site_code, product_number, product_family, platform, product_status,
+            site_code, product_number, product_family, platform,
             test_type, month_key, planning_version_id, route_step_demand_qty,
             effective_demand_qty, target_yield,
             target_test_time_sec, region, equipment_id, plan_as_of_date, data_type

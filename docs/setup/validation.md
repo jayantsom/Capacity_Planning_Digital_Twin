@@ -15,7 +15,7 @@ uv run ruff check .
 ## Generator gates
 
 - Stable keys and checksums for identical seed/configuration
-- Valid actual, forecast, plan as-of, and NPI dates
+- Valid actual, forecast, and plan as-of dates
 - Acyclic BOMs and conserved child demand
 - Valid routes, sourcing, resource pools, and qualifications
 - Physical tester/fixture/handler/licence constraints

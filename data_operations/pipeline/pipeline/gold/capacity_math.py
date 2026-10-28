@@ -294,7 +294,6 @@ def compute_capacity_for_mode(
             "product_number":  row["product_number"],
             "product_family":  row.get("product_family"),
             "platform":        row.get("platform"),
-            "product_status":  row.get("product_status"),
             "test_type":       row.get("test_type"),
             "test_category_id":row.get("test_category_id"),
             "equipment_id":    row.get("equipment_id"),

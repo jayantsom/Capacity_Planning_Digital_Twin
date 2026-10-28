@@ -25,6 +25,7 @@ def test_architecture_covers_every_publication_layer() -> None:
     assert set(SERVING_VIEWS).issubset(nodes)
     assert "gold_gcm_base" in nodes
     assert "ml_model_registry" in nodes
+    assert "gold_equipment_cost_reference" in nodes
     assert nodes["raw_demand.db.demand_requirement"]["catalog_source"] == "raw_raw_demand"
 
 
@@ -39,7 +40,7 @@ def test_every_lineage_edge_resolves_to_a_declared_node() -> None:
 def test_architecture_endpoint_and_workspace_are_available() -> None:
     response = client.get("/data-operations/api/architecture")
     assert response.status_code == 200
-    assert response.json()["contract_version"] == "1.0"
+    assert response.json()["contract_version"] == "2.0"
     html = client.get("/data-operations/").text
     assert 'data-tab="architecture"' in html
     assert 'id="architectureGraph"' in html

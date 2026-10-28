@@ -16,7 +16,8 @@ Dates come from the run configuration. The default actual cutoff is 2026-10-31. 
 
 ## Source bundle
 
-Every run publishes nine Raw SQLite files plus `reference.duckdb` and `mapping.duckdb`:
+Every run publishes seven Raw SQLite files with 18 source tables, plus
+`reference.duckdb` and `mapping.duckdb`:
 
 - `raw_demand.db`
 - `raw_product.db`
@@ -25,8 +26,6 @@ Every run publishes nine Raw SQLite files plus `reference.duckdb` and `mapping.d
 - `raw_test.db`
 - `raw_yield.db`
 - `raw_execution.db`
-- `raw_inventory.db`
-- `raw_npi.db`
 - `reference.duckdb`
 - `mapping.duckdb`
 

@@ -15,7 +15,7 @@ Nothing on this page is part of the essential delivery. Each item requires a mea
 - WIP, finite scheduling, queue simulation, genealogy, and rework loops
 - Maintenance work orders, failure modes, counters, and repair history
 - Supplier/material risk, inventory, workforce, utilities, sustainability, and finance
-- Additional scenario, NPI, S&OP, network-planning, and test-economics experiences
+- Additional network-planning and test-economics experiences
 
 ## ML and AI
 

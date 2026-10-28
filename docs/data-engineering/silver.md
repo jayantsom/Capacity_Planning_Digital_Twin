@@ -1,6 +1,8 @@
 # Silver Layer
 
-Silver converts validated Raw-shaped records into conformed telecom manufacturing data. PySpark remains the existing transformation engine and runs locally for the one-server workstation target.
+Silver converts validated Raw-shaped records into 22 conformed telecom manufacturing
+tables. PySpark remains the existing transformation engine and runs locally for the
+one-server workstation target.
 
 ## Responsibilities
 

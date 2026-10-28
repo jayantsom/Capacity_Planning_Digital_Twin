@@ -1,6 +1,7 @@
 # Bronze Layer
 
-Bronze is the structural ingestion boundary between ten noisy Raw SQLite sources and conformed data.
+Bronze is the 18-table structural ingestion boundary between seven noisy Raw SQLite
+sources and conformed data.
 
 ## Required behavior
 

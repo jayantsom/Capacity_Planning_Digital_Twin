@@ -440,6 +440,11 @@ if FRONTEND_DIR.exists():
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+def _database_name(source: dict) -> str:
+    """Return a display-safe database filename without exposing its full path."""
+    path = str(source.get("path") or "").strip()
+    return Path(path).name if path else str(source["label"])
+
 @router.get("/explorer/")
 def explorer_index():
     idx = FRONTEND_DIR / "index.html"
@@ -462,6 +467,7 @@ def get_sources():
                     "type": src["type"],
                     "layer": src["layer"],
                     "color": src["color"],
+                    "database_name": _database_name(src),
                     "status": "NOT GENERATED",
                     "run_id": src.get("run_id"),
                     "tables": [],
@@ -494,6 +500,7 @@ def get_sources():
                     "id": sid, "label": src["label"],
                     "type": src["type"], "layer": "raw",
                     "color": src["color"],
+                    "database_name": _database_name(src),
                     "status": "READY",
                     "tables": owned_tables,
                 })
@@ -526,6 +533,7 @@ def get_sources():
                     "id": sid, "label": src["label"],
                     "type": src["type"], "layer": src["layer"],
                     "color": src["color"],
+                    "database_name": _database_name(src),
                     "status": "READY",
                     "run_id": src.get("run_id"),
                     "tables": tables,
@@ -535,6 +543,7 @@ def get_sources():
                 "id": sid,
                 "label": src["label"],
                 "layer": src["layer"],
+                "database_name": _database_name(src),
                 "status": "UNAVAILABLE",
                 "error": "Source is unavailable.",
                 "tables": [],

@@ -1,7 +1,7 @@
-migration_version: "1.0"
+migration_version: "2.0"
 current_database_count: 10
 current_table_count: 17
-target_database_count: 9
+target_database_count: 7
 target_databases:
   - raw_demand.db
   - raw_product.db
@@ -10,8 +10,6 @@ target_databases:
   - raw_test.db
   - raw_yield.db
   - raw_execution.db
-  - raw_inventory.db
-  - raw_npi.db
 
 current_to_target:
   raw_demand_forecast.db:
@@ -94,72 +92,6 @@ current_to_target:
       target_contract: manufacturer_master
 
 planned_new_contracts:
-  customer_order:
-    target_database: raw_demand.db
-    status: implemented
-  backlog_position:
-    target_database: raw_demand.db
-    status: implemented
-  material_inventory_position:
-    target_database: raw_inventory.db
-    status: implemented
-  constrained_production_plan:
-    target_database: raw_demand.db
-    status: implemented
-  shared_resource_allocation:
-    target_database: raw_demand.db
-    status: implemented
-  inbound_receipt:
-    target_database: raw_inventory.db
-    status: implemented
-  shipment:
-    target_database: raw_inventory.db
-    status: implemented
-  safety_stock_policy:
-    target_database: raw_inventory.db
-    status: implemented
-  service_target:
-    target_database: raw_inventory.db
-    status: implemented
-  lot_route_movement_event:
-    target_database: raw_execution.db
-    status: implemented
-  production_schedule:
-    target_database: raw_execution.db
-    status: implemented
-  npi_program:
-    target_database: raw_npi.db
-    status: implemented
-  npi_stage_gate:
-    target_database: raw_npi.db
-    status: implemented
-  npi_milestone:
-    target_database: raw_npi.db
-    status: implemented
-  npi_qualification_evidence:
-    target_database: raw_npi.db
-    status: implemented
-  npi_pilot_lot:
-    target_database: raw_npi.db
-    status: implemented
-  npi_tooling_readiness:
-    target_database: raw_npi.db
-    status: implemented
-  npi_ramp_target:
-    target_database: raw_npi.db
-    status: implemented
-  npi_ramp_actual:
-    target_database: raw_npi.db
-    status: implemented
-  npi_risk:
-    target_database: raw_npi.db
-    status: implemented
-  npi_owner:
-    target_database: raw_npi.db
-    status: implemented
-  npi_status_history:
-    target_database: raw_npi.db
-    status: implemented
   equipment_cost_reference:
     target_database: raw_machine.db
     status: implemented

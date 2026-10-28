@@ -55,10 +55,6 @@ local_16gb:
   max_execution_rows: 3000000
   max_test_parameter_rows: 3000000
   max_log_rows: 300000
-  max_sop_rows: 100000
-  max_operations_lots: 12000
-  max_operations_movement_rows: 100000
-  max_npi_rows: 25000
   max_raw_bytes: 3000000000
   max_promoted_run_bytes: 6000000000
   max_peak_ram_bytes: 10000000000
@@ -75,8 +71,6 @@ databases:
     test: raw_test.db
     yield: raw_yield.db
     execution: raw_execution.db
-    inventory: raw_inventory.db
-    npi: raw_npi.db
   source_bundle:
     reference: reference.duckdb
     mapping: mapping.duckdb

@@ -22,7 +22,7 @@
 | OEE degradation risk | Synthetic classifier target; not a verified equipment-failure prediction |
 | Capacity Twin Core | Shared contracts, paths, dates, logging, navigation, and trusted equations |
 | Promoted run | Validated run selected through the compatible release pointer |
-| Raw | Nine independent synthetic SQLite source databases |
+| Raw | Seven independent synthetic SQLite source databases containing 18 tables |
 | Release | Compatible source, pipeline, and ML runs selected by `release_current.json` |
 | Serving | Materialized read-only tables consumed by applications |
 | Silver | Conformed, deduplicated, reconciled data with explicit quarantine |

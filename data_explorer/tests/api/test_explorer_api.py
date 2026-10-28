@@ -97,6 +97,9 @@ def test_catalog_assigns_each_object_one_unique_identity(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "DATA_DIR", tmp_path)
     sources = TestClient(main.app).get("/explorer/api/sources").json()
 
+    assert all(source["database_name"] for source in sources)
+    assert all("/" not in source["database_name"] for source in sources)
+    assert all("\\" not in source["database_name"] for source in sources)
     objects = [
         table
         for source in sources

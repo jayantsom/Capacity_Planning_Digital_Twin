@@ -1,7 +1,0 @@
-query:
-  maximum_chart_points: 600
-  maximum_table_rows: 200
-  required_serving_tables:
-    - srv_npi_readiness
-    - srv_npi_ramp
-    - srv_npi_stage_gate

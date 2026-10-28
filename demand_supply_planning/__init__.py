@@ -1,1 +1,0 @@
-"""S&OP Planning application."""

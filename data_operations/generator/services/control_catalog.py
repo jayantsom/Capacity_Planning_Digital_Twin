@@ -48,7 +48,6 @@ def load_assignments(config: dict[str, Any]) -> list[dict[str, Any]]:
                 "product_family": row["product_family"],
                 "platform": row["platform"],
                 "product_level": row["product_level"],
-                "product_status": row["product_status"],
             },
         )
         test_types[key].append(row["test_type"])

@@ -77,7 +77,7 @@ def transform_product_tables(duck_conn, spark, run_id: str, ts: str) -> dict:
     master_cols = [
         "product_number", "product_description", "product_type",
         "product_family", "platform", "category", "product_poc",
-        "product_status", "is_parent", "has_children",
+        "is_parent", "has_children",
         "bronze_id", "is_valid", "invalid_reason",
     ]
     master_df = raw_df.select(*master_cols)

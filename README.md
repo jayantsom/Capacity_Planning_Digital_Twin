@@ -12,10 +12,6 @@ All required technologies are free and open source. The target is one Windows co
 | Data Explorer | Browses every Raw, Reference, Mapping, Bronze, Silver, Gold, Serving, and ML object |
 | Capacity Analysis | Compares Normal, Maximum, Actual Output, and Demonstrated Capacity |
 | Decision Intelligence | Runs and explains five ML workflows |
-| Scenario Planning | Tests bounded what-if assumptions in the browser session |
-| S&OP Planning | Reconciles demand, constrained supply, inventory, shipments, and backlog |
-| NPI Ramp Planning | Tracks launch readiness, stage gates, qualification, and ramp |
-| Operations Flow | Tracks WIP, queues, cycle time, throughput, rework, and route flow |
 | Data Operations | Generates Raw data, runs the medallion pipeline, and shows lineage |
 | Documentation | Reads these Markdown files directly |
 
@@ -25,17 +21,17 @@ Yukti is available from the top navigation on every page. It uses the current pa
 
 The source bundle contains:
 
-- Nine separate Raw SQLite databases
+- 7 Raw SQLite databases with 18 source tables
 - One governed Reference DuckDB database
 - One governed Mapping DuckDB database
 
 Each pipeline run publishes:
 
-- One Bronze DuckDB database
-- One Silver DuckDB database
-- One Gold DuckDB database
-- One Serving DuckDB database
-- One ML DuckDB database
+- One Bronze DuckDB database with 18 tables
+- One Silver DuckDB database with 22 tables
+- One Gold DuckDB database with 14 tables
+- One Serving DuckDB database with 19 tables
+- One ML DuckDB database with 12 tables
 
 `release_current.json` selects one compatible source, pipeline, Serving, and ML release. Generated files remain outside the repository under `CAPACITY_TWIN_HOME`.
 

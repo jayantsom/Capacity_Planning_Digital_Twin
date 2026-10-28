@@ -6,18 +6,18 @@ One FastAPI process serves every page and API on `127.0.0.1:8000`. Capacity Twin
 
 ```mermaid
 flowchart LR
-  G[Data Generator] --> R[9 Raw SQLite databases]
+  G[Data Generator] --> R[7 Raw SQLite databases]
   G --> RF[Reference DuckDB]
   G --> MP[Mapping DuckDB]
-  R --> B[Bronze DuckDB]
-  RF --> S[Silver DuckDB]
+  R --> B[Bronze DuckDB: 18 tables]
+  RF --> S[Silver DuckDB: 22 tables]
   MP --> S
   B --> S
-  S --> O[Gold DuckDB]
-  O --> V[Serving DuckDB]
+  S --> O[Gold DuckDB: 14 tables]
+  O --> V[Serving DuckDB: 19 tables]
   V --> ML[ML workflows]
-  ML --> M[ML DuckDB]
-  V --> A[Planning apps]
+  ML --> M[ML DuckDB: 12 tables]
+  V --> A[Applications]
   M --> A
   V --> Y[Yukti]
   M --> Y
@@ -29,17 +29,15 @@ Raw data represents separate industrial source systems:
 
 | Database | Subject |
 |---|---|
-| `raw_demand.db` | Demand, customer orders, constrained plans, allocations |
+| `raw_demand.db` | Demand requirements |
 | `raw_product.db` | Products, BOMs, routes, sourcing |
-| `raw_site.db` | Sites, calendars, shift rules |
-| `raw_machine.db` | Equipment, inventory, logs, cost references |
+| `raw_site.db` | Sites and operating assumptions |
+| `raw_machine.db` | Equipment, equipment inventory, logs, cost references |
 | `raw_test.db` | Test types, test times, test parameters |
-| `raw_yield.db` | Target and measured yield inputs |
-| `raw_execution.db` | Execution, schedules, lot route movements |
-| `raw_inventory.db` | Inventory, receipts, shipments, service policies |
-| `raw_npi.db` | NPI programs, gates, evidence, ramp, risks |
+| `raw_yield.db` | Target yield inputs |
+| `raw_execution.db` | Machine execution facts |
 
-Raw databases never contain analytical comparison bands. Planning versions remain because they represent real forecast vintages.
+The seven Raw databases contain 18 source tables. Raw databases never contain analytical comparison bands. Planning versions remain because they represent real forecast vintages.
 
 Reference and Mapping are governed source controls. They are not Raw source transactions.
 
@@ -62,10 +60,6 @@ Readers pin one release for the complete request.
 | `/explorer/` | Data Explorer |
 | `/capacity-analysis/` | Capacity Analysis |
 | `/decision-intelligence/` | Decision Intelligence |
-| `/scenario-planning/` | Scenario Planning |
-| `/demand-supply-planning/` | S&OP Planning |
-| `/npi-ramp-planning/` | NPI Ramp Planning |
-| `/operations-flow/` | Operations Flow |
 | `/data-operations/` | Data Operations |
 | `/documentation/` | Documentation |
 

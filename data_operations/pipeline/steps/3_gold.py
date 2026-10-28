@@ -17,24 +17,13 @@ REQUIRED_TABLES = [
     "gold_dmnd_vs_cap",
     "gold_bottleneck",
     "gold_oee_metrics",
+    "gold_operational_performance",
+    "gold_operational_events",
     "gold_forecast_accuracy",
     "gold_cap_actual",
     "gold_demonstrated_capacity",
     "gold_ml_feature_store",
-    "gold_sop_balance",
-    "gold_npi_readiness",
-    "gold_npi_ramp",
-    "gold_operations_event",
-    "gold_operations_wip",
-    "gold_operations_queue",
-    "gold_operations_cycle_time",
-    "gold_operations_throughput",
-    "gold_operations_rework",
-    "gold_operations_route_adherence",
-    "gold_operations_schedule_attainment",
-    "gold_operations_bottleneck_movement",
     "gold_equipment_cost_reference",
-    "gold_scenario_inputs",
 ]
 
 
@@ -102,47 +91,6 @@ def _validate_capacity_contracts(connection) -> None:
     }
     if "planning_version_id" in actual_columns:
         raise ValueError("Actual Output must not carry a planning version")
-
-    sop_errors = connection.execute(
-        """
-        SELECT COUNT(*) FROM gold_sop_balance
-        WHERE ABS(
-            beginning_inventory_ea + constrained_production_ea
-            + receipt_quantity_ea - shipment_quantity_ea - ending_inventory_ea
-        ) > 0.000001
-        """
-    ).fetchone()[0]
-    if sop_errors:
-        raise ValueError("S&OP inventory equation does not reconcile")
-
-    event_errors = connection.execute(
-        """
-        SELECT COUNT(*)
-        FROM gold_operations_event
-        WHERE CAST(queue_entry_at AS TIMESTAMP) > CAST(queue_exit_at AS TIMESTAMP)
-           OR CAST(queue_exit_at AS TIMESTAMP) > CAST(movement_event_at AS TIMESTAMP)
-           OR input_quantity_ea < 0
-           OR output_quantity_ea < 0
-           OR output_quantity_ea > input_quantity_ea
-           OR disposition_code NOT IN ('PASS', 'REWORK', 'SCRAP')
-        """
-    ).fetchone()[0]
-    if event_errors:
-        raise ValueError("Operations movement events violate timestamp or quantity contracts")
-
-    orphan_rework = connection.execute(
-        """
-        SELECT COUNT(*)
-        FROM gold_operations_event event
-        LEFT JOIN gold_operations_event linked
-          ON event.rework_link_event_id = linked.movement_event_id
-        WHERE event.rework_link_event_id IS NOT NULL
-          AND linked.movement_event_id IS NULL
-        """
-    ).fetchone()[0]
-    if orphan_rework:
-        raise ValueError("Operations rework events contain orphan links")
-
 
 def run(config: dict, candidate: PipelineRun) -> dict[str, int]:
     """Build and seal gold.duckdb from read-only Silver."""

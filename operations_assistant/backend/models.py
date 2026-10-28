@@ -13,10 +13,6 @@ class PageContext(BaseModel):
         "data-explorer",
         "capacity-analysis",
         "decision-intelligence",
-        "scenario-planning",
-        "demand-supply-planning",
-        "npi-ramp-planning",
-        "operations-flow",
         "data-operations",
         "documentation",
     ] = "home"

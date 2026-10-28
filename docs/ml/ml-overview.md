@@ -1,7 +1,8 @@
 # Decision Intelligence
 
-`decision_intelligence/` owns five workflows, their atomic publication, and five
-tabbed dashboards. The project does not add MLflow or a separate feature-store platform.
+`decision_intelligence/` owns five workflows, their atomic 12-table ML publication,
+and five tabbed dashboards. The project does not add MLflow or a separate
+feature-store platform.
 
 | Workflow | Purpose | Honest description |
 |---|---|---|

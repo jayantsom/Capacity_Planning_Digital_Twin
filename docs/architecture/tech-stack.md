@@ -6,7 +6,7 @@ The essential project uses only free and open-source technologies.
 |---|---|---|
 | Runtime | Python 3.12 | Application and workload code |
 | Environment | uv | Locking, installation, and script execution |
-| Raw storage | SQLite | Nine independent synthetic source databases |
+| Raw storage | SQLite | Seven independent synthetic source databases with 18 tables |
 | Analytical storage | DuckDB | Separate Bronze, Silver, Gold, ML, and Serving files |
 | Data processing | pandas, Polars, PyArrow, PySpark 4.1.2 | Local transforms and Silver processing |
 | ML | scikit-learn, XGBoost, LightGBM, Prophet, SHAP, imbalanced-learn | Five existing workflows |

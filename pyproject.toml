@@ -69,10 +69,6 @@ build-backend = "hatchling.build"
 packages = [
     "capacity_home",
     "capacity_analysis",
-    "scenario_planning",
-    "demand_supply_planning",
-    "npi_ramp_planning",
-    "operations_flow",
     "operations_assistant",
     "data_explorer",
     "data_operations",
@@ -95,10 +91,6 @@ addopts = "-p no:langsmith_plugin"
 testpaths = [
     "capacity_home",
     "capacity_analysis",
-    "scenario_planning",
-    "demand_supply_planning",
-    "npi_ramp_planning",
-    "operations_flow",
     "operations_assistant",
     "data_explorer",
     "data_operations",

@@ -17,9 +17,8 @@ from data_operations.generator.generators.assignment_matrix import ASSIGNMENT_MA
 from data_operations.generator.generators.product_master import PRODUCTS
 from data_operations.generator.generators.reference_data import SITES, TEST_TYPES
 from data_operations.generator.generators.site_soft import SITE_OVERRIDES
-from data_operations.generator.rules.npi import NPI_START_DATES
 
-MAPPING_SCHEMA_VERSION = "mapping-1.0"
+MAPPING_SCHEMA_VERSION = "mapping-2.0"
 EFFECTIVE_START = "2023-01-01"
 EFFECTIVE_END = "9999-12-31"
 
@@ -44,7 +43,6 @@ def _assignment_rows() -> pd.DataFrame:
                     "product_family": assignment["product_family"],
                     "platform": assignment["platform"],
                     "product_level": assignment["product_level"],
-                    "product_status": assignment["product_status"],
                     "test_type": test_type,
                     "catalog_version": CATALOG_VERSION,
                 }
@@ -61,7 +59,6 @@ def _site_capabilities() -> pd.DataFrame:
         "SYSTEM_INTEGRATION",
         "BOX_BUILD",
         "REPAIR",
-        "NPI",
     )
     rows = [
         {
@@ -107,22 +104,6 @@ def _calendar_overrides() -> pd.DataFrame:
         for control_name, control_value in sorted(values.items())
     ]
     return _effective(pd.DataFrame(rows))
-
-
-def _npi_ramps() -> pd.DataFrame:
-    return _effective(
-        pd.DataFrame(
-            [
-                {
-                    "product_number": product_number,
-                    "qualification_start_date": start_date.isoformat(),
-                    "ramp_months": 12,
-                    "ramp_method": "LINEAR",
-                }
-                for product_number, start_date in sorted(NPI_START_DATES.items())
-            ]
-        )
-    )
 
 
 def _source_registry(config: dict[str, Any]) -> pd.DataFrame:
@@ -225,7 +206,6 @@ def build_mapping_database(
             columns=["exception_id", "mapping_name", "source_value", "reason"]
         ),
         ("calendar", "calendar_override"): _calendar_overrides(),
-        ("calendar", "npi_ramp"): _npi_ramps(),
         **resources,
     }
     _validate_mappings(tables)
