@@ -178,14 +178,14 @@ def generate_demand_forecast_db(config: dict) -> pd.DataFrame:
     logger.info("GENERATING: raw_demand_forecast.db")
     logger.info("=" * 60)
 
-    db_path = get_sqlite_path(
-        config["databases"]["raw"]["demand_forecast"], config
-    )
+    db_path = get_sqlite_path(config["databases"]["raw"]["demand"], config)
 
-    all_month_keys = get_all_month_keys()
+    date_contract = DateContract.from_config(config)
+    all_month_keys = get_all_month_keys(
+        date_contract.actual_start, date_contract.forecast_end
+    )
     root_seed = int(config["data_generation"]["random_seed"])
     rng = np.random.default_rng(root_seed)
-    date_contract = DateContract.from_config(config)
     planning_versions = [
         (f"plan-{plan_as_of_date.isoformat()}", plan_as_of_date.isoformat())
         for plan_as_of_date in date_contract.plan_as_of_dates

@@ -5,12 +5,18 @@ Configuration is app-owned and validated before startup.
 | File | Owns |
 |---|---|
 | `capacity_home/config.yaml` | Local launcher server and allowed origins |
-| `operations_assistant/config.yaml` | Local server, CORS origins, Ollama, model, streaming, and tool limits |
+| `operations_assistant/config.yaml` | Yukti, Ollama, streaming, and tool limits |
 | `data_explorer/config.yaml` | Explorer route and query limits |
+| `capacity_analysis/config.yaml` | Capacity and bottleneck dashboards |
+| `scenario_planning/config.yaml` | Scenario and what-if analysis |
+| `demand_supply_planning/config.yaml` | S&OP planning |
+| `npi_ramp_planning/config.yaml` | NPI ramp planning |
+| `operations_flow/config.yaml` | Operations flow analysis |
 | `data_operations/config.yaml` | Dashboard origins, job policy, and Small/Medium/Full mappings |
 | `data_operations/generator/config.yaml` | Erivon brand, dates, noise, budgets, and Raw filenames |
 | `data_operations/pipeline/config.yaml` | Database filenames, Spark settings, and capacity thresholds |
 | `decision_intelligence/config.yaml` | Evaluation, dashboards, jobs, and ML publication |
+| `documentation/config.yaml` | Documentation catalog and ownership |
 | `src/capacity_twin_core/config.yaml` | Runtime-root and logging defaults shared by apps |
 
 Configuration precedence is app defaults, app `config.yaml`, environment variables, then explicit CLI options. Secrets must not be committed to YAML.
@@ -38,4 +44,4 @@ Volume changes density, not these contractual boundaries. The `local_16gb` limit
 
 ## Safety defaults
 
-Operations Assistant binds to `127.0.0.1:8000`, allows only configured localhost origins, and uses `llama3.1:8b`. Data Explorer enforces default and maximum query limits. External binding requires an explicit future unsafe-development option because authentication is outside the local-only scope.
+The shared server binds to `127.0.0.1:8000` and allows only configured localhost origins. Yukti uses `llama3.1:8b`. Data Explorer enforces default and maximum query limits. External binding is unsupported because authentication is outside the local-only scope.

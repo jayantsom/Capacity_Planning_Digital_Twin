@@ -38,22 +38,17 @@ WORKFLOWS = {
 }
 
 REQUIRED_OUTPUT_TABLES = {
-    "gold_demand_forecast",
-    "gold_forecast_accuracy_ml",
-    "gold_yield_predictions",
-    "gold_yield_shap",
-    "gold_cap_ml_adjusted",
-    "gold_maintenance_risk",
-    "gold_maintenance_alerts",
-    "gold_oee_anomalies",
-    "gold_oee_anomaly_summary",
-    "gold_capex_mc_summary",
-    "gold_capex_mc_scenarios",
-    # Keep display labels beside the ML outputs so dashboards stay self-contained.
-    "slvr_ref_site",
-    "slvr_ref_test_type",
-    "slvr_ref_equipment",
-    "slvr_prod_master",
+    "ml_demand_forecast",
+    "ml_forecast_accuracy",
+    "ml_yield_predictions",
+    "ml_yield_shap",
+    "ml_capacity_adjusted",
+    "ml_oee_degradation_risk",
+    "ml_oee_degradation_alerts",
+    "ml_oee_anomalies",
+    "ml_oee_anomaly_summary",
+    "ml_capex_summary",
+    "ml_capex_scenarios",
 }
 
 
@@ -113,19 +108,30 @@ def run_ml_pipeline(
         try:
             result = fn()
             elapsed = time.time() - t0
-            results[priority] = {"status": "OK", "elapsed_s": round(elapsed, 1), **result}
+            results[priority] = {
+                "status": "OK",
+                "workflow": name,
+                "elapsed_s": round(elapsed, 1),
+                **result,
+            }
             log.info(f"  ✓ Completed in {elapsed:.1f}s — {result.get('summary', '')}")
         except ValueError as e:
             elapsed = time.time() - t0
             results[priority] = {
                 "status": "NOT_EVALUABLE",
+                "workflow": name,
                 "elapsed_s": round(elapsed, 1),
                 "reason": str(e),
             }
             log.warning(f"  Not evaluable after {elapsed:.1f}s: {e}")
         except Exception as e:  # noqa: BLE001 - isolate workflows and preserve prior publication
             elapsed = time.time() - t0
-            results[priority] = {"status": "ERROR", "elapsed_s": round(elapsed, 1), "error": str(e)}
+            results[priority] = {
+                "status": "ERROR",
+                "workflow": name,
+                "elapsed_s": round(elapsed, 1),
+                "error": str(e),
+            }
             log.error(f"  ✗ FAILED after {elapsed:.1f}s: {e}", exc_info=True)
 
     total_elapsed = time.time() - total_start

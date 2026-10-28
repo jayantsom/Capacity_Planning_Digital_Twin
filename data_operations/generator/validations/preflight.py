@@ -6,6 +6,7 @@ from collections import defaultdict
 from datetime import timedelta
 from typing import Any
 
+from capacity_twin_core.data.contracts import validate_contracts
 from data_operations.generator.catalogs.contract_tables import (
     build_product_bom,
     build_resource_contracts,
@@ -53,22 +54,64 @@ def estimate_rows(config: dict[str, Any]) -> dict[str, int]:
     calendar_days = (dates.actual_end - dates.actual_start) // timedelta(days=1) + 1
     sampled_days = (calendar_days + volume.execution_day_stride - 1) // volume.execution_day_stride
     execution = route_steps * sampled_days
+    month_count = (
+        (dates.forecast_end.year - dates.actual_start.year) * 12
+        + dates.forecast_end.month
+        - dates.actual_start.month
+        + 1
+    )
+    sop_rows_per_table = len(ASSIGNMENT_MATRIX) * month_count
+    operations_lots = min(
+        int(config["local_16gb"].get("max_operations_lots", 12000)),
+        len(ASSIGNMENT_MATRIX)
+        * max(1, (min(calendar_days, 57) + volume.execution_day_stride - 1)
+              // volume.execution_day_stride),
+    )
+    operations_movement_rows = (
+        operations_lots * int(config["local_16gb"]["target_average_route_steps"])
+    )
     # Weekend and intentional missing-day rules only reduce these conservative projections.
     return {
         "active_site_product_route_steps": route_steps,
         "machine_execution": execution,
         "machine_test_param": execution,
         "machine_logs": min(execution, int(execution * 0.12)),
-        "estimated_raw_bytes": execution * 900,
-        "estimated_temporary_bytes": execution * 1_800,
+        "sop_rows_per_monthly_table": sop_rows_per_table,
+        "operations_lots": operations_lots,
+        "operations_movement_rows": operations_movement_rows,
+        "estimated_raw_bytes": (
+            execution * 900
+            + sop_rows_per_table * 9 * 500
+            + operations_movement_rows * 700
+        ),
+        "estimated_temporary_bytes": (
+            execution * 1_800
+            + sop_rows_per_table * 9 * 1_000
+            + operations_movement_rows * 1_400
+        ),
         "approximate_spark_partitions": max(1, (execution + 199_999) // 200_000),
     }
 
 
 def validate_preflight(config: dict[str, Any]) -> dict[str, Any]:
     """Raise one readable error if the immutable catalog cannot be generated."""
+    validate_contracts()
     caps = config["local_16gb"]
     errors: list[str] = []
+    expected_raw_files = {
+        "raw_demand.db",
+        "raw_product.db",
+        "raw_site.db",
+        "raw_machine.db",
+        "raw_test.db",
+        "raw_yield.db",
+        "raw_execution.db",
+        "raw_inventory.db",
+        "raw_npi.db",
+    }
+    configured_raw_files = set(config["databases"]["raw"].values())
+    if configured_raw_files != expected_raw_files:
+        errors.append("Raw database map must contain the nine governed source files")
     product_numbers = {product[0] for product in PRODUCTS}
     test_types = {test[0] for test in TEST_TYPES}
     route_df, step_df = build_routes()
@@ -198,6 +241,12 @@ def validate_preflight(config: dict[str, Any]) -> dict[str, Any]:
             )
     if projections["estimated_raw_bytes"] > caps["max_raw_bytes"]:
         errors.append("estimated Raw bytes exceed the configured 3 GB gate")
+    if projections["sop_rows_per_monthly_table"] > caps["max_sop_rows"]:
+        errors.append("S&OP row projection exceeds the configured profile gate")
+    if projections["operations_lots"] > caps["max_operations_lots"]:
+        errors.append("operations lot projection exceeds the configured profile gate")
+    if projections["operations_movement_rows"] > caps["max_operations_movement_rows"]:
+        errors.append("operations movement projection exceeds the configured profile gate")
 
     if errors:
         raise ValueError("Generator preflight failed:\n- " + "\n- ".join(errors))

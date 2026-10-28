@@ -18,25 +18,21 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
-from typing import Literal
 from urllib.parse import urlparse
 
 import duckdb
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from capacity_twin_core.analytics import TimeGrain, supported_grains
-from capacity_twin_core.comparison import (
-    get_comparison_window,
-    resolve_time_column,
-)
 from capacity_twin_core.runtime.database_paths import (
     get_active_run_pointer,
-    get_control_run_pointer,
+    get_release_pointer,
     get_runtime_home,
+    get_source_bundle_pointer,
     load_app_config,
     load_config,
 )
@@ -60,12 +56,25 @@ MAX_QUERY_LIMIT = int(QUERY_CONFIG.get("maximum_limit", 2_000))
 
 def _active_artifact_root() -> Path | None:
     """Resolve the current promoted artifact on every source refresh."""
+    release_pointer = get_release_pointer(DATA_DIR)
+    if release_pointer.is_file():
+        try:
+            release = json.loads(release_pointer.read_text(encoding="utf-8"))
+            serving = release["publications"]["serving"]["path"]
+            serving_path = Path(serving)
+            if not serving_path.is_absolute():
+                serving_path = DATA_DIR / serving_path
+            return serving_path.resolve().parent
+        except (OSError, KeyError, json.JSONDecodeError):
+            return None
     pointer = get_active_run_pointer(DATA_DIR)
     if not pointer.is_file():
         return None
     try:
         payload = json.loads(pointer.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
+        return None
+    if payload.get("release_pending_ml"):
         return None
     serving_database = payload.get("serving_database")
     if serving_database:
@@ -89,8 +98,70 @@ def _discover_sources() -> dict[str, dict]:
     """Discover every project database without exposing engine internals."""
     sources: dict[str, dict] = {}
     artifact_root = _active_artifact_root()
+    source_pointer: dict = {}
+    release_pending = False
+    release_path = get_release_pointer(DATA_DIR)
+    if release_path.is_file():
+        try:
+            release = json.loads(release_path.read_text(encoding="utf-8"))
+            manifest_path = Path(release["source_bundle"]["manifest"])
+            if not manifest_path.is_absolute():
+                manifest_path = DATA_DIR / manifest_path
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            resolved_files = {
+                name: (
+                    Path(details["path"])
+                    if Path(details["path"]).is_absolute()
+                    else DATA_DIR / details["path"]
+                )
+                for name, details in manifest["files"].items()
+            }
+            raw_paths = [
+                path
+                for name, path in resolved_files.items()
+                if manifest["files"][name]["role"] == "raw"
+            ]
+            source_pointer = {
+                "source_run_id": release["source_bundle"]["run_id"],
+                "raw_directory": str(raw_paths[0].parent) if raw_paths else "",
+                **{
+                    f"{role}_database": str(
+                        next(
+                            path
+                            for name, path in resolved_files.items()
+                            if manifest["files"][name]["role"] == role
+                        )
+                    )
+                    for role in ("reference", "mapping")
+                },
+            }
+        except (OSError, KeyError, StopIteration, json.JSONDecodeError):
+            source_pointer = {}
+    else:
+        current_payload: dict = {}
+        current_path = get_active_run_pointer(DATA_DIR)
+        if current_path.is_file():
+            try:
+                current_payload = json.loads(current_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                current_payload = {}
+        release_pending = bool(current_payload.get("release_pending_ml"))
+        pointer_path = get_source_bundle_pointer(DATA_DIR)
+        if pointer_path.is_file() and not release_pending:
+            try:
+                source_pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                source_pointer = {}
+    configured_raw = source_pointer.get("raw_directory")
+    captured_raw = Path(configured_raw) if configured_raw else None
+    if captured_raw and not captured_raw.is_absolute():
+        captured_raw = DATA_DIR / captured_raw
     raw_sqlite_dir = (
-        artifact_root / "raw" / "sqlite"
+        captured_raw
+        if captured_raw and captured_raw.is_dir()
+        else DATA_DIR / ".release-unavailable"
+        if release_pending
+        else artifact_root / "raw" / "sqlite"
         if artifact_root and (artifact_root / "raw" / "sqlite").is_dir()
         else DATA_DIR / "raw" / "sqlite"
     )
@@ -120,25 +191,20 @@ def _discover_sources() -> dict[str, dict]:
             },
         )
 
-    control_pointer = get_control_run_pointer(DATA_DIR)
-    control_path: Path | None = None
-    control_run_id = None
-    if control_pointer.is_file():
-        try:
-            payload = json.loads(control_pointer.read_text(encoding="utf-8"))
-            control_path = Path(payload["database"])
-            control_run_id = payload.get("control_run_id")
-        except (OSError, KeyError, json.JSONDecodeError):
-            control_path = None
-    sources["duckdb_control"] = {
-        "type": "duckdb",
-        "path": str(control_path) if control_path else "",
-        "layer": "control",
-        "label": "Control Reference DB",
-        "color": LAYER_META["control"]["color"],
-        "available": bool(control_path and control_path.is_file()),
-        "run_id": control_run_id,
-    }
+    for role in ("reference", "mapping"):
+        configured = source_pointer.get(f"{role}_database")
+        path = Path(configured) if configured else None
+        if path and not path.is_absolute():
+            path = DATA_DIR / path
+        sources[f"duckdb_{role}"] = {
+            "type": "duckdb",
+            "path": str(path) if path else "",
+            "layer": role,
+            "label": f"{role.title()} DB",
+            "color": LAYER_META[role]["color"],
+            "available": bool(path and path.is_file()),
+            "run_id": source_pointer.get("source_run_id"),
+        }
 
     # Register each physical medallion database, including missing expected layers.
     database_names = PIPELINE_CONFIG["databases"]
@@ -162,7 +228,19 @@ def _discover_sources() -> dict[str, dict]:
     ml_pointer = DATA_DIR / "ml_current.json"
     ml_path: Path | None = None
     ml_run_id = None
-    if ml_pointer.is_file():
+    release_pointer = get_release_pointer(DATA_DIR)
+    if release_pointer.is_file():
+        try:
+            release = json.loads(release_pointer.read_text(encoding="utf-8"))
+            ml_details = release.get("ml") or {}
+            ml_path = Path(ml_details["path"])
+            if not ml_path.is_absolute():
+                ml_path = DATA_DIR / ml_path
+            ml_path = ml_path.resolve()
+            ml_run_id = ml_details.get("run_id")
+        except (OSError, KeyError, json.JSONDecodeError):
+            ml_path = None
+    elif ml_pointer.is_file():
         try:
             payload = json.loads(ml_pointer.read_text(encoding="utf-8"))
             ml_path = (DATA_DIR / payload["database"]).resolve()
@@ -184,19 +262,26 @@ def _discover_sources() -> dict[str, dict]:
 
 LAYER_META = {
     "raw":    {"label": "Raw",    "color": "#315f8f", "prefix": []},
-    "control": {"label": "Control", "color": "#5b4b8a", "prefix": []},
+    "reference": {"label": "Reference", "color": "#5b4b8a", "prefix": []},
+    "mapping": {"label": "Mapping", "color": "#7c5c9e", "prefix": []},
     "bronze": {"label": "Bronze", "color": "#b45309", "prefix": ["brnz_"]},
     "silver": {"label": "Silver", "color": "#64748b", "prefix": ["slvr_"]},
-    "gold":   {"label": "Gold",   "color": "#d97706", "prefix": ["gold_", "srv_vw_"]},
-    "serving": {"label": "Serving", "color": "#006d77", "prefix": ["srv_vw_"]},
-    "ml": {"label": "ML", "color": "#7c3aed", "prefix": ["gold_"]},
+    "gold":   {"label": "Gold",   "color": "#d97706", "prefix": ["gold_"]},
+    "serving": {"label": "Serving", "color": "#006d77", "prefix": ["srv_"]},
+    "ml": {"label": "ML", "color": "#7c3aed", "prefix": ["ml_"]},
 }
 
-def _table_layer(table_name: str) -> str:
-    if table_name.startswith("brnz_"):  return "bronze"
-    if table_name.startswith("slvr_"):  return "silver"
-    if table_name.startswith(("gold_", "srv_vw_")): return "gold"
-    return "raw"
+def _ownership_metadata(
+    source_id: str,
+    source_layer: str,
+    object_name: str,
+) -> dict[str, str | None]:
+    """Declare one logical owner without inventing undeclared lineage."""
+    return {
+        "canonical_object_id": f"{source_layer}:{source_id}:{object_name}",
+        "owner_layer": source_layer.upper(),
+        "materialization_of": None,
+    }
 
 # ── DB helpers ─────────────────────────────────────────────────────────────────
 
@@ -310,6 +395,7 @@ def _execute_sqlite_query(
 # ── App ────────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="Data Explorer API", version="1.0.0")
+router = APIRouter()
 
 
 def _is_loopback_host(value: str) -> bool:
@@ -354,7 +440,7 @@ if FRONTEND_DIR.exists():
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
-@app.get("/explorer/")
+@router.get("/explorer/")
 def explorer_index():
     idx = FRONTEND_DIR / "index.html"
     if idx.exists():
@@ -362,10 +448,11 @@ def explorer_index():
     return JSONResponse({"error": "Frontend not found"}, status_code=404)
 
 
-@app.get("/explorer/api/sources")
+@router.get("/explorer/api/sources")
 def get_sources():
     """List every project table/view and report missing expected databases."""
     result = []
+    catalog_ids: set[str] = set()
     for sid, src in _discover_sources().items():
         if not src.get("available", True):
             result.append(
@@ -386,22 +473,40 @@ def get_sources():
                 conn   = _get_sqlite(sid)
                 tables = _sqlite_tables(conn)
                 conn.close()
+                owned_tables = []
+                for table in tables:
+                    if table == "sqlite_sequence":
+                        continue
+                    ownership = _ownership_metadata(sid, "raw", table)
+                    canonical_id = str(ownership["canonical_object_id"])
+                    if canonical_id in catalog_ids:
+                        continue
+                    catalog_ids.add(canonical_id)
+                    owned_tables.append(
+                        {
+                            "name": table,
+                            "layer": "raw",
+                            "object_type": "TABLE",
+                            **ownership,
+                        }
+                    )
                 result.append({
                     "id": sid, "label": src["label"],
                     "type": src["type"], "layer": "raw",
                     "color": src["color"],
                     "status": "READY",
-                    "tables": [
-                        {"name": table, "layer": "raw", "object_type": "TABLE"}
-                        for table in tables
-                        if table != "sqlite_sequence"
-                    ],
+                    "tables": owned_tables,
                 })
             else:
                 conn   = _get_duckdb(sid)
                 objects = _duckdb_objects(conn)
                 tables = []
                 for item in objects:
+                    ownership = _ownership_metadata(sid, src["layer"], item["name"])
+                    canonical_id = str(ownership["canonical_object_id"])
+                    if canonical_id in catalog_ids:
+                        continue
+                    catalog_ids.add(canonical_id)
                     safe_table = _quote_duckdb_object(
                         item["name"], [obj["name"] for obj in objects]
                     )
@@ -413,6 +518,7 @@ def get_sources():
                             **item,
                             "layer": src["layer"],
                             "row_count": int(row_count),
+                            **ownership,
                         }
                     )
                 conn.close()
@@ -436,7 +542,7 @@ def get_sources():
     return result
 
 
-@app.get("/explorer/api/schema/{source_id}/{table}")
+@router.get("/explorer/api/schema/{source_id}/{table}")
 def get_schema(source_id: str, table: str):
     src = _discover_sources().get(source_id)
     if not src:
@@ -494,12 +600,6 @@ def get_schema(source_id: str, table: str):
             "supported_grains": [
                 grain.value for grain in grain_options
             ],
-            "comparison_supported": (
-                src["type"] == "duckdb"
-                and src["layer"] in {"silver", "gold", "serving", "ml"}
-                and resolve_time_column({column["name"] for column in columns})
-                is not None
-            ),
         }
     except ExplorerSqlError as error:
         raise HTTPException(400, str(error)) from error
@@ -507,7 +607,7 @@ def get_schema(source_id: str, table: str):
         raise HTTPException(400, "Schema request could not be completed.") from error
 
 
-@app.get("/explorer/api/data/{source_id}/{table}")
+@router.get("/explorer/api/data/{source_id}/{table}")
 def get_data(
     source_id: str,
     table: str,
@@ -516,7 +616,6 @@ def get_data(
     filters: str = Query("{}"),   # JSON string of {col: value}
     sort_col: str | None = None,
     sort_dir: str = "asc",
-    window: Literal["total", "band_1", "band_2"] = "total",
 ):
     src = _discover_sources().get(source_id)
     if not src:
@@ -551,20 +650,6 @@ def get_data(
         raise ExplorerSqlError("Filters must be a JSON object.") from error
     if not isinstance(filter_dict, dict):
         raise ExplorerSqlError("Filters must be a JSON object.")
-    window_definition = get_comparison_window(window)
-    time_column = resolve_time_column(allowed_columns)
-    window_column = time_column[0] if time_column else None
-    window_grain = time_column[1] if time_column else None
-    window_supported = (
-        src["type"] == "duckdb"
-        and src["layer"] in {"silver", "gold", "serving", "ml"}
-        and window_column is not None
-    )
-    if window != "total" and not window_supported:
-        raise HTTPException(
-            422,
-            "Comparison bands are available only for promoted date-capable tables.",
-        )
 
     safe_sort_dir = "ASC" if sort_dir.lower() != "desc" else "DESC"
     offset = (page - 1) * page_size
@@ -620,48 +705,8 @@ def get_data(
                             safe_column = allow_identifier(col, allowed_columns, "column")
                             wp2.append(f"{safe_column} = ${len(params2)+1}")
                             params2.append(val)
-                if window != "total" and window_column:
-                    if window_grain == "date":
-                        start_value = window_definition.start_date.isoformat()
-                        end_value = window_definition.end_date.isoformat()
-                    else:
-                        start_value = (
-                            window_definition.start_date.year * 100
-                            + window_definition.start_date.month
-                        )
-                        end_value = (
-                            window_definition.end_date.year * 100
-                            + window_definition.end_date.month
-                        )
-                    safe_window_column = allow_identifier(
-                        window_column, allowed_columns, "column"
-                    )
-                    wp2.append(
-                        f"{safe_window_column} BETWEEN "
-                        f"${len(params2)+1} AND ${len(params2)+2}"
-                    )
-                    params2.extend([start_value, end_value])
                 where_clause = f"WHERE {' AND '.join(wp2)}"
                 params = params2
-            elif window != "total" and window_column:
-                safe_window_column = allow_identifier(
-                    window_column, allowed_columns, "column"
-                )
-                if window_grain == "date":
-                    params = [
-                        window_definition.start_date.isoformat(),
-                        window_definition.end_date.isoformat(),
-                    ]
-                else:
-                    params = [
-                        window_definition.start_date.year * 100
-                        + window_definition.start_date.month,
-                        window_definition.end_date.year * 100
-                        + window_definition.end_date.month,
-                    ]
-                where_clause = (
-                    f"WHERE {safe_window_column} BETWEEN $1 AND $2"
-                )
 
             total_rel = conn.execute(
                 f"SELECT COUNT(*) FROM {safe_table} {where_clause}", params
@@ -681,8 +726,6 @@ def get_data(
             "total": total, "total_pages": max(1, -(-total // page_size)),
             "columns": list(data[0].keys()) if data else [],
             "rows": data,
-            "window": window,
-            "window_supported": window_supported,
         }
     except ExplorerSqlError as error:
         raise HTTPException(400, str(error)) from error
@@ -690,7 +733,7 @@ def get_data(
         raise HTTPException(400, "Data request could not be completed.") from error
 
 
-@app.get("/explorer/api/distinct/{source_id}/{table}/{col}")
+@router.get("/explorer/api/distinct/{source_id}/{table}/{col}")
 def get_distinct(source_id: str, table: str, col: str, limit: int = 200):
     src = _discover_sources().get(source_id)
     if not src:
@@ -745,7 +788,7 @@ class QueryRequest(BaseModel):
     limit: int = Field(default=500, ge=1)
 
 
-@app.post("/explorer/api/query/{source_id}")
+@router.post("/explorer/api/query/{source_id}")
 def run_query(source_id: str, req: QueryRequest):
     src = _discover_sources().get(source_id)
     if not src:
@@ -782,3 +825,6 @@ def run_query(source_id: str, req: QueryRequest):
         raise HTTPException(408, "Query timed out.") from error
     except Exception as error:
         raise HTTPException(400, "Query could not be completed.") from error
+
+
+app.include_router(router)

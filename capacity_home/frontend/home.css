@@ -202,7 +202,7 @@ h1 { max-width: 720px; margin: 0; font-size: clamp(32px, 5vw, 52px); line-height
   border: 0;
 }
 .page-shell {
-  width: min(930px, calc(100% - 32px));
+  width: min(1440px, calc(100% - 28px));
   min-height: calc(100vh - 126px);
   padding: 24px 0 38px;
 }
@@ -220,6 +220,7 @@ h1 { max-width: 720px; margin: 0; font-size: clamp(32px, 5vw, 52px); line-height
 .page-heading-centered {
   justify-content: center;
   text-align: left;
+  margin-bottom: 16px;
 }
 .page-heading-mark {
   flex: 0 0 38px;
@@ -244,6 +245,8 @@ h1 { max-width: 720px; margin: 0; font-size: clamp(32px, 5vw, 52px); line-height
 }
 .app-grid {
   display: grid;
+  width: min(70%, 651px);
+  margin: 0 auto;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   border: 0;
@@ -363,7 +366,7 @@ h1 { max-width: 720px; margin: 0; font-size: clamp(32px, 5vw, 52px); line-height
 @media (max-width: 760px) {
   .page-shell { padding-top: 20px; }
   .page-heading { height: auto; }
-  .app-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-grid { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .app-card { min-height: 0; padding: 14px; }
   .app-card + .app-card { border-top: 1px solid var(--graphite); }
 }

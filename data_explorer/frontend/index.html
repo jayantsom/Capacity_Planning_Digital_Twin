@@ -4,41 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>Data Explorer — Capacity Planning Digital Twin</title>
+  <title>Data Explorer | Capacity Planning Digital Twin</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/shared/comparison-band.css?v=20261020a">
-  <link rel="stylesheet" href="/explorer/static/explorer-modern.css?v=20261020i">
+  <link rel="stylesheet" href="/shared/static/shell.css?v=20261027">
+  <link rel="stylesheet" href="/explorer/static/explorer-modern.css?v=20261027k">
 </head>
 <body>
-  <a class="skip-link" href="#workspace">Skip to data workspace</a>
-  <header class="product-header">
-    <a class="brand" href="/" aria-label="Test Equipment Capacity Planning Digital Twin home">
-      <span class="brand-mark" aria-hidden="true">CP</span>
-    </a>
-    <nav class="product-nav" aria-label="Primary navigation">
-      <a href="/">Home</a>
-      <a aria-current="page" href="/explorer/">Data Explorer</a>
-      <a href="/decision-intelligence/">Decision Intelligence</a>
-      <a href="/operations-assistant/">Operations Assistant</a>
-      <a href="/data-operations/">Data Operations</a>
-    </nav>
-  </header>
+  <div data-shared-shell></div>
 
   <div class="shell">
-    <section class="page-heading" aria-labelledby="pageTitle">
-      <div class="page-heading-identity">
-        <span class="page-heading-mark" aria-hidden="true">DX</span>
-        <div>
-          <p class="eyebrow">PROMOTED DATA WORKSPACE</p>
-          <h1 id="pageTitle">Data Explorer</h1>
-        </div>
-      </div>
-      <div class="title-actions">
+    <section data-shared-page-header data-mark="DX" data-eyebrow="PROMOTED DATA WORKSPACE"
+      data-title="Data Explorer" data-title-id="pageTitle" aria-labelledby="pageTitle">
+      <div class="title-actions" data-page-actions>
         <a class="service-status status-checking" id="sourceStatus" href="/explorer/api/sources"><span aria-hidden="true">◌</span><span>CHECKING</span></a>
       </div>
     </section>
-
-    <section id="comparisonBand" class="comparison-band explorer-comparison-band" aria-label="Comparison window" hidden></section>
 
     <div class="explorer-body">
       <aside class="sidebar closed" id="sidebar" aria-label="Data sources">
@@ -83,10 +63,10 @@
       </section>
 
       <section class="kpi-strip" id="kpiStrip" aria-label="Table summary" hidden>
-        <div><span>ROWS</span><strong id="kpiTotal">—</strong></div>
-        <div><span>COLUMNS</span><strong id="kpiColumns">—</strong></div>
-        <div><span>SOURCE</span><strong id="kpiSource">—</strong></div>
-        <div><span>PAGE</span><strong id="kpiPage">—</strong></div>
+        <div><span>ROWS</span><strong id="kpiTotal">-</strong></div>
+        <div><span>COLUMNS</span><strong id="kpiColumns">-</strong></div>
+        <div><span>SOURCE</span><strong id="kpiSource">-</strong></div>
+        <div><span>PAGE</span><strong id="kpiPage">-</strong></div>
         <div><span>REFRESHED</span><strong id="kpiFreshness">Just now</strong></div>
       </section>
 
@@ -138,6 +118,7 @@
       <button class="scrim" id="scrim" type="button" aria-label="Close side panel" hidden></button>
     </div>
   </div>
-  <script type="module" src="/explorer/static/explorer-modern.js?v=20261020f"></script>
+  <script type="module" src="/shared/static/shell.js?v=20261027"></script>
+  <script type="module" src="/explorer/static/explorer-modern.js?v=20261027"></script>
 </body>
 </html>

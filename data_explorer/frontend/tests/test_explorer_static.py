@@ -21,26 +21,27 @@ class ExplorerStaticTests(unittest.TestCase):
         self.assertNotIn("innerHTML", script)
         self.assertIn("textContent", script)
         self.assertIn("createDocumentFragment", script)
+        self.assertIn("layer === 'ml' ? 'ML'", script)
 
     def test_dense_workspace_states_are_present(self):
         html = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
         for required_id in ("kpiStrip", "activeFilters", "tableState", "pagination", "sqlPanel"):
             self.assertIn(f'id="{required_id}"', html)
-        self.assertIn('<h1 id="pageTitle">Data Explorer</h1>', html)
+        self.assertIn("data-shared-page-header", html)
+        self.assertIn('data-title="Data Explorer"', html)
+        self.assertIn('data-title-id="pageTitle"', html)
         self.assertIn("<span>CHECKING</span>", html)
-        self.assertIn('<span class="brand-mark" aria-hidden="true">CP</span>', html)
-        self.assertIn('href="/">Home</a>', html)
-        self.assertLess(html.index('class="page-heading"'), html.index('class="explorer-body"'))
+        self.assertLess(html.index("data-shared-page-header"), html.index('class="explorer-body"'))
         self.assertIn('class="filter-controls-row"', html)
         self.assertIn('class="sidebar closed"', html)
         self.assertIn('id="sourceToggle"', html)
         self.assertIn('aria-label="Expand data catalog"', html)
         self.assertNotIn('id="breadcrumbLayer"', html)
-        header = html.split('<header class="product-header">', 1)[1].split("</header>", 1)[0]
-        self.assertNotIn('id="sourceStatus"', header)
-        self.assertNotIn('id="sourceToggle"', header)
-        page_heading = html.split('<section class="page-heading"', 1)[1].split("</section>", 1)[0]
+        page_heading = html.split("<section data-shared-page-header", 1)[1].split(
+            "</section>", 1
+        )[0]
+        self.assertIn('id="sourceStatus"', page_heading)
         self.assertNotIn('id="sourceToggle"', page_heading)
         self.assertNotIn('id="filterToggle"', page_heading)
         workspace_header = html.split('<section class="workspace-header"', 1)[1].split(
@@ -62,6 +63,13 @@ class ExplorerStaticTests(unittest.TestCase):
         self.assertIn(".slice(0, 6)", script)
         for label in ("READY", "NO SOURCES", "OFFLINE"):
             self.assertIn(f"'{label}'", script)
+
+    def test_summary_band_matches_decision_intelligence_format(self):
+        css = (FRONTEND / "explorer-modern.css").read_text(encoding="utf-8")
+
+        self.assertIn("grid-template-columns: repeat(auto-fit, minmax(130px, 1fr))", css)
+        self.assertIn("min-height: 66px", css)
+        self.assertIn("font: 700 18px var(--mono)", css)
 
 
 if __name__ == "__main__":

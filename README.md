@@ -1,95 +1,105 @@
-# Capacity Planning Digital Twin
+# Test Equipment Capacity Planning Digital Twin
 
-A local, synthetic telecom and networking manufacturing capacity-planning project. It combines deterministic data generation, a Raw-to-Serving medallion pipeline, five existing ML workflows, and Operations Assistant, a local LangGraph assistant grounded in read-only data tools.
+A local learning project for telecom and networking manufacturing. It combines synthetic source systems, data engineering, capacity planning, operations analytics, ML, and a grounded local AI assistant.
 
-All technologies are free and open source. The target is one Windows workstation with 16 GB RAM; generated data, models, logs, and run artifacts stay outside the repository.
+All required technologies are free and open source. The target is one Windows computer with 16 GB RAM.
 
-## Essential project
+## Applications
 
-- **Domain:** telecom and networking products, routes, tests, sites, resources, demand, yield, OEE, capacity, and CapEx.
-- **Synthetic brand:** **Erivon**, with `ERV_*` identifiers. Real manufacturer or EMS names may appear only as attributed educational reference data; no real capability, volume, performance, or affiliation is implied.
-- **Dates:** actual and execution data cover 2023-01-01 through 2026-10-31. Forecast data cover 2026-11-01 through 2027-12-31. Each planning version observes only actuals known by its as-of date.
-- **Demand:** `DIRECT_CUSTOMER`, `SPARE`, `SERVICE`, and `BOM_DEPENDENT` are explicit. Parent BOM demand and independent child demand remain separately reconcilable.
-- **Equipment:** routes declare `ALTERNATIVE_POOL`, `SERIAL_STEP`, `PAIRED_FIXTURE`, `MULTI_DUT`, `STANDALONE`, `SHARED_POOL`, or `DEDICATED` behavior.
-- **Raw quality:** intentional duplicates, nulls, missing days, outliers, late records, stale dimensions, and broken references must be named by noise rules and traceable to expected outcomes.
-- **Publication:** candidate runs are validated before promotion; manifests record schemas, checksums, counts, reconciliations, validation results, and promotion state. These are target contracts where implementation is still being stabilized.
+| Application | Purpose |
+|---|---|
+| Capacity Home | Opens every workspace and shows health |
+| Data Explorer | Browses every Raw, Reference, Mapping, Bronze, Silver, Gold, Serving, and ML object |
+| Capacity Analysis | Compares Normal, Maximum, Actual Output, and Demonstrated Capacity |
+| Decision Intelligence | Runs and explains five ML workflows |
+| Scenario Planning | Tests bounded what-if assumptions in the browser session |
+| S&OP Planning | Reconciles demand, constrained supply, inventory, shipments, and backlog |
+| NPI Ramp Planning | Tracks launch readiness, stage gates, qualification, and ramp |
+| Operations Flow | Tracks WIP, queues, cycle time, throughput, rework, and route flow |
+| Data Operations | Generates Raw data, runs the medallion pipeline, and shows lineage |
+| Documentation | Reads these Markdown files directly |
 
-No fixed row counts, runtimes, model scores, or business-quality claims are made here. Results depend on the selected profile, machine, seed, and validated run.
+Yukti is available from the top navigation on every page. It uses the current page, selected workflow, filters, and selected table as context. Yukti can use only server-approved read-only tools.
 
-## Five applications and one shared core
+## Data architecture
 
-| Component | Responsibility | Configuration |
-|---|---|---|
-| Capacity Home | Compact launcher for all four workspaces | `capacity_home/config.yaml` |
-| Operations Assistant | Assistant, agents, MCP tools, and local API | `operations_assistant/config.yaml` |
-| Data Explorer | Read-only table and query interface | `data_explorer/config.yaml` |
-| Data Operations | Generator and medallion-pipeline tabs with safe local jobs | `data_operations/config.yaml` |
-| Decision Intelligence | Five ML dashboards and atomic model publication | `decision_intelligence/config.yaml` |
-| Capacity Twin Core | Shared paths, dates, contracts, logging, and capacity formulas | `src/capacity_twin_core/config.yaml` |
+The source bundle contains:
 
-The landing page shows **Data Explorer**, **Decision Intelligence**, and **Operations Assistant** in the first row, followed by **Data Operations**. The UI uses a light Graphite/Dark Cyan identity and plain HTML, CSS, and JavaScript. One FastAPI server on `127.0.0.1` serves every workspace and API.
+- Nine separate Raw SQLite databases
+- One governed Reference DuckDB database
+- One governed Mapping DuckDB database
 
-## Storage
+Each pipeline run publishes:
 
-Set `CAPACITY_TWIN_HOME` to keep runtime data outside the checkout. On Windows the default is `%LOCALAPPDATA%\CapacityPlanningDigitalTwin`.
+- One Bronze DuckDB database
+- One Silver DuckDB database
+- One Gold DuckDB database
+- One Serving DuckDB database
+- One ML DuckDB database
 
-- Ten Raw source databases are separate SQLite files.
-- Application-owned mappings and analytical windows are published separately in `control_reference.duckdb`.
-- Processed layers are separate `bronze.duckdb`, `silver.duckdb`, `gold.duckdb`, `ml.duckdb`, and `serving.duckdb` files in the approved run-artifact design.
-- `control_current.json`, `raw_current.json`, `current.json`, and `ml_current.json` identify the active lineage.
-- Operations Assistant and Data Explorer are read-only consumers of promoted data.
+`release_current.json` selects one compatible source, pipeline, Serving, and ML release. Generated files remain outside the repository under `CAPACITY_TWIN_HOME`.
 
-Pipeline candidates use separate run-scoped databases. Validation must pass before `current.json` is atomically changed to the new promoted run.
+## Business scope
+
+- Synthetic brand: Erivon
+- Domain: telecom and networking test equipment capacity
+- Actual data end date: 2026-10-31
+- Forecast start date: 2026-11-01
+- Explicit demand classes: `DIRECT_CUSTOMER`, `SPARE`, `SERVICE`, `BOM_DEPENDENT`
+- Explicit resource behavior: alternative, serial, paired fixture, multi-DUT, standalone, shared, and dedicated
+- Intentional Raw noise: duplicates, nulls, missing dates, outliers, stale values, and broken references
+
+Real company names are reference examples only. All capabilities, products, volumes, routes, and performance are synthetic.
 
 ## Quick start
 
-Python 3.12, uv, Java 17 for PySpark, and optional Ollama are required.
+Requirements:
+
+- Python 3.12
+- uv
+- Java 17
+- Ollama only when Yukti is needed
 
 ```powershell
-# Install the locked project and development tools.
+# Install locked dependencies and development tools.
 uv sync --extra dev
 
-# Optionally choose an external runtime directory.
+# Keep generated files outside the repository.
 $env:CAPACITY_TWIN_HOME = "$env:LOCALAPPDATA\CapacityPlanningDigitalTwin"
 
-# Generate Raw data, build the pipeline, and run the five ML workflows.
+# Build data and ML publications in order.
 uv run capacity-generate
 uv run capacity-pipeline
 uv run capacity-ml
 
-# Start every dashboard on one local address.
+# Start the complete local application.
 uv run capacity-twin
 ```
 
-Operations Assistant uses `llama3.1:8b` through local Ollama as its baseline. Data Explorer should remain usable when Ollama is unavailable.
+Optional Yukti model:
 
 ```powershell
-# Pull and run the optional local model.
+# Download the local baseline model.
 ollama pull llama3.1:8b
+
+# Start the Ollama service.
 ollama serve
 ```
 
-## ML scope
-
-The project retains five workflows: demand forecasting, measured-yield prediction, OEE degradation risk, OEE anomaly detection, and CapEx Monte Carlo simulation. Evaluation must be temporal and leakage-aware, with train, validation, and holdout windows separated by month and honest comparison to a declared naive baseline. Weekly analytics are limited to operational facts derived from daily execution/events; monthly planning or ML values are never converted into artificial weeks. A workflow that cannot be evaluated returns `not_evaluable` with a reason. CapEx is simulation, not optimization, and contamination is not model accuracy.
+Open `http://127.0.0.1:8000`.
 
 ## Documentation
 
-- [Architecture](docs/architecture/system-architecture.md)
-- [Configuration](docs/architecture/configuration.md)
+- [Install](docs/setup/installation.md)
+- [Run](docs/setup/running.md)
+- [System architecture](docs/architecture/system-architecture.md)
 - [Data generation](docs/data-engineering/data-generation.md)
 - [Pipeline](docs/data-engineering/pipeline-overview.md)
-- [ML workflows](docs/ml/ml-overview.md)
-- [Operations Assistant and APIs](docs/ai-enablement/agentic-architecture.md)
-- [Installation](docs/setup/installation.md)
-- [Running](docs/setup/running.md)
+- [ML](docs/ml/ml-overview.md)
 - [Validation](docs/setup/validation.md)
 - [Limitations](docs/setup/limitations.md)
 - [Future scope](docs/technical-reference/future-scope.md)
-- [Disclaimer and license](docs/technical-reference/license.md)
 
-## Future alternatives
+The Documentation app reads the same Markdown files. There is no second content copy.
 
-Future model evaluation may compare licensed Ollama tags for a Qwen 3.5 4B-class candidate, Granite 4.2 8B-class candidate, and Qwen 3.5 9B-class challenger. Exact tags, availability, licenses, latency, RAM, and tool-call quality must be verified first. `llama.cpp` is the preferred lightweight runtime alternative; LocalAI and vLLM remain conditional future options.
-
-> This project is educational and synthetic. Do not use its outputs for production decisions.
+> Educational and synthetic. Do not use outputs for real operational, safety, staffing, procurement, or investment decisions.

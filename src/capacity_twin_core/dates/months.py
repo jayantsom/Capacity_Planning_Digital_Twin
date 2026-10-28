@@ -55,20 +55,24 @@ def month_key_label(mk: int) -> str:
     return d.strftime("%b_%Y").lower()
 
 
-def get_actual_month_keys() -> list[int]:
-    return month_key_range(202301, 202610)
+def get_actual_month_keys(start: date, end: date) -> list[int]:
+    """Return configured actual month keys."""
+    return month_key_range(date_to_month_key(start), date_to_month_key(end))
 
 
-def get_forecast_month_keys() -> list[int]:
-    return month_key_range(202611, 202712)
+def get_forecast_month_keys(start: date, end: date) -> list[int]:
+    """Return configured forecast month keys."""
+    return month_key_range(date_to_month_key(start), date_to_month_key(end))
 
 
-def get_all_month_keys() -> list[int]:
-    return month_key_range(202301, 202712)
+def get_all_month_keys(start: date, end: date) -> list[int]:
+    """Return month keys for an explicit configured date interval."""
+    return month_key_range(date_to_month_key(start), date_to_month_key(end))
 
 
-def is_actual(mk: int) -> bool:
-    return mk <= 202610
+def is_actual(mk: int, cutoff: date) -> bool:
+    """Return whether a month falls on or before the configured cutoff."""
+    return mk <= date_to_month_key(cutoff)
 
 
 def working_days_in_month(mk: int, days_normal: int) -> int:

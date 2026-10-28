@@ -86,19 +86,25 @@ Write a clear, concise answer to the user's question based on the tool results.
                 return msg.get("content", "")
         return ""
 
-    def _build_tool_list(self) -> str:
+    def _build_tool_list(self, allowed_tools: frozenset[str] | None = None) -> str:
         lines = []
         for name, fn in self.tools.items():
+            if allowed_tools is not None and name not in allowed_tools:
+                continue
             doc = (fn.__doc__ or "").strip().split("\n")[0]
             lines.append(f"- {name}: {doc}")
         return "\n".join(lines)
 
-    def _tool_prompt(self, question: str) -> str:
+    def _tool_prompt(
+        self,
+        question: str,
+        allowed_tools: frozenset[str] | None = None,
+    ) -> str:
         """Build the bounded tool-selection prompt."""
         return self.TOOL_SELECTION_PROMPT.format(
             name=self.name,
             system_prompt=self.system_prompt,
-            tool_list=self._build_tool_list(),
+            tool_list=self._build_tool_list(allowed_tools),
             question=question,
         )
 
@@ -135,12 +141,20 @@ Write a clear, concise answer to the user's question based on the tool results.
             bounded.append(call.model_copy(update={"args": args}))
         return bounded
 
-    async def _aselect_tools(self, question: str) -> list[ToolCallContract]:
+    async def _aselect_tools(
+        self,
+        question: str,
+        allowed_tools: frozenset[str] | None = None,
+    ) -> list[ToolCallContract]:
         """Select tools asynchronously so Ollama cannot block the API loop."""
         try:
             planner = get_llm(streaming=False).with_structured_output(ToolPlan)
-            plan = await planner.ainvoke(self._tool_prompt(question))
-            return plan.calls
+            plan = await planner.ainvoke(self._tool_prompt(question, allowed_tools))
+            return [
+                call
+                for call in plan.calls
+                if allowed_tools is None or call.tool in allowed_tools
+            ]
         except Exception:  # noqa: BLE001 - model failures use the safe no-tool fallback
             return []
 
@@ -161,13 +175,20 @@ Write a clear, concise answer to the user's question based on the tool results.
                 raise ValueError("Query bounds are outside the permitted range.")
         return validated
 
-    def _execute_tools(self, tool_calls: list[ToolCallContract]) -> list[dict]:
+    def _execute_tools(
+        self,
+        tool_calls: list[ToolCallContract],
+        allowed_tools: frozenset[str] | None = None,
+    ) -> list[dict]:
         """Execute each selected tool and collect results."""
         results = []
         for call in tool_calls:
             tool_name = call.tool
 
-            if tool_name not in self.tools:
+            if (
+                tool_name not in self.tools
+                or (allowed_tools is not None and tool_name not in allowed_tools)
+            ):
                 results.append({"tool": tool_name, "error": "Unknown tool."})
                 continue
 
@@ -182,9 +203,13 @@ Write a clear, concise answer to the user's question based on the tool results.
 
         return results
 
-    async def _aexecute_tools(self, tool_calls: list[ToolCallContract]) -> list[dict]:
+    async def _aexecute_tools(
+        self,
+        tool_calls: list[ToolCallContract],
+        allowed_tools: frozenset[str] | None = None,
+    ) -> list[dict]:
         """Run synchronous database tools on a worker thread."""
-        return await asyncio.to_thread(self._execute_tools, tool_calls)
+        return await asyncio.to_thread(self._execute_tools, tool_calls, allowed_tools)
 
     def _synthesis_prompt(self, question: str, tool_results: list[dict]) -> str:
         """Build a bounded synthesis prompt from structured tool results."""
@@ -215,22 +240,32 @@ Write a clear, concise answer to the user's question based on the tool results.
         response = llm.invoke(self._synthesis_prompt(question, tool_results))
         return response.content if hasattr(response, "content") else str(response)
 
-    async def arun(self, question: str) -> dict:
+    async def arun(
+        self,
+        question: str,
+        *,
+        allowed_tools: frozenset[str] | None = None,
+    ) -> dict:
         """Run the complete agent through non-blocking Ollama and DB calls."""
-        tool_calls = await self._aselect_tools(question)
+        tool_calls = await self._aselect_tools(question, allowed_tools)
         tool_calls = self._apply_trusted_bounds(question, tool_calls)
-        tool_results = await self._aexecute_tools(tool_calls)
+        tool_results = await self._aexecute_tools(tool_calls, allowed_tools)
         response = await get_llm(streaming=False).ainvoke(
             self._synthesis_prompt(question, tool_results)
         )
         answer = response.content if hasattr(response, "content") else str(response)
         return {"answer": answer, "tool_results": tool_results}
 
-    async def astream(self, question: str) -> AsyncIterator[dict]:
+    async def astream(
+        self,
+        question: str,
+        *,
+        allowed_tools: frozenset[str] | None = None,
+    ) -> AsyncIterator[dict]:
         """Yield tool metadata followed by actual Ollama response chunks."""
-        tool_calls = await self._aselect_tools(question)
+        tool_calls = await self._aselect_tools(question, allowed_tools)
         tool_calls = self._apply_trusted_bounds(question, tool_calls)
-        tool_results = await self._aexecute_tools(tool_calls)
+        tool_results = await self._aexecute_tools(tool_calls, allowed_tools)
         yield {"type": "tools", "tool_results": tool_results}
         async for chunk in get_llm(streaming=True).astream(
             self._synthesis_prompt(question, tool_results)

@@ -18,8 +18,10 @@ import duckdb
 import numpy as np
 import pandas as pd
 
+from capacity_twin_core.runtime.analytics import open_analytics_connection
 from capacity_twin_core.runtime.database_paths import (
     get_active_run_pointer,
+    get_release_pointer,
     get_runtime_home,
     load_app_config,
 )
@@ -28,11 +30,49 @@ PIPELINE_CONFIG = load_app_config("data_operations.pipeline")
 ML_CONFIG = load_app_config("decision_intelligence")
 _ACTIVE_DB_PATH: Path | None = None
 _ACTIVE_MODELS_DIR: Path | None = None
+_ACTIVE_INPUT_PATHS: dict[str, Path] | None = None
+
+ML_OUTPUT_NAME_MAP = {
+    "gold_demand_forecast": "ml_demand_forecast",
+    "gold_forecast_accuracy_ml": "ml_forecast_accuracy",
+    "gold_yield_predictions": "ml_yield_predictions",
+    "gold_yield_shap": "ml_yield_shap",
+    "gold_cap_ml_adjusted": "ml_capacity_adjusted",
+    "gold_maintenance_risk": "ml_oee_degradation_risk",
+    "gold_maintenance_alerts": "ml_oee_degradation_alerts",
+    "gold_oee_anomalies": "ml_oee_anomalies",
+    "gold_oee_anomaly_summary": "ml_oee_anomaly_summary",
+    "gold_capex_mc_summary": "ml_capex_summary",
+    "gold_capex_mc_scenarios": "ml_capex_scenarios",
+}
+
+SERVING_INPUT_ALIASES = {
+    "gold_ml_feature_store": "srv_ml_feature_store",
+    "gold_oee_metrics": "srv_oee_metrics",
+    "gold_cap_actual": "srv_actual_output",
+    "gold_gcm_base": "srv_gcm_resource_contract",
+    "gold_operational_performance": "srv_vw_operational_performance",
+    "gold_operational_events": "srv_vw_operational_events",
+}
+
+REFERENCE_INPUT_ALIASES = {
+    "slvr_ref_site": "site",
+    "slvr_prod_master": "product",
+    "slvr_ref_test_type": "test_type",
+    "slvr_ref_equipment": "machine",
+}
 
 
 def source_database_path() -> Path:
     """Return the self-contained Serving input with Gold facts and dimensions."""
     runtime = get_runtime_home()
+    release_pointer = get_release_pointer(runtime)
+    if release_pointer.is_file():
+        release = json.loads(release_pointer.read_text(encoding="utf-8"))
+        details = release.get("publications", {}).get("serving", {})
+        if details.get("path"):
+            candidate = Path(details["path"])
+            return candidate if candidate.is_absolute() else runtime / candidate
     pointer = get_active_run_pointer(runtime)
     if pointer.is_file():
         payload = json.loads(pointer.read_text(encoding="utf-8"))
@@ -55,6 +95,17 @@ def source_database_path() -> Path:
 def published_database_path() -> Path:
     """Return the external ML publication database."""
     runtime = get_runtime_home()
+    release_pointer = get_release_pointer(runtime)
+    if release_pointer.is_file():
+        release = json.loads(release_pointer.read_text(encoding="utf-8"))
+        details = release.get("ml") or {}
+        if details.get("path"):
+            candidate = Path(details["path"])
+            candidate = candidate if candidate.is_absolute() else runtime / candidate
+            resolved = candidate.resolve()
+            if runtime.resolve() not in resolved.parents:
+                raise ValueError("Release ML path escapes the runtime home")
+            return resolved
     pointer = runtime / "ml_current.json"
     if pointer.is_file():
         payload = json.loads(pointer.read_text(encoding="utf-8"))
@@ -68,11 +119,48 @@ def published_database_path() -> Path:
 def set_active_paths(
     database_path: Path | None = None,
     models_dir: Path | None = None,
+    *,
+    input_paths: dict[str, Path] | None = None,
 ) -> None:
     """Point one staged run at its candidate database and model directory."""
-    global _ACTIVE_DB_PATH, _ACTIVE_MODELS_DIR
+    global _ACTIVE_DB_PATH, _ACTIVE_MODELS_DIR, _ACTIVE_INPUT_PATHS
     _ACTIVE_DB_PATH = database_path
     _ACTIVE_MODELS_DIR = models_dir
+    _ACTIVE_INPUT_PATHS = input_paths
+
+
+def _attach_catalogs(
+    connection: duckdb.DuckDBPyConnection,
+    inputs: dict[str, Path],
+) -> None:
+    for alias, path in inputs.items():
+        escaped = str(path.resolve()).replace("'", "''")
+        connection.execute(f"ATTACH '{escaped}' AS {alias} (READ_ONLY)")
+    for legacy, serving_table in SERVING_INPUT_ALIASES.items():
+        connection.execute(
+            f'CREATE OR REPLACE TEMP VIEW "{legacy}" AS '
+            f'SELECT * FROM serving."{serving_table}"'
+        )
+    for legacy, reference_table in REFERENCE_INPUT_ALIASES.items():
+        connection.execute(
+            f'CREATE OR REPLACE TEMP VIEW "{legacy}" AS '
+            f'SELECT * FROM reference.canonical."{reference_table}"'
+        )
+    local_tables = {
+        row[0]
+        for row in connection.execute(
+            """
+            SELECT table_name FROM information_schema.tables
+            WHERE table_catalog = current_database() AND table_type = 'BASE TABLE'
+            """
+        ).fetchall()
+    }
+    for legacy, published in ML_OUTPUT_NAME_MAP.items():
+        if published in local_tables:
+            connection.execute(
+                f'CREATE OR REPLACE TEMP VIEW "{legacy}" AS '
+                f'SELECT * FROM "{published}"'
+            )
 
 
 def get_conn(*, read_only: bool = False) -> duckdb.DuckDBPyConnection:
@@ -81,7 +169,10 @@ def get_conn(*, read_only: bool = False) -> duckdb.DuckDBPyConnection:
     if not path.is_file() and read_only:
         raise FileNotFoundError(f"ML input database not found: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    return duckdb.connect(str(path), read_only=read_only)
+    connection = duckdb.connect(str(path), read_only=read_only)
+    if _ACTIVE_INPUT_PATHS:
+        _attach_catalogs(connection, _ACTIVE_INPUT_PATHS)
+    return connection
 
 
 def _table_exists(conn: duckdb.DuckDBPyConnection, table: str) -> bool:
@@ -204,18 +295,30 @@ def load_table(conn: duckdb.DuckDBPyConnection, table: str) -> pd.DataFrame:
     """Load a trusted internal table name."""
     if not table.replace("_", "").isalnum():
         raise ValueError(f"Invalid table name: {table}")
-    return conn.execute(f"SELECT * FROM {table}").df()
+    physical = ML_OUTPUT_NAME_MAP.get(table, table)
+    return conn.execute(f'SELECT * FROM "{physical}"').df()
 
 
 def upsert_table(conn: duckdb.DuckDBPyConnection, df: pd.DataFrame, table: str) -> int:
     """Replace one candidate output table after validating its identifier."""
     if not table.replace("_", "").isalnum():
         raise ValueError(f"Invalid table name: {table}")
-    conn.execute(f"DROP TABLE IF EXISTS {table}")
+    physical = ML_OUTPUT_NAME_MAP.get(table, table)
+    conn.execute(f'DROP VIEW IF EXISTS "{table}"')
+    conn.execute(f'DROP TABLE IF EXISTS "{physical}"')
     conn.register("_tmp", df)
-    conn.execute(f"CREATE TABLE {table} AS SELECT * FROM _tmp")
+    conn.execute(f'CREATE TABLE "{physical}" AS SELECT * FROM _tmp')
     conn.unregister("_tmp")
+    if physical != table:
+        conn.execute(
+            f'CREATE OR REPLACE TEMP VIEW "{table}" AS SELECT * FROM "{physical}"'
+        )
     return len(df)
+
+
+def open_release_connection() -> duckdb.DuckDBPyConnection:
+    """Open one release-pinned read connection over Serving, Reference, and ML."""
+    return open_analytics_connection()
 
 
 def _models_dir() -> Path:

@@ -1,6 +1,7 @@
 'use strict';
 
-import { apiJson as api, appendTextCell } from '/shared/dashboard.js';
+import { apiJson as api, appendTextCell } from '/shared/static/dashboard.js';
+import { loadECharts } from '/shared/static/chart.js?v=20261027c';
 
 const elements = {
   health: document.getElementById('healthStatus'),
@@ -16,15 +17,24 @@ const elements = {
   clearRawSummary: document.getElementById('clearRawSummary'),
   clearAllSummary: document.getElementById('clearAllSummary'),
   clearStatus: document.getElementById('clearStatus'),
+  architectureLayer: document.getElementById('architectureLayer'),
+  architectureSearch: document.getElementById('architectureSearch'),
+  architectureStatus: document.getElementById('architectureStatus'),
+  architectureCounts: document.getElementById('architectureCounts'),
+  architectureGraph: document.getElementById('architectureGraph'),
+  architectureDetails: document.getElementById('architectureDetails'),
+  architectureSchema: document.getElementById('architectureSchema'),
 };
 
 let activeJobId = null;
 let pollTimer = null;
 let latestHealth = null;
+let architecture = null;
+let architectureChart = null;
 
 function sentenceCase(value) {
   const text = String(value || '').replaceAll('_', ' ').toLowerCase();
-  return text ? `${text[0].toUpperCase()}${text.slice(1)}` : '—';
+  return text ? `${text[0].toUpperCase()}${text.slice(1)}` : '-';
 }
 
 function setStatusBadge(element, stateName, baseClass) {
@@ -49,9 +59,14 @@ function selectTab(name) {
     tab.setAttribute('aria-selected', String(selected));
     tab.tabIndex = selected ? 0 : -1;
   });
-  document.getElementById('generatorPanel').hidden = name !== 'generator';
-  document.getElementById('pipelinePanel').hidden = name !== 'pipeline';
+  ['generator', 'pipeline', 'architecture'].forEach((panel) => {
+    document.getElementById(`${panel}Panel`).hidden = name !== panel;
+  });
+  document.getElementById('jobBand').hidden = name === 'architecture';
+  document.getElementById('operationsHistory').hidden = name === 'architecture';
+  document.getElementById('operationsDanger').hidden = name === 'architecture';
   window.history.replaceState(null, '', `#${name}`);
+  if (name === 'architecture') void loadArchitecture();
 }
 
 function optionsPayload() {
@@ -91,7 +106,7 @@ function applyDefaults(defaults) {
 }
 
 function formatBytes(value) {
-  if (!Number.isFinite(value)) return '—';
+  if (!Number.isFinite(value)) return '-';
   const units = ['B', 'KB', 'MB', 'GB'];
   let size = value;
   let unit = 0;
@@ -251,8 +266,8 @@ async function loadHistory() {
     appendTextCell(row, sentenceCase(job.kind));
     appendTextCell(row, String(job.status).replaceAll('_', ' '));
     appendTextCell(row, job.phase);
-    appendTextCell(row, job.started_at ? new Date(job.started_at).toLocaleString() : '—');
-    appendTextCell(row, job.completed_at ? new Date(job.completed_at).toLocaleString() : '—');
+    appendTextCell(row, job.started_at ? new Date(job.started_at).toLocaleString() : '-');
+    appendTextCell(row, job.completed_at ? new Date(job.completed_at).toLocaleString() : '-');
     elements.historyBody.append(row);
   });
   const running = payload.jobs.find((job) => ['PENDING', 'RUNNING'].includes(job.status));
@@ -261,6 +276,217 @@ async function loadHistory() {
     renderJob(running);
     window.clearTimeout(pollTimer);
     pollTimer = window.setTimeout(pollJob, 500);
+  }
+}
+
+const ARCHITECTURE_COLORS = {
+  raw: '#315f8f',
+  reference: '#5b4b8a',
+  mapping: '#7c5c9e',
+  bronze: '#b45309',
+  silver: '#64748b',
+  gold: '#d97706',
+  serving: '#006d77',
+  ml: '#7c3aed',
+};
+
+function architectureLayerLabel(layer) {
+  return layer === 'ml' ? 'ML' : sentenceCase(layer);
+}
+
+function renderArchitectureCounts() {
+  elements.architectureCounts.replaceChildren();
+  architecture.layers.forEach((layer) => {
+    const card = document.createElement('div');
+    const label = document.createElement('span');
+    label.textContent = architectureLayerLabel(layer);
+    const value = document.createElement('strong');
+    value.textContent = architecture.layer_counts[layer] || 0;
+    card.append(label, value);
+    elements.architectureCounts.append(card);
+  });
+}
+
+function architectureSelection() {
+  const selectedLayer = elements.architectureLayer.value;
+  const search = elements.architectureSearch.value.trim().toLowerCase();
+  let selected = new Set(
+    architecture.nodes
+      .filter((node) => !selectedLayer || node.layer === selectedLayer)
+      .filter((node) => !search || node.id.toLowerCase().includes(search))
+      .map((node) => node.id),
+  );
+  if (selectedLayer || search) {
+    architecture.edges.forEach((edge) => {
+      if (selected.has(edge.source) || selected.has(edge.target)) {
+        selected.add(edge.source);
+        selected.add(edge.target);
+      }
+    });
+  } else {
+    selected = new Set(architecture.nodes.map((node) => node.id));
+  }
+  return selected;
+}
+
+function renderArchitectureDetails(node) {
+  elements.architectureDetails.replaceChildren();
+  const fields = [
+    ['Object', node.id],
+    ['Layer', node.layer === 'ml' ? 'ML' : sentenceCase(node.layer)],
+    ['Owner', node.owner],
+    ['Grain', node.grain],
+    ['Formula', node.formula],
+    ['Natural keys', node.natural_keys?.join(', ')],
+    ['Canonical keys', node.canonical_keys?.join(', ')],
+    ['Units', node.units ? JSON.stringify(node.units) : null],
+    ['Consumers', node.consuming_apps?.join(', ')],
+  ];
+  fields.forEach(([name, value]) => {
+    if (value == null || value === '') return;
+    const term = document.createElement('dt');
+    term.textContent = name;
+    const description = document.createElement('dd');
+    description.textContent = String(value);
+    elements.architectureDetails.append(term, description);
+  });
+  void renderArchitectureSchema(node);
+}
+
+async function renderArchitectureSchema(node) {
+  elements.architectureSchema.replaceChildren();
+  const caption = document.createElement('caption');
+  caption.textContent = 'Published schema';
+  elements.architectureSchema.append(caption);
+  if (!node.catalog_source || !node.catalog_table) {
+    const body = document.createElement('tbody');
+    const row = document.createElement('tr');
+    appendTextCell(row, 'No physical catalog object is mapped.');
+    body.append(row);
+    elements.architectureSchema.append(body);
+    return;
+  }
+  try {
+    const schema = await api(
+      `/explorer/api/schema/${encodeURIComponent(node.catalog_source)}/${encodeURIComponent(node.catalog_table)}`,
+    );
+    const head = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    ['Column', 'Type'].forEach((label) => {
+      const header = document.createElement('th');
+      header.textContent = label;
+      headRow.append(header);
+    });
+    head.append(headRow);
+    const body = document.createElement('tbody');
+    schema.columns.forEach((column) => {
+      const row = document.createElement('tr');
+      appendTextCell(row, column.name);
+      appendTextCell(row, column.type);
+      body.append(row);
+    });
+    caption.textContent = `${schema.row_count.toLocaleString()} rows | ${schema.native_grain} grain`;
+    elements.architectureSchema.append(head, body);
+  } catch (error) {
+    const body = document.createElement('tbody');
+    const row = document.createElement('tr');
+    appendTextCell(row, error.message);
+    body.append(row);
+    elements.architectureSchema.append(body);
+  }
+}
+
+async function renderArchitectureGraph() {
+  if (!architecture) return;
+  const visible = architectureSelection();
+  const nodes = architecture.nodes.filter((node) => visible.has(node.id));
+  const edges = architecture.edges.filter(
+    (edge) => visible.has(edge.source) && visible.has(edge.target),
+  );
+  const grouped = new Map(architecture.layers.map((layer) => [layer, []]));
+  nodes.forEach((node) => grouped.get(node.layer)?.push(node));
+  const graphNodes = [];
+  architecture.layers.forEach((layer, layerIndex) => {
+    const layerNodes = grouped.get(layer) || [];
+    layerNodes.forEach((node, nodeIndex) => {
+      graphNodes.push({
+        id: node.id,
+        name: node.label,
+        objectId: node.id,
+        category: architectureLayerLabel(layer),
+        x: layerIndex * 220,
+        y: (nodeIndex - (layerNodes.length - 1) / 2) * 54,
+        symbolSize: 18,
+        itemStyle: { color: ARCHITECTURE_COLORS[layer] },
+      });
+    });
+  });
+  const echarts = await loadECharts();
+  if (architectureChart) architectureChart.dispose();
+  architectureChart = echarts.init(elements.architectureGraph, null, { renderer: 'canvas' });
+  architectureChart.setOption({
+    animation: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    tooltip: {
+      trigger: 'item',
+      formatter: (params) => (
+        params.dataType === 'edge'
+          ? `${params.data.source} -> ${params.data.target}<br>${params.data.relation}`
+          : params.data.objectId
+      ),
+    },
+    legend: [{
+      data: architecture.layers.map((layer) => ({
+        name: architectureLayerLabel(layer),
+        itemStyle: { color: ARCHITECTURE_COLORS[layer] },
+      })),
+    }],
+    series: [{
+      type: 'graph',
+      layout: 'none',
+      roam: true,
+      categories: architecture.layers.map((layer) => ({
+        name: architectureLayerLabel(layer),
+      })),
+      data: graphNodes,
+      links: edges,
+      edgeSymbol: ['none', 'arrow'],
+      edgeSymbolSize: 7,
+      lineStyle: { color: '#8b949c', width: 1, curveness: 0.08, opacity: 0.65 },
+      label: {
+        show: nodes.length <= 120,
+        position: 'right',
+        formatter: '{b}',
+        fontSize: 9,
+      },
+      emphasis: { focus: 'adjacency', lineStyle: { width: 2, opacity: 1 } },
+    }],
+  });
+  architectureChart.on('click', (params) => {
+    if (params.dataType !== 'node') return;
+    const node = architecture.nodes.find((item) => item.id === params.data.objectId);
+    if (node) renderArchitectureDetails(node);
+  });
+  elements.architectureStatus.textContent = `${nodes.length} objects | ${edges.length} lineage links`;
+}
+
+async function loadArchitecture() {
+  if (architecture) {
+    await renderArchitectureGraph();
+    return;
+  }
+  try {
+    architecture = await api('/data-operations/api/architecture');
+    elements.architectureLayer.replaceChildren(new Option('All layers', ''));
+    architecture.layers.forEach((layer) => {
+      const label = architectureLayerLabel(layer);
+      elements.architectureLayer.add(new Option(label, layer));
+    });
+    renderArchitectureCounts();
+    await renderArchitectureGraph();
+    const firstGold = architecture.nodes.find((node) => node.layer === 'gold');
+    if (firstGold) renderArchitectureDetails(firstGold);
+  } catch (error) {
+    elements.architectureStatus.textContent = error.message;
   }
 }
 
@@ -274,7 +500,9 @@ async function initialize() {
     setHealthStatus('offline');
     elements.jobDetail.textContent = error.message;
   } finally {
-    selectTab(window.location.hash === '#pipeline' ? 'pipeline' : 'generator');
+    const requested = window.location.hash.slice(1);
+    selectTab(['generator', 'pipeline', 'architecture'].includes(requested)
+      ? requested : 'generator');
   }
 }
 
@@ -283,9 +511,11 @@ document.querySelectorAll('[role="tab"]').forEach((tab) => {
   tab.addEventListener('keydown', (event) => {
     if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
     event.preventDefault();
-    const next = tab.dataset.tab === 'generator' ? 'pipeline' : 'generator';
-    selectTab(next);
-    document.querySelector(`[data-tab="${next}"]`).focus();
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    const offset = event.key === 'ArrowRight' ? 1 : -1;
+    const next = tabs[(tabs.indexOf(tab) + offset + tabs.length) % tabs.length];
+    selectTab(next.dataset.tab);
+    next.focus();
   });
 });
 document.getElementById('generatorForm').addEventListener('submit', (event) => {
@@ -310,5 +540,13 @@ document.getElementById('estimateButton').addEventListener('click', () => void u
 document.getElementById('refreshButton').addEventListener('click', () => {
   void Promise.allSettled([loadHealth(), loadHistory()]);
 });
+elements.architectureLayer.addEventListener('change', () => void renderArchitectureGraph());
+elements.architectureSearch.addEventListener('input', () => void renderArchitectureGraph());
+document.getElementById('resetArchitecture').addEventListener('click', () => {
+  elements.architectureLayer.value = '';
+  elements.architectureSearch.value = '';
+  void renderArchitectureGraph();
+});
+window.addEventListener('resize', () => architectureChart?.resize());
 
 void initialize();

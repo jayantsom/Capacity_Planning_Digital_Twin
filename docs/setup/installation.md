@@ -7,7 +7,7 @@
 - uv
 - Python 3.12, managed by uv
 - Java 17 for PySpark
-- Optional Ollama for Operations Assistant
+- Optional Ollama for Yukti
 
 GPU acceleration is optional. Do not run PySpark, full-data ML, and Ollama concurrently on the one-machine profile.
 
@@ -51,7 +51,7 @@ $env:CAPACITY_TWIN_HOME = "$env:LOCALAPPDATA\CapacityPlanningDigitalTwin"
 
 If unset, Capacity Twin Core uses that same Windows location by default.
 
-## Optional Operations Assistant model
+## Optional Yukti model
 
 ```powershell
 # Install the current local baseline model.

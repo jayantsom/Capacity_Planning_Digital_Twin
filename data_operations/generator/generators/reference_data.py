@@ -367,20 +367,21 @@ def generate_reference_data(config: dict) -> None:
     logger.info("GENERATING: raw_reference_data.db")
     logger.info("=" * 60)
 
-    db_path = get_sqlite_path(
-        config["databases"]["raw"]["reference_data"], config
-    )
+    site_db = get_sqlite_path(config["databases"]["raw"]["site"], config)
+    test_db = get_sqlite_path(config["databases"]["raw"]["test"], config)
+    machine_db = get_sqlite_path(config["databases"]["raw"]["machine"], config)
+    product_db = get_sqlite_path(config["databases"]["raw"]["product"], config)
 
     site_df = generate_site_master()
-    write_to_sqlite(site_df, "site_master", db_path)
+    write_to_sqlite(site_df, "site_master", site_db)
     logger.info(f"  Sites: {len(site_df)} records")
 
     test_type_df = generate_test_type_master()
-    write_to_sqlite(test_type_df, "test_type_master", db_path)
+    write_to_sqlite(test_type_df, "test_type_master", test_db)
     logger.info(f"  Test types: {len(test_type_df)} records")
 
     equip_df = generate_equipment_master()
-    write_to_sqlite(equip_df, "equipment_master", db_path)
+    write_to_sqlite(equip_df, "equipment_master", machine_db)
     logger.info(f"  Equipment: {len(equip_df)} records "
                 f"({len(SYSTEMS)} systems, {len(FIXTURES)} fixtures)")
 
@@ -402,7 +403,7 @@ def generate_reference_data(config: dict) -> None:
             synthetic_disclaimer=CONTRACT_DISCLAIMER,
         )
     )
-    write_to_sqlite(manufacturers, "manufacturer_master", db_path)
+    write_to_sqlite(manufacturers, "manufacturer_master", product_db)
 
     logger.success("raw_reference_data.db complete")
     return site_df, test_type_df, equip_df

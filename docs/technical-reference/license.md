@@ -6,7 +6,7 @@ This project uses programmatically generated telecom/networking manufacturing da
 
 Real EMS companies, public locations, standards, and equipment vendors may appear as attributed educational reference data. Their appearance does not imply affiliation, endorsement, actual production, verified capability, or permission to infer commercial performance.
 
-No output is certified, audited, or fit for operational, financial, safety, procurement, staffing, or investment decisions. ML output and Operations Assistant responses may be incorrect. Validate all formulas, data, assumptions, sources, and licenses independently.
+No output is certified, audited, or fit for operational, financial, safety, procurement, staffing, or investment decisions. ML output and Yukti responses may be incorrect. Validate all formulas, data, assumptions, sources, and licenses independently.
 
 ## Intended use
 

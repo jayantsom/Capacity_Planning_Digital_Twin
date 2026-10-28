@@ -1,0 +1,165 @@
+migration_version: "1.0"
+current_database_count: 10
+current_table_count: 17
+target_database_count: 9
+target_databases:
+  - raw_demand.db
+  - raw_product.db
+  - raw_site.db
+  - raw_machine.db
+  - raw_test.db
+  - raw_yield.db
+  - raw_execution.db
+  - raw_inventory.db
+  - raw_npi.db
+
+current_to_target:
+  raw_demand_forecast.db:
+    demand_requirement:
+      target_database: raw_demand.db
+      bronze_state: ingested
+      target_contract: demand_requirement
+  raw_product_master.db:
+    product_master:
+      target_database: raw_product.db
+      bronze_state: ingested
+      target_contract: product_master
+    product_bom:
+      target_database: raw_product.db
+      bronze_state: omitted_compatibility_pending
+      target_contract: product_bom
+    product_route:
+      target_database: raw_product.db
+      bronze_state: omitted_compatibility_pending
+      target_contract: product_route
+    route_step:
+      target_database: raw_product.db
+      bronze_state: omitted_compatibility_pending
+      target_contract: route_step
+    site_product_source:
+      target_database: raw_product.db
+      bronze_state: omitted_compatibility_pending
+      target_contract: site_product_source
+  raw_target_test_time.db:
+    target_test_time:
+      target_database: raw_test.db
+      bronze_state: ingested
+      target_contract: target_test_time
+  raw_target_yield.db:
+    target_yield:
+      target_database: raw_yield.db
+      bronze_state: ingested
+      target_contract: target_yield
+  raw_site_equip_inv.db:
+    site_equipment_inventory:
+      target_database: raw_machine.db
+      bronze_state: ingested
+      target_contract: site_equipment_inventory
+  raw_site_soft.db:
+    site_soft:
+      target_database: raw_site.db
+      bronze_state: ingested
+      target_contract: site_soft
+  raw_machine_execution.db:
+    machine_execution:
+      target_database: raw_execution.db
+      bronze_state: ingested
+      target_contract: machine_execution
+  raw_machine_test_param.db:
+    machine_test_param:
+      target_database: raw_test.db
+      bronze_state: ingested
+      target_contract: machine_test_param
+  raw_machine_logs.db:
+    machine_logs:
+      target_database: raw_machine.db
+      bronze_state: ingested
+      target_contract: machine_logs
+  raw_reference_data.db:
+    site_master:
+      target_database: raw_site.db
+      bronze_state: ingested
+      target_contract: site_master
+    test_type_master:
+      target_database: raw_test.db
+      bronze_state: ingested
+      target_contract: test_type_master
+    equipment_master:
+      target_database: raw_machine.db
+      bronze_state: ingested
+      target_contract: equipment_master
+    manufacturer_master:
+      target_database: raw_product.db
+      bronze_state: omitted_compatibility_pending
+      target_contract: manufacturer_master
+
+planned_new_contracts:
+  customer_order:
+    target_database: raw_demand.db
+    status: implemented
+  backlog_position:
+    target_database: raw_demand.db
+    status: implemented
+  material_inventory_position:
+    target_database: raw_inventory.db
+    status: implemented
+  constrained_production_plan:
+    target_database: raw_demand.db
+    status: implemented
+  shared_resource_allocation:
+    target_database: raw_demand.db
+    status: implemented
+  inbound_receipt:
+    target_database: raw_inventory.db
+    status: implemented
+  shipment:
+    target_database: raw_inventory.db
+    status: implemented
+  safety_stock_policy:
+    target_database: raw_inventory.db
+    status: implemented
+  service_target:
+    target_database: raw_inventory.db
+    status: implemented
+  lot_route_movement_event:
+    target_database: raw_execution.db
+    status: implemented
+  production_schedule:
+    target_database: raw_execution.db
+    status: implemented
+  npi_program:
+    target_database: raw_npi.db
+    status: implemented
+  npi_stage_gate:
+    target_database: raw_npi.db
+    status: implemented
+  npi_milestone:
+    target_database: raw_npi.db
+    status: implemented
+  npi_qualification_evidence:
+    target_database: raw_npi.db
+    status: implemented
+  npi_pilot_lot:
+    target_database: raw_npi.db
+    status: implemented
+  npi_tooling_readiness:
+    target_database: raw_npi.db
+    status: implemented
+  npi_ramp_target:
+    target_database: raw_npi.db
+    status: implemented
+  npi_ramp_actual:
+    target_database: raw_npi.db
+    status: implemented
+  npi_risk:
+    target_database: raw_npi.db
+    status: implemented
+  npi_owner:
+    target_database: raw_npi.db
+    status: implemented
+  npi_status_history:
+    target_database: raw_npi.db
+    status: implemented
+  equipment_cost_reference:
+    target_database: raw_machine.db
+    status: implemented

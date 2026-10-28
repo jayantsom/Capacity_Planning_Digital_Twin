@@ -1,9 +1,7 @@
 'use strict';
 
-import { mountComparisonBand } from '/shared/comparison-band.js';
-
 const API = '/explorer/api';
-const LAYERS = ['raw', 'control', 'bronze', 'silver', 'gold', 'serving', 'ml'];
+const LAYERS = ['raw', 'reference', 'mapping', 'bronze', 'silver', 'gold', 'serving', 'ml'];
 const FILTER_PRIORITY = [
   'period_grain', 'site_code', 'site_id', 'factory_code', 'product_number', 'product_id',
   'test_type', 'test_type_id', 'month_key', 'month', 'planning_version_id',
@@ -26,9 +24,6 @@ const state = {
   filters: {},
   sortColumn: null,
   sortDirection: 'asc',
-  comparisonWindow: 'total',
-  comparisonSupported: false,
-  comparisonController: null,
 };
 
 const ui = {
@@ -92,7 +87,8 @@ function buildCatalog(sources) {
     toggle.setAttribute('aria-expanded', 'true');
     const dot = node('span', 'layer-dot');
     dot.setAttribute('aria-hidden', 'true');
-    const name = node('span', '', `${layer[0].toUpperCase()}${layer.slice(1)} layer`);
+    const layerName = layer === 'ml' ? 'ML' : `${layer[0].toUpperCase()}${layer.slice(1)}`;
+    const name = node('span', '', `${layerName} layer`);
     const count = node('span', 'count', String(layers[layer].length));
     const list = node('div', 'table-list');
     toggle.append(dot, name, count);
@@ -121,21 +117,6 @@ function buildCatalog(sources) {
 
 async function initialise() {
   try {
-    try {
-      state.comparisonController = await mountComparisonBand(
-        document.getElementById('comparisonBand'),
-        (windowId) => {
-          state.comparisonWindow = windowId;
-          if (state.comparisonSupported) {
-            state.page = 1;
-            void loadData();
-          }
-        },
-      );
-      state.comparisonWindow = state.comparisonController.windowId;
-    } catch {
-      document.getElementById('comparisonBand').hidden = true;
-    }
     const sources = await jsonRequest(`${API}/sources`);
     state.sources = Array.isArray(sources) ? sources : [];
     buildCatalog(state.sources);
@@ -180,11 +161,8 @@ async function selectTable(entry, button) {
       `SUPPORTED: ${(schema.supported_grains || []).join(' · ') || 'NONE'}`,
     ].forEach((text) => grainBadges.append(node('span', 'grain-badge', text)));
     grainBadges.hidden = false;
-    state.comparisonSupported = Boolean(schema.comparison_supported);
-    document.getElementById('comparisonBand').hidden = !state.comparisonSupported;
-    const activeWindow = state.comparisonSupported ? state.comparisonWindow : 'total';
     const data = await jsonRequest(
-      `${API}/data/${base}?page=1&page_size=${state.pageSize}&window=${activeWindow}`,
+      `${API}/data/${base}?page=1&page_size=${state.pageSize}`,
     );
     applyDataResponse(data);
     updateTableIdentity();
@@ -312,9 +290,8 @@ async function loadData() {
     ? `&sort_col=${encodeURIComponent(state.sortColumn)}&sort_dir=${state.sortDirection}`
     : '';
   const base = `${encodePath(state.source)}/${encodePath(state.table)}`;
-  const activeWindow = state.comparisonSupported ? state.comparisonWindow : 'total';
   try {
-    const data = await jsonRequest(`${API}/data/${base}?page=${state.page}&page_size=${state.pageSize}&filters=${filters}${sort}&window=${activeWindow}`);
+    const data = await jsonRequest(`${API}/data/${base}?page=${state.page}&page_size=${state.pageSize}&filters=${filters}${sort}`);
     applyDataResponse(data);
     updateSummary();
   } catch (error) {

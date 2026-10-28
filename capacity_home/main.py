@@ -1,24 +1,25 @@
-"""Single local web entry point for all Capacity Twin applications."""
+"""Registry-composed local web entry point for Capacity Twin applications."""
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 import capacity_twin_core
-from capacity_twin_core.comparison.api import router as comparison_router
+from capacity_twin_core.applications import APPLICATIONS, enabled_applications
 from capacity_twin_core.runtime.database_paths import load_app_config
-from data_explorer.backend.main import app as explorer_app
-from data_operations.backend.main import app as data_operations_app
-from decision_intelligence.backend.main import app as decision_intelligence_app
-from operations_assistant.backend.main import app as operations_assistant_app
+from operations_assistant.backend.main import router as yukti_router
 
 APP_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = APP_DIR / "frontend"
 CORE_FRONTEND_DIR = Path(capacity_twin_core.__file__).resolve().parent / "frontend"
 APP_CONFIG = load_app_config("capacity_home")
+home_router = APIRouter()
+shared_router = APIRouter(prefix="/shared/api", tags=["shared"])
+COMPOSED_ROUTE_PATHS: tuple[str, ...] = ()
+COMPOSED_ROUTE_KEYS: tuple[tuple[str, str], ...] = ()
 
 app = FastAPI(
     title="Capacity Planning Digital Twin",
@@ -33,43 +34,91 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
-app.include_router(comparison_router)
 app.mount("/home/static", StaticFiles(directory=str(FRONTEND_DIR)), name="home_static")
 app.mount(
-    "/shared",
+    "/shared/static",
     StaticFiles(directory=str(CORE_FRONTEND_DIR)),
-    name="shared_frontend",
+    name="shared_static",
 )
 
 
-@app.get("/", include_in_schema=False)
+@home_router.get("/", include_in_schema=False)
 async def home_index() -> FileResponse:
     """Serve the compact application launcher."""
     return FileResponse(FRONTEND_DIR / "index.html")
 
 
-@app.get("/operations-assistant/", include_in_schema=False)
-async def operations_assistant_index() -> FileResponse:
-    """Serve Operations Assistant from the shared local web process."""
-    return FileResponse(APP_DIR.parent / "operations_assistant" / "frontend" / "index.html")
+@shared_router.get("/applications")
+async def application_catalog() -> dict[str, object]:
+    """Expose the same safe registry metadata used to compose this process."""
+    return {"applications": [item.public_dict() for item in APPLICATIONS]}
 
 
-def _adopt_routes(source: FastAPI, prefixes: tuple[str, ...]) -> None:
-    """Attach selected app-owned routes without starting another server."""
-    for route in source.router.routes:
-        path = getattr(route, "path", "")
-        if path.startswith(prefixes):
-            app.router.routes.append(route)
+@shared_router.get("/health")
+async def shared_health() -> dict[str, object]:
+    """Report configured application routes without coupling their readiness."""
+    route_paths = set(COMPOSED_ROUTE_PATHS)
+    applications = [
+        {
+            "app_id": item.app_id,
+            "route": item.route,
+            "configured": item.enabled,
+            "routed": item.route in route_paths,
+            "health_route": item.health_route,
+        }
+        for item in APPLICATIONS
+    ]
+    return {
+        "status": "ready"
+        if all(item["routed"] for item in applications if item["configured"])
+        else "degraded",
+        "applications": applications,
+    }
 
 
-# Keep each app's routes in its own module while exposing one local server.
-_adopt_routes(
-    operations_assistant_app,
-    ("/operations-assistant/api", "/operations-assistant/static"),
-)
-_adopt_routes(explorer_app, ("/explorer",))
-_adopt_routes(data_operations_app, ("/data-operations",))
-_adopt_routes(decision_intelligence_app, ("/decision-intelligence",))
+app.include_router(home_router)
+app.include_router(shared_router)
+app.include_router(yukti_router)
+
+composed_paths = [
+    *(route.path for route in home_router.routes),
+    *(route.path for route in shared_router.routes),
+    *(route.path for route in yukti_router.routes),
+    "/home/static",
+    "/shared/static",
+]
+composed_keys = [
+    (route.path, method)
+    for route in (*home_router.routes, *shared_router.routes, *yukti_router.routes)
+    for method in (route.methods or {"MOUNT"})
+]
+composed_keys.extend((path, "MOUNT") for path in ("/home/static", "/shared/static"))
+for application in enabled_applications():
+    if application.router_module:
+        application_router = application.load_router()
+        composed_paths.extend(route.path for route in application_router.routes)
+        composed_keys.extend(
+            (route.path, method)
+            for route in application_router.routes
+            for method in (route.methods or {"MOUNT"})
+        )
+        app.include_router(application_router)
+    static_path = application.static_path()
+    if static_path:
+        static_route = f"{application.route.rstrip('/')}/static"
+        composed_paths.append(static_route)
+        composed_keys.append((static_route, "MOUNT"))
+        app.mount(
+            static_route,
+            StaticFiles(directory=str(static_path)),
+            name=f"{application.app_id}-static",
+        )
+
+if len(composed_keys) != len(set(composed_keys)):
+    duplicates = sorted(key for key in set(composed_keys) if composed_keys.count(key) > 1)
+    raise RuntimeError(f"Duplicate composed application route methods: {duplicates}")
+COMPOSED_ROUTE_PATHS = tuple(dict.fromkeys(composed_paths))
+COMPOSED_ROUTE_KEYS = tuple(composed_keys)
 
 
 def main() -> None:

@@ -5,10 +5,10 @@ from pathlib import Path
 
 import duckdb
 
-from capacity_twin_core.data.ownership import APPLICATION_CONTROL_TABLES
+from capacity_twin_core.data.ownership import MAPPING_TABLES, REFERENCE_TABLES
 from capacity_twin_core.runtime.database_paths import load_config
 from data_operations.generator.services.control_publication import (
-    publish_control_catalog,
+    publish_source_catalogs,
 )
 
 
@@ -18,16 +18,20 @@ def test_control_publication_keeps_application_mappings_out_of_raw(
     """Publish one immutable catalog containing only governed controls."""
     config = deepcopy(load_config())
     config["paths"]["runtime_home"] = str(tmp_path)
-    pointer = publish_control_catalog(config)
+    bundle = tmp_path / "source_bundles" / "source-test"
+    bundle.mkdir(parents=True)
+    publication = publish_source_catalogs(config, bundle, "source-test")
 
-    database = Path(pointer["database"])
-    assert database.is_file()
-    with duckdb.connect(str(database), read_only=True) as connection:
+    mapping = Path(publication["mapping_database"])
+    reference = Path(publication["reference_database"])
+    assert mapping.is_file()
+    assert reference.is_file()
+    with duckdb.connect(str(mapping), read_only=True) as connection:
         tables = {
-            row[0]
+            f"{row[0]}.{row[1]}"
             for row in connection.execute(
                 """
-                SELECT table_name
+                SELECT table_schema, table_name
                 FROM information_schema.tables
                 WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
                 """
@@ -37,6 +41,18 @@ def test_control_publication_keeps_application_mappings_out_of_raw(
             "SELECT COUNT(*) FROM crosswalk.site_product_assignment"
         ).fetchone()[0]
 
-    assert tables == APPLICATION_CONTROL_TABLES
+    with duckdb.connect(str(reference), read_only=True) as connection:
+        reference_tables = {
+            f"{row[0]}.{row[1]}"
+            for row in connection.execute(
+                """
+                SELECT table_schema, table_name
+                FROM information_schema.tables
+                WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+                """
+            ).fetchall()
+        }
+
+    assert tables == MAPPING_TABLES
+    assert reference_tables == REFERENCE_TABLES
     assert assignments > 0
-    assert (tmp_path / "control_current.json").is_file()

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scenario &amp; What-If Planning</title>
+  <link rel="stylesheet" href="/shared/static/shell.css">
+  <link rel="stylesheet" href="/shared/static/planning.css?v=20261027g">
+</head>
+<body>
+  <div data-shared-shell></div>
+  <div class="planning-page">
+    <section data-shared-page-header data-mark="SW" data-eyebrow="PLANNING" data-title="Scenario &amp; What-If Planning">
+      <div data-page-actions><span id="release-status" class="ct-status" data-state="pending">Checking release</span></div>
+    </section>
+    <main id="main" tabindex="-1">
+      <form id="filters" class="ct-filter-band" aria-label="Scenario baseline filters">
+        <label>Site full name<select name="site"><option value="">All sites</option></select></label>
+        <label>Product full name<select name="product"><option value="">All products</option></select></label>
+        <label>Planning version<select name="planning_version"><option value="">All versions</option></select></label>
+        <label>Month from<input name="month_from" type="month"></label>
+        <label>Month to<input name="month_to" type="month"></label>
+        <button type="submit">Apply baseline</button>
+      </form>
+      <p id="view-state" class="view-state" role="status" aria-live="polite">Loading scenario baseline.</p>
+
+      <section class="dashboard-section">
+        <h2>Session assumptions</h2>
+        <p>Changes stay in this browser tab. They are never saved, approved, or promoted by the server.</p>
+        <div id="assumptions" class="assumption-grid"></div>
+        <div class="session-actions">
+          <button id="reset-scenario" type="button">Reset assumptions</button>
+          <button id="export-json" type="button">Export versioned JSON</button>
+          <button id="export-csv" type="button">Export CSV</button>
+          <label>Import JSON or CSV<input id="import-file" type="file" accept=".json,.csv,application/json,text/csv"></label>
+        </div>
+      </section>
+
+      <div id="scenario-kpis" class="ct-kpi-strip" aria-label="Baseline versus scenario KPIs"></div>
+      <section class="dashboard-section">
+        <h2>Baseline versus scenario</h2>
+        <p>Scenario values use the declared deterministic model shown in the accessible chart summary.</p>
+        <div id="comparison-chart"></div>
+      </section>
+      <div class="dashboard-grid">
+        <section class="dashboard-section">
+          <h2>Variance waterfall</h2>
+          <div id="waterfall-chart"></div>
+        </section>
+        <section class="dashboard-section">
+          <h2>Sensitivity tornado</h2>
+          <div id="tornado-chart"></div>
+        </section>
+      </div>
+      <section class="dashboard-section">
+        <h2>Bottleneck movement and affected resources</h2>
+        <div class="ct-table-scroll"><table id="resources-table"></table></div>
+      </section>
+      <section class="dashboard-section">
+        <h2>Model limitations</h2>
+        <ul id="limitations"></ul>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/shared/static/shell.js"></script>
+  <script type="module" src="/scenario-planning/static/scenario-planning.js?v=20261027e"></script>
+</body>
+</html>

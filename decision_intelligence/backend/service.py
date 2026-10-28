@@ -9,7 +9,6 @@ from typing import Any
 
 import duckdb
 
-from capacity_twin_core.comparison import get_comparison_window, window_predicate
 from capacity_twin_core.runtime.database_paths import get_runtime_home
 from decision_intelligence.ml.run_ml import (
     REQUIRED_OUTPUT_TABLES,
@@ -18,6 +17,7 @@ from decision_intelligence.ml.run_ml import (
 )
 from decision_intelligence.ml_support import (
     file_sha256,
+    open_release_connection,
     published_database_path,
     source_database_path,
 )
@@ -48,11 +48,11 @@ WORKFLOW_FILTERS = {
 
 WORKFLOW_DIMENSIONS = {
     "demand": (
-        "gold_demand_forecast",
+        "ml_demand_forecast",
         {"site": "site_id", "product": "product_id"},
     ),
     "yield": (
-        "gold_yield_predictions",
+        "ml_yield_predictions",
         {
             "site": "site_id",
             "product": "product_id",
@@ -61,15 +61,15 @@ WORKFLOW_DIMENSIONS = {
         },
     ),
     "oee-risk": (
-        "gold_maintenance_risk",
+        "ml_oee_degradation_risk",
         {"site": "site_id", "test_type": "test_type_id", "machine": "equipment_id"},
     ),
     "oee-anomaly": (
-        "gold_oee_anomalies",
+        "ml_oee_anomalies",
         {"site": "site_id", "test_type": "test_type_id", "machine": "equipment_id"},
     ),
     "capex": (
-        "gold_capex_mc_summary",
+        "ml_capex_summary",
         {"site": "site_code", "test_type": "test_type"},
     ),
 }
@@ -219,7 +219,7 @@ def filter_metadata(
         "machine": [],
         "planning_version": [],
     }
-    with duckdb.connect(str(database), read_only=True) as connection:
+    with open_release_connection() as connection:
         for dimension, column in dimensions.items():
             clauses = []
             parameters = []
@@ -268,7 +268,6 @@ def dashboard(
     machine: str | None = None,
     planning_version: str | None = None,
     grain: str | None = None,
-    window: str = "total",
     month_from: int | None = None,
     month_to: int | None = None,
     limit: int = 100,
@@ -284,23 +283,35 @@ def dashboard(
         "machine": machine,
         "planning_version": planning_version,
         "grain": grain or "MONTH",
-        "comparison_window": get_comparison_window(window),
         "month_from": month_from,
         "month_to": month_to,
     }
     database = published_database_path()
     if not database.is_file():
         raise FileNotFoundError("No ML publication. Run the ML workflows first.")
-    with duckdb.connect(str(database), read_only=True) as connection:
+    with open_release_connection() as connection:
         if workflow == "demand":
-            return _demand_dashboard(connection, filters, limit)
-        if workflow == "yield":
-            return _yield_dashboard(connection, filters, limit)
-        if workflow == "oee-risk":
-            return _risk_dashboard(connection, filters, limit)
-        if workflow == "oee-anomaly":
-            return _anomaly_dashboard(connection, filters, limit)
-        return _capex_dashboard(connection, filters, limit)
+            payload = _demand_dashboard(connection, filters, limit)
+        elif workflow == "yield":
+            payload = _yield_dashboard(connection, filters, limit)
+        elif workflow == "oee-risk":
+            payload = _risk_dashboard(connection, filters, limit)
+        elif workflow == "oee-anomaly":
+            payload = _anomaly_dashboard(connection, filters, limit)
+        else:
+            payload = _capex_dashboard(connection, filters, limit)
+        registry = _rows(
+            connection,
+            """
+            SELECT workflow_priority, workflow_name, status, ml_run_id,
+                   input_pipeline_run_id, input_serving_sha256
+            FROM ml_model_registry
+            WHERE workflow_priority = ?
+            """,
+            [WORKFLOW_KEYS[workflow]],
+        )
+        payload["model_registry"] = registry[0] if registry else None
+        return payload
 
 
 def run_workflows(priorities: list[int] | None, report) -> dict[str, Any]:
@@ -360,16 +371,6 @@ def _where(connection, table: str, filters: dict[str, Any]) -> tuple[str, list[A
     if month_column and filters.get("month_to"):
         clauses.append(f'"{month_column}" <= ?')
         parameters.append(filters["month_to"])
-    comparison_window = filters.get("comparison_window")
-    if month_column and comparison_window:
-        clause, values = window_predicate(
-            comparison_window,
-            month_column,
-            "month_key",
-        )
-        if clause:
-            clauses.append(clause)
-            parameters.extend(values)
     return (" WHERE " + " AND ".join(clauses) if clauses else ""), parameters
 
 
@@ -397,18 +398,14 @@ def _operational_panel(connection, filters: dict[str, Any]) -> dict[str, Any]:
         if value:
             clauses.append(f'"{column}" = ?')
             parameters.append(value)
-    window = filters["comparison_window"]
-    selected_start = window.start_date
-    selected_end = window.end_date
-    if window.window_id != "total":
-        clauses.extend(["period_end >= ?", "period_start <= ?"])
-        parameters.extend([selected_start.isoformat(), selected_end.isoformat()])
-    elif filters.get("month_from"):
+    selected_start = None
+    selected_end = None
+    if filters.get("month_from"):
         value = int(filters["month_from"])
         selected_start = date(value // 100, value % 100, 1)
         clauses.append("period_end >= ?")
         parameters.append(selected_start.isoformat())
-    if window.window_id == "total" and filters.get("month_to"):
+    if filters.get("month_to"):
         value = int(filters["month_to"])
         selected_end = date(
             value // 100,
@@ -524,35 +521,35 @@ def _operational_panel(connection, filters: dict[str, Any]) -> dict[str, Any]:
 
 
 def _demand_dashboard(connection, filters, limit) -> dict[str, Any]:
-    where, params = _where(connection, "gold_demand_forecast", filters)
+    where, params = _where(connection, "ml_demand_forecast", filters)
     accuracy_where, accuracy_params = _where(
-        connection, "gold_forecast_accuracy_ml", filters
+        connection, "ml_forecast_accuracy", filters
     )
     feature_where, feature_params = _where(
         connection, "gold_ml_feature_store", filters
     )
     kpis = {
         "forecast_rows": _scalar(
-            connection, f"SELECT COUNT(*) FROM gold_demand_forecast{where}", params
+            connection, f"SELECT COUNT(*) FROM ml_demand_forecast{where}", params
         ),
         "series": _scalar(
             connection,
             f"""
             SELECT COUNT(DISTINCT product_id || '|' || site_id)
-            FROM gold_demand_forecast{where}
+            FROM ml_demand_forecast{where}
             """,
             params,
         ),
         "median_mape_pct": _scalar(
             connection,
-            f"SELECT MEDIAN(mape_pct) FROM gold_forecast_accuracy_ml{accuracy_where}",
+            f"SELECT MEDIAN(mape_pct) FROM ml_forecast_accuracy{accuracy_where}",
             accuracy_params,
         ),
         "beats_naive_pct": _scalar(
             connection,
             f"""
             SELECT 100.0 * AVG(CASE WHEN beats_naive_mae THEN 1 ELSE 0 END)
-            FROM gold_forecast_accuracy_ml{accuracy_where}
+            FROM ml_forecast_accuracy{accuracy_where}
             """,
             accuracy_params,
         ),
@@ -574,7 +571,7 @@ def _demand_dashboard(connection, filters, limit) -> dict[str, Any]:
         forecast AS (
             SELECT forecast_month_key AS period,
                    SUM(demand_forecast) AS secondary
-            FROM gold_demand_forecast{where}
+            FROM ml_demand_forecast{where}
             GROUP BY forecast_month_key
         )
         SELECT COALESCE(actual.period, forecast.period) AS period,
@@ -590,13 +587,42 @@ def _demand_dashboard(connection, filters, limit) -> dict[str, Any]:
         SELECT pm.product_description || ' · ' || rs.site_name AS label,
                mape_pct AS value,
                mae AS secondary
-        FROM gold_forecast_accuracy_ml accuracy
+        FROM ml_forecast_accuracy accuracy
         LEFT JOIN slvr_prod_master pm ON accuracy.product_id = pm.product_number
         LEFT JOIN slvr_ref_site rs ON accuracy.site_id = rs.site_code
         {accuracy_where}
         ORDER BY mape_pct DESC NULLS LAST LIMIT ?
         """,
         [*accuracy_params, min(limit, 20)],
+    )
+    horizon = _rows(
+        connection,
+        f"""
+        SELECT forecast_horizon_months AS horizon_month,
+               SUM(demand_forecast) AS forecast_demand_ea
+        FROM ml_demand_forecast{where}
+        GROUP BY forecast_horizon_months
+        ORDER BY forecast_horizon_months
+        """,
+        params,
+    )
+    accuracy = _rows(
+        connection,
+        f"""
+        SELECT accuracy.product_id AS product_number,
+               pm.product_description,
+               accuracy.site_id AS site_code,
+               rs.site_name,
+               backtest_months, mape_pct, smape_pct, rmse, mae, naive_mae,
+               beats_naive_mae
+        FROM ml_forecast_accuracy accuracy
+        LEFT JOIN slvr_prod_master pm ON accuracy.product_id = pm.product_number
+        LEFT JOIN slvr_ref_site rs ON accuracy.site_id = rs.site_code
+        {accuracy_where}
+        ORDER BY mape_pct DESC NULLS LAST
+        LIMIT ?
+        """,
+        [*accuracy_params, limit],
     )
     rows = _rows(
         connection,
@@ -608,7 +634,7 @@ def _demand_dashboard(connection, filters, limit) -> dict[str, Any]:
                forecast_month_key,
                demand_forecast,
                forecast_method
-        FROM gold_demand_forecast forecast
+        FROM ml_demand_forecast forecast
         LEFT JOIN slvr_prod_master pm ON forecast.product_id = pm.product_number
         LEFT JOIN slvr_ref_site rs ON forecast.site_id = rs.site_code
         {where}
@@ -622,6 +648,8 @@ def _demand_dashboard(connection, filters, limit) -> dict[str, Any]:
         "kpis": kpis,
         "series": series,
         "rankings": rankings,
+        "horizon": horizon,
+        "accuracy": accuracy,
         "rows": rows,
         "charts": [
             {
@@ -643,24 +671,24 @@ def _demand_dashboard(connection, filters, limit) -> dict[str, Any]:
 
 
 def _yield_dashboard(connection, filters, limit) -> dict[str, Any]:
-    where, params = _where(connection, "gold_yield_predictions", filters)
+    where, params = _where(connection, "ml_yield_predictions", filters)
     kpis = {
         "prediction_rows": _scalar(
-            connection, f"SELECT COUNT(*) FROM gold_yield_predictions{where}", params
+            connection, f"SELECT COUNT(*) FROM ml_yield_predictions{where}", params
         ),
         "mean_abs_error_pp": _scalar(
             connection,
-            f"SELECT AVG(abs_error_pp) FROM gold_yield_predictions{where}",
+            f"SELECT AVG(abs_error_pp) FROM ml_yield_predictions{where}",
             params,
         ),
         "measured_yield_pct": _scalar(
             connection,
-            f"SELECT 100 * AVG(measured_yield) FROM gold_yield_predictions{where}",
+            f"SELECT 100 * AVG(measured_yield) FROM ml_yield_predictions{where}",
             params,
         ),
         "predicted_yield_pct": _scalar(
             connection,
-            f"SELECT 100 * AVG(predicted_yield) FROM gold_yield_predictions{where}",
+            f"SELECT 100 * AVG(predicted_yield) FROM ml_yield_predictions{where}",
             params,
         ),
     }
@@ -670,7 +698,7 @@ def _yield_dashboard(connection, filters, limit) -> dict[str, Any]:
         SELECT month AS period, 100 * AVG(measured_yield) AS value,
                100 * AVG(predicted_yield) AS secondary,
                100 * AVG(target_yield) AS target
-        FROM gold_yield_predictions{where}
+        FROM ml_yield_predictions{where}
         GROUP BY month ORDER BY month
         """,
         params,
@@ -681,7 +709,7 @@ def _yield_dashboard(connection, filters, limit) -> dict[str, Any]:
         SELECT pm.product_description || ' · ' || rs.site_name || ' · ' ||
                tt.test_category_name AS label,
                AVG(abs_error_pp) AS value, COUNT(*) AS secondary
-        FROM gold_yield_predictions prediction
+        FROM ml_yield_predictions prediction
         LEFT JOIN slvr_prod_master pm ON prediction.product_id = pm.product_number
         LEFT JOIN slvr_ref_site rs ON prediction.site_id = rs.site_code
         LEFT JOIN slvr_ref_test_type tt ON prediction.test_type_id = tt.test_type
@@ -701,7 +729,7 @@ def _yield_dashboard(connection, filters, limit) -> dict[str, Any]:
                prediction.test_type_id AS test_type, tt.test_category_name AS test_type_name,
                month, measured_yield,
                predicted_yield, target_yield, abs_error_pp, split_role
-        FROM gold_yield_predictions prediction
+        FROM ml_yield_predictions prediction
         LEFT JOIN slvr_prod_master pm ON prediction.product_id = pm.product_number
         LEFT JOIN slvr_ref_site rs ON prediction.site_id = rs.site_code
         LEFT JOIN slvr_ref_test_type tt ON prediction.test_type_id = tt.test_type
@@ -715,9 +743,9 @@ def _yield_dashboard(connection, filters, limit) -> dict[str, Any]:
         f"""
         SELECT shap.feature AS label, AVG(shap.abs_shap) AS value,
                AVG(shap.shap_value) AS secondary
-        FROM gold_yield_shap AS shap
+        FROM ml_yield_shap AS shap
         JOIN (
-            SELECT feature_row_id FROM gold_yield_predictions{where}
+            SELECT feature_row_id FROM ml_yield_predictions{where}
         ) AS prediction USING (feature_row_id)
         GROUP BY shap.feature
         ORDER BY value DESC LIMIT 12
@@ -754,27 +782,27 @@ def _yield_dashboard(connection, filters, limit) -> dict[str, Any]:
 
 
 def _risk_dashboard(connection, filters, limit) -> dict[str, Any]:
-    where, params = _where(connection, "gold_maintenance_risk", filters)
+    where, params = _where(connection, "ml_oee_degradation_risk", filters)
     kpis = {
         "scores": _scalar(
-            connection, f"SELECT COUNT(*) FROM gold_maintenance_risk{where}", params
+            connection, f"SELECT COUNT(*) FROM ml_oee_degradation_risk{where}", params
         ),
         "mean_risk_pct": _scalar(
             connection,
-            f"SELECT 100 * AVG(degradation_prob) FROM gold_maintenance_risk{where}",
+            f"SELECT 100 * AVG(degradation_prob) FROM ml_oee_degradation_risk{where}",
             params,
         ),
         "high_critical": _scalar(
             connection,
             f"""
-            SELECT COUNT(*) FROM gold_maintenance_risk{where}
+            SELECT COUNT(*) FROM ml_oee_degradation_risk{where}
             {"AND" if where else "WHERE"} risk_tier IN ('HIGH', 'CRITICAL')
             """,
             params,
         ),
         "equipment": _scalar(
             connection,
-            f"SELECT COUNT(DISTINCT equipment_id) FROM gold_maintenance_risk{where}",
+            f"SELECT COUNT(DISTINCT equipment_id) FROM ml_oee_degradation_risk{where}",
             params,
         ),
     }
@@ -783,7 +811,7 @@ def _risk_dashboard(connection, filters, limit) -> dict[str, Any]:
         f"""
         SELECT month AS period, 100 * AVG(degradation_prob) AS value,
                SUM(CASE WHEN risk_tier IN ('HIGH', 'CRITICAL') THEN 1 ELSE 0 END) AS secondary
-        FROM gold_maintenance_risk{where}
+        FROM ml_oee_degradation_risk{where}
         GROUP BY month ORDER BY month
         """,
         params,
@@ -794,7 +822,7 @@ def _risk_dashboard(connection, filters, limit) -> dict[str, Any]:
         SELECT equipment.equipment_name || ' · ' || site.site_name || ' · ' ||
                test.test_category_name AS label,
                100 * MAX(degradation_prob) AS value, MIN(avg_oee) AS secondary
-        FROM gold_maintenance_risk risk
+        FROM ml_oee_degradation_risk risk
         LEFT JOIN (
             SELECT equipment_id AS ref_equipment_id, equipment_name
             FROM slvr_ref_equipment
@@ -817,7 +845,7 @@ def _risk_dashboard(connection, filters, limit) -> dict[str, Any]:
                risk.test_type_id AS test_type, test.test_category_name AS test_type_name,
                month, avg_oee,
                degradation_prob, risk_tier, split_role
-        FROM gold_maintenance_risk risk
+        FROM ml_oee_degradation_risk risk
         LEFT JOIN (
             SELECT equipment_id AS ref_equipment_id, equipment_name
             FROM slvr_ref_equipment
@@ -833,7 +861,7 @@ def _risk_dashboard(connection, filters, limit) -> dict[str, Any]:
         connection,
         f"""
         SELECT risk_tier AS label, COUNT(*) AS value
-        FROM gold_maintenance_risk{where}
+        FROM ml_oee_degradation_risk{where}
         GROUP BY risk_tier
         ORDER BY value DESC
         """,
@@ -867,24 +895,24 @@ def _risk_dashboard(connection, filters, limit) -> dict[str, Any]:
 
 
 def _anomaly_dashboard(connection, filters, limit) -> dict[str, Any]:
-    where, params = _where(connection, "gold_oee_anomalies", filters)
+    where, params = _where(connection, "ml_oee_anomalies", filters)
     kpis = {
         "scored_rows": _scalar(
-            connection, f"SELECT COUNT(*) FROM gold_oee_anomalies{where}", params
+            connection, f"SELECT COUNT(*) FROM ml_oee_anomalies{where}", params
         ),
         "anomaly_count": _scalar(
             connection,
-            f"SELECT SUM(anomaly_flag) FROM gold_oee_anomalies{where}",
+            f"SELECT SUM(anomaly_flag) FROM ml_oee_anomalies{where}",
             params,
         ),
         "anomaly_rate_pct": _scalar(
             connection,
-            f"SELECT 100 * AVG(anomaly_flag) FROM gold_oee_anomalies{where}",
+            f"SELECT 100 * AVG(anomaly_flag) FROM ml_oee_anomalies{where}",
             params,
         ),
         "sites": _scalar(
             connection,
-            f"SELECT COUNT(DISTINCT site_id) FROM gold_oee_anomalies{where}",
+            f"SELECT COUNT(DISTINCT site_id) FROM ml_oee_anomalies{where}",
             params,
         ),
     }
@@ -893,7 +921,7 @@ def _anomaly_dashboard(connection, filters, limit) -> dict[str, Any]:
         f"""
         SELECT month AS period, 100 * AVG(avg_oee) AS value,
                SUM(anomaly_flag) AS secondary
-        FROM gold_oee_anomalies{where}
+        FROM ml_oee_anomalies{where}
         GROUP BY month ORDER BY month
         """,
         params,
@@ -903,7 +931,7 @@ def _anomaly_dashboard(connection, filters, limit) -> dict[str, Any]:
         f"""
         SELECT site.site_name || ' · ' || test.test_category_name AS label,
                SUM(anomaly_flag) AS value, 100 * AVG(avg_oee) AS secondary
-        FROM gold_oee_anomalies anomaly
+        FROM ml_oee_anomalies anomaly
         LEFT JOIN slvr_ref_site site ON anomaly.site_id = site.site_code
         LEFT JOIN slvr_ref_test_type test ON anomaly.test_type_id = test.test_type
         {where}
@@ -921,7 +949,7 @@ def _anomaly_dashboard(connection, filters, limit) -> dict[str, Any]:
                anomaly.test_type_id AS test_type, test.test_category_name AS test_type_name,
                month, avg_oee,
                anomaly_score, anomaly_severity, anomaly_driver
-        FROM gold_oee_anomalies anomaly
+        FROM ml_oee_anomalies anomaly
         LEFT JOIN (
             SELECT equipment_id AS ref_equipment_id, equipment_name
             FROM slvr_ref_equipment
@@ -937,7 +965,7 @@ def _anomaly_dashboard(connection, filters, limit) -> dict[str, Any]:
         connection,
         f"""
         SELECT anomaly_severity AS label, COUNT(*) AS value
-        FROM gold_oee_anomalies{where}
+        FROM ml_oee_anomalies{where}
         GROUP BY anomaly_severity
         ORDER BY value DESC
         """,
@@ -972,29 +1000,29 @@ def _anomaly_dashboard(connection, filters, limit) -> dict[str, Any]:
 
 
 def _capex_dashboard(connection, filters, limit) -> dict[str, Any]:
-    where, params = _where(connection, "gold_capex_mc_summary", filters)
+    where, params = _where(connection, "ml_capex_summary", filters)
     scenario_where, scenario_params = _where(
-        connection, "gold_capex_mc_scenarios", filters
+        connection, "ml_capex_scenarios", filters
     )
     kpis = {
         "combinations": _scalar(
-            connection, f"SELECT COUNT(*) FROM gold_capex_mc_summary{where}", params
+            connection, f"SELECT COUNT(*) FROM ml_capex_summary{where}", params
         ),
         "capex_p80_usd": _scalar(
             connection,
-            f"SELECT SUM(capex_usd_p80) FROM gold_capex_mc_summary{where}",
+            f"SELECT SUM(capex_usd_p80) FROM ml_capex_summary{where}",
             params,
         ),
         "equipment_p80": _scalar(
             connection,
-            f"SELECT SUM(eq_needed_p80) FROM gold_capex_mc_summary{where}",
+            f"SELECT SUM(eq_needed_p80) FROM ml_capex_summary{where}",
             params,
         ),
         "investment_combinations": _scalar(
             connection,
             f"""
             SELECT SUM(CASE WHEN delta_units_p80 > 0 THEN 1 ELSE 0 END)
-            FROM gold_capex_mc_summary{where}
+            FROM ml_capex_summary{where}
             """,
             params,
         ),
@@ -1004,7 +1032,7 @@ def _capex_dashboard(connection, filters, limit) -> dict[str, Any]:
         f"""
         SELECT site.site_name || ' · ' || test.test_category_name AS label,
                capex_usd_p80 AS value, delta_units_p80 AS secondary
-        FROM gold_capex_mc_summary capex
+        FROM ml_capex_summary capex
         LEFT JOIN (
             SELECT site_code AS ref_site_code, site_name FROM slvr_ref_site
         ) site ON capex.site_code = site.ref_site_code
@@ -1024,7 +1052,7 @@ def _capex_dashboard(connection, filters, limit) -> dict[str, Any]:
                capex.test_type, test.test_category_name AS test_type_name,
                current_equipment_qty, eq_needed_p50,
                eq_needed_p80, eq_needed_p95, delta_units_p80, capex_usd_p80
-        FROM gold_capex_mc_summary capex
+        FROM ml_capex_summary capex
         LEFT JOIN (
             SELECT site_code AS ref_site_code, site_name FROM slvr_ref_site
         ) site ON capex.site_code = site.ref_site_code
@@ -1040,9 +1068,18 @@ def _capex_dashboard(connection, filters, limit) -> dict[str, Any]:
     scenarios = _rows(
         connection,
         f"""
-        SELECT site_code, test_type, scenario, equipment_qty,
+        SELECT scenario.site_code, site.site_name,
+               scenario.test_type, test.test_category_name AS test_type_name,
+               scenario.scenario, equipment_qty,
                probability_sufficient, capex_usd
-        FROM gold_capex_mc_scenarios
+        FROM ml_capex_scenarios scenario
+        LEFT JOIN (
+            SELECT site_code AS ref_site_code, site_name FROM slvr_ref_site
+        ) site ON scenario.site_code = site.ref_site_code
+        LEFT JOIN (
+            SELECT test_type AS ref_test_type, test_category_name
+            FROM slvr_ref_test_type
+        ) test ON scenario.test_type = test.ref_test_type
         {scenario_where}
         ORDER BY capex_usd DESC
         LIMIT ?

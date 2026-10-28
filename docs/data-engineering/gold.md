@@ -1,6 +1,6 @@
 # Gold and Serving Layers
 
-Gold applies the trusted capacity, OEE, demand, and planning version contracts. Serving exposes stable read-only views to Operations Assistant and Data Explorer.
+Gold applies the trusted capacity, OEE, demand, and planning version contracts. Serving publishes materialized read-only tables for the applications and Yukti.
 
 ## Capacity principles
 

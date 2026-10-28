@@ -6,6 +6,7 @@ import argparse
 import importlib
 import json
 from collections.abc import Callable
+from copy import deepcopy
 from pathlib import Path
 
 from capacity_twin_core.runtime.database_paths import get_runtime_home, load_config
@@ -28,6 +29,15 @@ def run_pipeline(
     """Build all candidates in order and promote only the complete run."""
     report = progress_callback or (lambda _progress, _phase, _detail: None)
     candidate = PipelineRun(config, retry_of=retry_of)
+    source_config = deepcopy(config)
+    source_config["paths"]["raw_sqlite"] = str(candidate.source_raw_directory)
+    source_config["control_publication"] = {
+        "database": str(candidate.source_mapping_database),
+        "mapping_database": str(candidate.source_mapping_database),
+        "reference_database": str(candidate.source_reference_database),
+        "source_run_id": candidate.source_run_id,
+        "bundle_checksum": candidate.source_bundle_checksum,
+    }
     stage_name = "initialization"
     try:
         for index, (stage_name, module_name) in enumerate(STAGES):
@@ -38,7 +48,7 @@ def run_pipeline(
             )
             started = candidate.begin_stage(stage_name)
             module = importlib.import_module(module_name)
-            counts = module.run(config, candidate)
+            counts = module.run(source_config, candidate)
             candidate.complete_stage(stage_name, started, counts=counts)
         report(96, "Promotion", "Validating and promoting the complete run")
         candidate.promote()

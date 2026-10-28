@@ -1,0 +1,10 @@
+query:
+  maximum_chart_points: 600
+  maximum_table_rows: 250
+  required_serving_tables:
+    - srv_sop_balance
+    - srv_scenario_inputs
+
+actions:
+  schema_version: "1.0.0"
+  maximum_session_actions: 200

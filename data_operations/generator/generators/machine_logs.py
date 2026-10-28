@@ -16,11 +16,9 @@ from capacity_twin_core.logging import logger
 from capacity_twin_core.runtime.database_paths import get_sqlite_path
 from data_operations.generator.generators.assignment_matrix import ASSIGNMENT_MATRIX
 from data_operations.generator.generators.reference_data import SITES, TEST_TYPES
+from data_operations.generator.rules.contracts import DateContract
 from data_operations.generator.rules.determinism import stable_seed
 from data_operations.generator.services.operational_derivation import derive_logs
-
-ACTUAL_START = date(2023, 1, 1)
-ACTUAL_END = date(2026, 10, 31)
 
 TEST_CAT_ID = {t[0]: t[2] for t in TEST_TYPES}
 SITE_FACTORY = {s[0]: s[2] for s in SITES}
@@ -48,8 +46,11 @@ def generate_machine_logs_db(config: dict) -> None:
     logger.info("GENERATING: raw_machine_logs.db")
     logger.info("=" * 60)
 
-    db_path = get_sqlite_path(config["databases"]["raw"]["machine_logs"], config)
-    execution_path = get_sqlite_path(config["databases"]["raw"]["machine_execution"], config)
+    db_path = get_sqlite_path(config["databases"]["raw"]["machine"], config)
+    execution_path = get_sqlite_path(config["databases"]["raw"]["execution"], config)
+    dates = DateContract.from_config(config)
+    actual_start = dates.actual_start
+    actual_end = dates.actual_end
     rows_written = derive_logs(execution_path, db_path)
     logger.info(f"  Final total: {rows_written:,} rows")
     logger.success("raw_machine_logs.db complete")
@@ -63,14 +64,14 @@ def generate_machine_logs_db(config: dict) -> None:
 
     rows_written = 0
     first_batch = True
-    current = ACTUAL_START
+    current = actual_start
 
-    while current <= ACTUAL_END:
+    while current <= actual_end:
         if current.month == 12:
             month_end = date(current.year + 1, 1, 1) - timedelta(days=1)
         else:
             month_end = date(current.year, current.month + 1, 1) - timedelta(days=1)
-        month_end = min(month_end, ACTUAL_END)
+        month_end = min(month_end, actual_end)
 
         month_label = current.strftime("%Y-%m")
         month_dates = []

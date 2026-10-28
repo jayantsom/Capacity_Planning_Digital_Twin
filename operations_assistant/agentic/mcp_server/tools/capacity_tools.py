@@ -25,7 +25,10 @@ def get_capacity_summary(
         limit:      Max rows (default 100).
     """
     filters, params = [
-        latest_planning_version_predicate("srv_vw_capacity_summary")
+        latest_planning_version_predicate(
+            "srv_vw_capacity_summary",
+            series_columns=("site_code", "product_number", "test_type", "month_key"),
+        )
     ], []
     if site_code:
         filters.append("site_code = ?"); params.append(site_code)
@@ -80,7 +83,10 @@ def get_bottleneck_analysis(
         limit: Max rows.
     """
     filters, params = [
-        latest_planning_version_predicate("srv_vw_bottleneck_heatmap")
+        latest_planning_version_predicate(
+            "srv_vw_bottleneck_heatmap",
+            series_columns=("site_code", "test_type", "month_key"),
+        )
     ], []
     if site_code:
         filters.append("site_code = ?"); params.append(site_code)
@@ -138,7 +144,10 @@ def get_demand_vs_supply(
         limit: Max rows.
     """
     filters, params = [
-        latest_planning_version_predicate("srv_vw_capacity_summary")
+        latest_planning_version_predicate(
+            "srv_vw_capacity_summary",
+            series_columns=("site_code", "product_number", "test_type", "month_key"),
+        )
     ], []
     if product_number:
         filters.append("product_number = ?"); params.append(product_number)
@@ -195,7 +204,10 @@ def get_equipment_utilization(
         limit: Max rows.
     """
     filters, params = [
-        latest_planning_version_predicate("srv_vw_equipment_utilization")
+        latest_planning_version_predicate(
+            "srv_vw_equipment_utilization",
+            series_columns=("site_code", "test_type", "equipment_id", "month_key"),
+        )
     ], []
     if site_code:
         filters.append("site_code = ?"); params.append(site_code)

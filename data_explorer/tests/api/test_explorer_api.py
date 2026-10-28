@@ -91,6 +91,23 @@ def test_query_guard_and_identifier_allowlists(tmp_path, monkeypatch):
     assert bad_identifier.status_code == 400
 
 
+def test_catalog_assigns_each_object_one_unique_identity(tmp_path, monkeypatch):
+    _write_run(tmp_path, "run-one", "safe")
+    _promote(tmp_path, "run-one")
+    monkeypatch.setattr(main, "DATA_DIR", tmp_path)
+    sources = TestClient(main.app).get("/explorer/api/sources").json()
+
+    objects = [
+        table
+        for source in sources
+        for table in source.get("tables", [])
+    ]
+    identities = [table["canonical_object_id"] for table in objects]
+    assert identities
+    assert len(identities) == len(set(identities))
+    assert all(table["owner_layer"] == table["layer"].upper() for table in objects)
+
+
 def test_explorer_cors_is_localhost_only():
     client = TestClient(main.app)
     local = client.options(

@@ -68,10 +68,16 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = [
     "capacity_home",
+    "capacity_analysis",
+    "scenario_planning",
+    "demand_supply_planning",
+    "npi_ramp_planning",
+    "operations_flow",
     "operations_assistant",
     "data_explorer",
     "data_operations",
     "decision_intelligence",
+    "documentation",
     "src/capacity_twin_core",
 ]
 
@@ -88,9 +94,15 @@ target-version = "py312"
 addopts = "-p no:langsmith_plugin"
 testpaths = [
     "capacity_home",
+    "capacity_analysis",
+    "scenario_planning",
+    "demand_supply_planning",
+    "npi_ramp_planning",
+    "operations_flow",
     "operations_assistant",
     "data_explorer",
     "data_operations",
     "decision_intelligence",
+    "documentation",
     "src/capacity_twin_core",
 ]

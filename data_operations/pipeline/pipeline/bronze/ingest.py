@@ -80,13 +80,15 @@ def validate_row(
 
     # B-VAL-01: Null natural keys
     for key in config.natural_keys:
-        if key in row and (row[key] is None or str(row[key]).strip() == ""):
+        if key in row and (
+            row[key] is None or pd.isna(row[key]) or str(row[key]).strip() == ""
+        ):
             reasons.append(f"NULL_PRIMARY_KEY:{key}")
 
     # B-VAL-03: Yield range [0, 1]
     for col in config.yield_columns:
         val = row.get(col)
-        if val is not None:
+        if val is not None and not pd.isna(val):
             try:
                 fval = float(val)
                 if fval < 0 or fval > 1:
@@ -97,7 +99,7 @@ def validate_row(
     # B-VAL-04: Quantity non-negative
     for col in config.qty_columns:
         val = row.get(col)
-        if val is not None:
+        if val is not None and not pd.isna(val):
             try:
                 if float(val) < 0:
                     reasons.append(f"NEGATIVE_QUANTITY:{col}={val}")
@@ -108,7 +110,7 @@ def validate_row(
     if config.is_machine:
         for col in config.date_columns:
             val = row.get(col)
-            if val is not None:
+            if val is not None and not pd.isna(val):
                 try:
                     d = date.fromisoformat(str(val)[:10])
                     if d < date(2023, 1, 1) or d > date.fromisoformat(actual_end):

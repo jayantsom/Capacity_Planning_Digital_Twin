@@ -140,13 +140,10 @@ def generate_target_test_time_db(config: dict) -> pd.DataFrame:
     logger.info("GENERATING: raw_target_test_time.db")
     logger.info("=" * 60)
 
-    db_path = get_sqlite_path(
-        config["databases"]["raw"]["target_test_time"], config
-    )
-
-    all_month_keys = get_all_month_keys()
+    db_path = get_sqlite_path(config["databases"]["raw"]["test"], config)
 
     dates = DateContract.from_config(config)
+    all_month_keys = get_all_month_keys(dates.actual_start, dates.forecast_end)
     planning_versions = [
         (f"plan-{plan_as_of_date.isoformat()}", plan_as_of_date.isoformat())
         for plan_as_of_date in dates.plan_as_of_dates

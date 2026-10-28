@@ -29,6 +29,6 @@ export function readableLabel(key) {
 
 export function appendTextCell(row, value) {
   const cell = document.createElement('td');
-  cell.textContent = value == null ? '—' : String(value);
+  cell.textContent = value == null ? '-' : String(value);
   row.append(cell);
 }

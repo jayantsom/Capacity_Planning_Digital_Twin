@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NPI Ramp Planning</title>
+  <link rel="stylesheet" href="/shared/static/shell.css">
+  <link rel="stylesheet" href="/shared/static/planning.css?v=20261027g">
+</head>
+<body>
+  <div data-shared-shell></div>
+  <div class="planning-page">
+    <section data-shared-page-header data-mark="NP" data-eyebrow="PLANNING" data-title="NPI Ramp Planning">
+      <div data-page-actions><span id="release-status" class="ct-status" data-state="pending">Checking release</span></div>
+    </section>
+    <main id="main" tabindex="-1">
+      <div class="role-tabs" role="tablist" aria-label="NPI role views">
+        <button role="tab" aria-selected="true" data-view="program">Program</button>
+        <button role="tab" aria-selected="false" data-view="manufacturing" tabindex="-1">Manufacturing</button>
+        <button role="tab" aria-selected="false" data-view="test" tabindex="-1">Test</button>
+        <button role="tab" aria-selected="false" data-view="yield" tabindex="-1">Yield</button>
+      </div>
+      <form id="filters" class="ct-filter-band" aria-label="NPI filters">
+        <label>Program full name<select name="program"><option value="">All programs</option></select></label>
+        <label>Site full name<select name="site"><option value="">All sites</option></select></label>
+        <label>Product full name<select name="product"><option value="">All products</option></select></label>
+        <label>Month from<input name="month_from" type="month"></label>
+        <label>Month to<input name="month_to" type="month"></label>
+        <button type="submit">Apply filters</button>
+      </form>
+      <p id="view-state" class="view-state" role="status" aria-live="polite">Loading NPI plan.</p>
+      <div id="npi-kpis" class="ct-kpi-strip" aria-label="NPI KPIs"></div>
+      <section class="dashboard-section" data-views="program manufacturing test yield">
+        <h2>Target versus actual ramp</h2>
+        <div id="ramp-chart"></div>
+      </section>
+      <div class="dashboard-grid">
+        <section class="dashboard-section" data-views="manufacturing test yield">
+          <h2>Target versus actual yield</h2>
+          <div id="yield-chart"></div>
+        </section>
+        <section class="dashboard-section" data-views="test yield">
+          <h2>Learning curve</h2>
+          <p id="learning-state"></p>
+          <div id="learning-chart"></div>
+        </section>
+      </div>
+      <section class="dashboard-section" data-views="program manufacturing test">
+        <h2>Stage gates, milestones, tooling, and launch risk</h2>
+        <p id="timeline-state" class="unavailable"></p>
+        <div id="timeline-chart"></div>
+        <div class="ct-table-scroll"><table id="readiness-table"></table></div>
+      </section>
+      <section class="dashboard-section" data-views="program test">
+        <h2>Qualification and pilot-lot evidence</h2>
+        <div class="ct-table-scroll"><table id="qualification-table"></table></div>
+      </section>
+      <section class="dashboard-section" data-views="program manufacturing">
+        <h2>Launch capacity detail</h2>
+        <div class="ct-table-scroll"><table id="ramp-table"></table></div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/shared/static/shell.js"></script>
+  <script type="module" src="/npi-ramp-planning/static/npi-ramp-planning.js?v=20261027e"></script>
+</body>
+</html>

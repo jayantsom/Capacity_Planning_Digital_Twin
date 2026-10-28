@@ -6,16 +6,20 @@ import time
 from collections.abc import Callable
 from copy import deepcopy
 from importlib import import_module
-from pathlib import Path
 
 from capacity_twin_core.logging import logger
 from capacity_twin_core.runtime.database_paths import load_config
+from data_operations.generator.generators.planning_foundation import (
+    generate_planning_foundation,
+)
 from data_operations.generator.services.atomic_publication import (
+    add_source_metadata,
     create_candidate,
+    initialize_raw_databases,
     publish_candidate,
 )
 from data_operations.generator.services.control_publication import (
-    publish_control_catalog,
+    publish_source_catalogs,
 )
 from data_operations.generator.validations.outputs import validate_outputs
 from data_operations.generator.validations.preflight import validate_preflight
@@ -40,13 +44,18 @@ def run_all(
 
     report(3, "Preflight", "Validating dates, bounds, disk, and configuration")
     preflight_report = validate_preflight(config)
-    report(7, "Control catalog", "Publishing mappings, rules, and comparison windows")
-    control_pointer = publish_control_catalog(config)
     run_id, candidate_dir = create_candidate(config)
-    final_dir = Path(config["paths"]["raw_sqlite"])
+    raw_dir = candidate_dir / "raw"
+    initialize_raw_databases(raw_dir, config)
     candidate_config = deepcopy(config)
-    candidate_config["paths"]["raw_sqlite"] = str(candidate_dir)
-    candidate_config["control_publication"] = control_pointer
+    candidate_config["paths"]["raw_sqlite"] = str(raw_dir)
+    report(7, "Source catalogs", "Building canonical Reference and Mapping")
+    catalog_report = publish_source_catalogs(
+        candidate_config,
+        candidate_dir,
+        run_id,
+    )
+    candidate_config["control_publication"] = catalog_report
     logger.info(f"Preflight passed; building candidate {run_id}")
 
     logger.info("\n── PASS 1: Reference Data ──────────────────────────────────")
@@ -71,15 +80,24 @@ def run_all(
     report(91, "7 Logs", "Generating operational logs")
     _run_step("7_logs", candidate_config)
 
+    report(94, "8 Planning foundation", "Generating S&OP, NPI, flow, and scenario facts")
+    planning_counts = generate_planning_foundation(candidate_config)
+
     report(96, "Validation", "Validating candidate databases before publication")
-    validation_report = validate_outputs(candidate_dir, candidate_config)
+    add_source_metadata(
+        raw_dir,
+        candidate_config,
+        source_run_id=run_id,
+        extracted_at_utc=catalog_report["published_at"],
+    )
+    validation_report = validate_outputs(raw_dir, candidate_config)
     manifest_path = publish_candidate(
         run_id,
         candidate_dir,
-        final_dir,
         candidate_config,
         validation_report,
         preflight_report,
+        catalog_report,
     )
 
     elapsed = time.time() - start
@@ -111,6 +129,7 @@ def run_all(
         "test_types": len(test_type_df),
         "products": len(product_df),
         "demand_rows": len(demand_df),
+        "planning_foundation_rows": sum(planning_counts.values()),
     }
 
 

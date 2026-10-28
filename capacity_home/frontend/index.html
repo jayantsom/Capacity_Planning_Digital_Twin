@@ -6,64 +6,18 @@
   <meta name="color-scheme" content="light">
   <title>Test Equipment Capacity Planning Digital Twin</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/home/static/home.css?v=20261020d">
+  <link rel="stylesheet" href="/shared/static/shell.css?v=20261027">
+  <link rel="stylesheet" href="/home/static/home.css?v=20261027f">
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to applications</a>
-  <header class="product-header">
-    <a class="brand" href="/" aria-label="Test Equipment Capacity Planning Digital Twin home">
-      <span class="brand-mark" aria-hidden="true">CP</span>
-    </a>
-    <nav class="product-nav" aria-label="Primary navigation">
-      <a aria-current="page" href="/">Home</a>
-      <a href="/explorer/">Data Explorer</a>
-      <a href="/decision-intelligence/">Decision Intelligence</a>
-      <a href="/operations-assistant/">Operations Assistant</a>
-      <a href="/data-operations/">Data Operations</a>
-    </nav>
-  </header>
+  <div data-shared-shell></div>
 
   <main id="main" class="page-shell">
-    <section class="page-heading page-heading-centered">
-      <span class="page-heading-mark" aria-hidden="true">CP</span>
-      <div>
-        <p class="eyebrow">LOCAL PLANNING WORKSPACE</p>
-        <h1>Test Equipment Capacity Planning Digital Twin</h1>
-      </div>
-    </section>
-    <section class="app-grid" aria-label="Primary applications">
-      <a class="app-card" href="/explorer/" data-app="explorer">
-        <span class="card-top"><b>DX</b><span class="status status-pending" id="explorer-status">CHECKING</span></span>
-        <span class="card-bottom"><strong>Data Explorer</strong><small id="explorer-detail">Promoted data</small></span>
-      </a>
-      <a class="app-card" href="/decision-intelligence/" data-app="decision">
-        <span class="card-top"><b>DI</b><span class="status status-pending" id="decision-status">CHECKING</span></span>
-        <span class="card-bottom"><strong>Decision Intelligence</strong><small id="decision-detail">Five model workflows</small></span>
-      </a>
-      <a class="app-card" href="/operations-assistant/" data-app="operations-assistant">
-        <span class="card-top"><b>OA</b><span class="status status-pending" id="operations-assistant-status">CHECKING</span></span>
-        <span class="card-bottom"><strong>Operations Assistant</strong><small id="operations-assistant-detail">Grounded operations analysis</small></span>
-      </a>
-    </section>
-
-    <section class="secondary-grid" aria-label="Data operations">
-      <article class="operations-card" data-app="operations">
-        <span class="card-top"><b>DO</b><span class="status status-pending" id="operations-status">CHECKING</span></span>
-        <span class="operations-content">
-          <span class="operations-copy">
-            <strong>Data Operations</strong>
-            <small id="operations-detail">Raw and medallion status</small>
-          </span>
-          <a href="/data-operations/#generator">
-            <span>Data Generator</span>
-            <span id="generator-home-status" class="mini-status status-pending"><span aria-hidden="true">◌</span><span>CHECKING</span></span>
-          </a>
-          <a href="/data-operations/#pipeline">
-            <span>Data Pipeline</span>
-            <span id="pipeline-home-status" class="mini-status status-pending"><span aria-hidden="true">◌</span><span>CHECKING</span></span>
-          </a>
-        </span>
-      </article>
+    <section class="page-heading-centered" data-shared-page-header
+      data-mark="CP" data-eyebrow="LOCAL PLANNING WORKSPACE"
+      data-title="Test Equipment Capacity Planning Digital Twin"></section>
+    <section class="app-grid" id="applicationCards" aria-label="Applications" aria-live="polite">
+      <p>Loading applications…</p>
     </section>
   </main>
 
@@ -71,6 +25,7 @@
     <span>LOCAL WORKSPACE</span>
     <button class="text-button" id="refresh-status" type="button">Refresh status</button>
   </footer>
+  <script type="module" src="/shared/static/shell.js?v=20261027"></script>
   <script type="module" src="/home/static/home.js?v=20261020b"></script>
 </body>
 </html>

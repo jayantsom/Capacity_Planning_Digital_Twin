@@ -21,7 +21,7 @@ def _allowed_schema() -> dict[str, set[str]]:
             for row in conn.execute(
                 "SELECT table_name FROM information_schema.tables "
                 "WHERE table_schema = 'main' "
-                "AND (table_name LIKE 'gold_%' OR table_name LIKE 'srv_vw_%')"
+                "AND (table_name LIKE 'ml_%' OR table_name LIKE 'srv_%')"
             ).fetchall()
         ]
         return {
@@ -50,7 +50,7 @@ def list_tables() -> dict:
         SELECT table_name, table_type
         FROM information_schema.tables
         WHERE table_schema = 'main'
-          AND (table_name LIKE 'gold_%' OR table_name LIKE 'srv_vw_%')
+          AND (table_name LIKE 'ml_%' OR table_name LIKE 'srv_%')
         ORDER BY table_type, table_name
     """
     try:
@@ -68,7 +68,7 @@ def get_schema(table_name: str) -> dict:
     Return column names and types for a given table or view.
 
     Args:
-        table_name: Name of the table or view (e.g. 'gold_bottleneck').
+        table_name: Name of the materialized table (e.g. 'srv_resource_constraints').
 
     Returns:
         {"table": "...", "columns": [{"name": ..., "type": ...}, ...]}

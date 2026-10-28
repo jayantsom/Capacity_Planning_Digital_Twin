@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>S&amp;OP Planning</title>
+  <link rel="stylesheet" href="/shared/static/shell.css">
+  <link rel="stylesheet" href="/shared/static/planning.css?v=20261027g">
+</head>
+<body>
+  <div data-shared-shell></div>
+  <div class="planning-page">
+    <section data-shared-page-header data-mark="SO" data-eyebrow="PLANNING" data-title="S&amp;OP Planning">
+      <div data-page-actions><span id="release-status" class="ct-status" data-state="pending">Checking release</span></div>
+    </section>
+    <main id="main" tabindex="-1">
+      <div class="role-tabs" role="tablist" aria-label="S&OP role views">
+        <button role="tab" aria-selected="true" data-view="executive">Executive</button>
+        <button role="tab" aria-selected="false" data-view="demand-planner" tabindex="-1">Demand Planner</button>
+        <button role="tab" aria-selected="false" data-view="capacity-planner" tabindex="-1">Capacity Planner</button>
+      </div>
+      <form id="filters" class="ct-filter-band" aria-label="S&OP filters">
+        <label>Site full name<select name="site"><option value="">All sites</option></select></label>
+        <label>Product full name<select name="product"><option value="">All products</option></select></label>
+        <label>Planning version<select name="planning_version"><option value="">All versions</option></select></label>
+        <label>Month from<input name="month_from" type="month"></label>
+        <label>Month to<input name="month_to" type="month"></label>
+        <button type="submit">Apply filters</button>
+      </form>
+      <p id="view-state" class="view-state" role="status" aria-live="polite">Loading S&amp;OP plan.</p>
+      <div id="sop-kpis" class="ct-kpi-strip" aria-label="S&OP KPIs"></div>
+      <section class="dashboard-section" data-views="executive demand-planner capacity-planner">
+        <h2>Demand and constrained supply horizon</h2>
+        <div id="horizon-chart"></div>
+      </section>
+      <div class="dashboard-grid">
+        <section class="dashboard-section" data-views="executive demand-planner">
+          <h2>Inventory, safety stock, and backlog</h2>
+          <div id="inventory-chart"></div>
+        </section>
+        <section class="dashboard-section" data-views="executive demand-planner">
+          <h2>Service and coverage</h2>
+          <div id="service-chart"></div>
+        </section>
+      </div>
+      <section class="dashboard-section" data-views="executive capacity-planner">
+        <h2>Shared-resource allocation</h2>
+        <div class="ct-table-scroll"><table id="allocation-table"></table></div>
+      </section>
+      <section class="dashboard-section" data-views="executive demand-planner capacity-planner">
+        <h2>Planning exceptions</h2>
+        <div class="ct-table-scroll"><table id="exceptions-table"></table></div>
+      </section>
+      <section class="dashboard-section" data-views="demand-planner capacity-planner">
+        <h2>Inventory reconciliation</h2>
+        <p>Beginning inventory + constrained production + receipts - shipments = ending inventory. Backlog is separate.</p>
+        <div class="ct-table-scroll"><table id="reconciliation-table"></table></div>
+      </section>
+      <section class="dashboard-section">
+        <h2>Session action register</h2>
+        <p>Actions stay in this browser tab and are not persisted by the server.</p>
+        <form id="action-form" class="session-actions">
+          <label>Action text<input name="action" maxlength="240" required></label>
+          <label>Owner<input name="owner" maxlength="80" required></label>
+          <label>Due date<input name="due_date" type="date"></label>
+          <button type="submit">Add action</button>
+          <button id="export-actions-json" type="button">Export JSON</button>
+          <button id="export-actions-csv" type="button">Export CSV</button>
+          <label>Import<input id="import-actions" type="file" accept=".json,.csv"></label>
+        </form>
+        <div class="ct-table-scroll"><table id="actions-table"></table></div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/shared/static/shell.js"></script>
+  <script type="module" src="/demand-supply-planning/static/demand-supply-planning.js?v=20261027e"></script>
+</body>
+</html>

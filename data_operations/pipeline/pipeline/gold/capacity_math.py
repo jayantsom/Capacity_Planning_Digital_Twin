@@ -41,6 +41,11 @@ def compute_type1_params() -> tuple[float, float]:
     return 2.0, 0.75
 
 
+def compute_no_retest_params() -> tuple[float, float]:
+    """Return the governed zero-retest option."""
+    return 0.0, 0.0
+
+
 def compute_type2_params(
     yield_retest_1: float,
     yield_retest_2_plus: float,
@@ -142,6 +147,13 @@ def capacity_steps(
         "step3_productivity_adjusted":  round(step3_adjusted, 4),
         "step4_monthly_shifts":         step4,
         "step5_need":                   round(step5, 4) if step5 != float("inf") else 9999.0,
+        "workload_seconds":             round(demand * step1 / max(dut_factor, 0.000001), 4),
+        "workload_resource_hours":      round(
+            demand * step2 / max(dut_factor * 3600.0, 0.000001), 4
+        ),
+        "available_resource_hours":     round(
+            equip * hrs * wd * shifts * (1 - allow) * prod, 4
+        ),
         # Supply
         "capacity_qty":                 round(capacity_qty, 2),
         "supply_per_equip_unit":        round(supply_per_unit, 2),
@@ -194,14 +206,14 @@ def resource_scenario_summary(
 def compute_capacity_for_mode(
     gcm_df: pd.DataFrame,
     mode: str,           # "NORMAL" or "MAXIMUM"
-    retest_type: str,    # "TYPE1" or "TYPE2"
+    retest_type: str,    # "NONE", "TYPE1", or "TYPE2"
 ) -> pd.DataFrame:
     """
     Vectorised capacity computation over the GCM base DataFrame.
     Returns DataFrame with all capacity columns added.
     """
     assert mode in ("NORMAL", "MAXIMUM")
-    assert retest_type in ("TYPE1", "TYPE2")
+    assert retest_type in ("NONE", "TYPE1", "TYPE2")
 
     # Select shift parameters based on mode
     if mode == "NORMAL":
@@ -216,7 +228,9 @@ def compute_capacity_for_mode(
     rows = []
     for _, row in gcm_df.iterrows():
         # Retest parameters
-        if retest_type == "TYPE1":
+        if retest_type == "NONE":
+            rt, txp = compute_no_retest_params()
+        elif retest_type == "TYPE1":
             rt, txp = compute_type1_params()
         else:
             rt, txp = compute_type2_params(
@@ -225,17 +239,20 @@ def compute_capacity_for_mode(
                 row.get("retest_quote"),
             )
 
+        raw_behavior = row.get("resource_behavior")
+        if raw_behavior is None or pd.isna(raw_behavior):
+            raise ValueError("Promoted capacity rows require a governed resource_behavior")
         try:
-            behavior = ResourceBehavior(
-                row.get("resource_behavior", ResourceBehavior.DEDICATED)
-            )
-        except ValueError:
-            behavior = ResourceBehavior.DEDICATED
+            behavior = ResourceBehavior(raw_behavior)
+        except ValueError as error:
+            raise ValueError(f"Unknown governed resource behavior: {raw_behavior}") from error
         parallel_duts = 1.0
         if behavior is ResourceBehavior.MULTI_DUT:
             parallel_duts = calculate_effective_parallel_duts(
                 tester_channels=int(_number_or_default(row.get("tester_channels"), 1)),
-                licensed_ports=int(_number_or_default(row.get("licensed_ports"), 1)),
+                licensed_ports=int(
+                    _number_or_default(row.get("enabled_licensed_ports"), 1)
+                ),
                 fixture_cavities=int(_number_or_default(row.get("fixture_cavities"), 1)),
                 handler_sockets=int(_number_or_default(row.get("handler_sockets"), 1)),
                 parallel_efficiency=_number_or_default(
@@ -244,8 +261,14 @@ def compute_capacity_for_mode(
             )
 
         result = capacity_steps(
-            handling_time_sec     = row.get("handling_time_sec"),
-            target_test_time_sec  = row.get("target_test_time_sec"),
+            handling_time_sec     = (
+                0.0 if row.get("governed_cycle_time_sec") is not None
+                else row.get("handling_time_sec")
+            ),
+            target_test_time_sec  = row.get(
+                "governed_cycle_time_sec",
+                row.get("target_test_time_sec"),
+            ),
             target_yield          = row.get("target_yield"),
             retest_times          = rt,
             test_x_parameter      = txp,
@@ -267,6 +290,7 @@ def compute_capacity_for_mode(
             "factory_code":    row.get("factory_code"),
             "month_key":       row["month_key"],
             "planning_version_id":     row["planning_version_id"],
+            "plan_as_of_date": row.get("plan_as_of_date"),
             "product_number":  row["product_number"],
             "product_family":  row.get("product_family"),
             "platform":        row.get("platform"),
@@ -276,6 +300,28 @@ def compute_capacity_for_mode(
             "equipment_id":    row.get("equipment_id"),
             "equipment_type":  row.get("equipment_type"),
             "resource_behavior": behavior.value,
+            "route_id": row.get("route_id"),
+            "route_step_id": row.get("route_step_id"),
+            "route_step_sequence": row.get("route_step_sequence"),
+            "route_step_demand_qty": row.get(
+                "route_step_demand_qty", row.get("effective_demand_qty")
+            ),
+            "qualification_id": row.get("qualification_id"),
+            "pool_id": row.get("pool_id"),
+            "pool_behavior": row.get("pool_behavior"),
+            "paired_fixture_resource_id": row.get("paired_fixture_resource_id"),
+            "handler_resource_id": row.get("handler_resource_id"),
+            "tester_channels": row.get("tester_channels"),
+            "enabled_licensed_ports": row.get("enabled_licensed_ports"),
+            "tester_fixture_slots": row.get("tester_fixture_slots"),
+            "fixture_cavities": row.get("fixture_cavities"),
+            "handler_sockets": row.get("handler_sockets"),
+            "fixtures_required_per_system": row.get("fixtures_required_per_system"),
+            "execution_mode": row.get("execution_mode"),
+            "batch_cycle_time_sec": row.get("batch_cycle_time_sec"),
+            "changeover_time_sec": row.get("changeover_time_sec"),
+            "parallel_efficiency": row.get("parallel_efficiency"),
+            "governed_cycle_time_sec": row.get("governed_cycle_time_sec"),
             "effective_parallel_duts": parallel_duts,
             "equip_qty_available": row.get("equip_qty_available"),
             "capacity_mode":   mode,
@@ -309,13 +355,13 @@ def build_capacity_tables(duck_conn) -> dict:
     counts = {}
 
     for mode in ["NORMAL", "MAXIMUM"]:
-        for retest_type in ["TYPE1", "TYPE2"]:
+        for retest_type in ["NONE", "TYPE1", "TYPE2"]:
             table_name = f"gold_cap_{mode.lower()}"
             logger.info(f"  Computing {table_name} ({retest_type})")
 
             cap_df = compute_capacity_for_mode(gcm_df, mode, retest_type)
 
-            if retest_type == "TYPE1":
+            if retest_type == "NONE":
                 # First retest type: create table
                 write_gold_table(
                     cap_df, table_name, duck_conn,
@@ -346,8 +392,136 @@ def build_capacity_tables(duck_conn) -> dict:
     return counts
 
 
+def _build_workload_resource_scenario_table(duck_conn) -> int:
+    """Constrain pooled resources in resource hours without unit fan-out."""
+    duck_conn.execute("DROP TABLE IF EXISTS gold_resource_scenarios")
+    duck_conn.execute(
+        """
+        CREATE TABLE gold_resource_scenarios AS
+        WITH capacity_data AS (
+            SELECT * FROM gold_cap_normal
+            UNION ALL BY NAME
+            SELECT * FROM gold_cap_maximum
+        ),
+        resource_grain AS (
+            SELECT
+                site_code,
+                month_key,
+                planning_version_id,
+                product_number,
+                route_step_id,
+                test_type,
+                capacity_mode,
+                retest_type,
+                resource_behavior,
+                pool_id,
+                equipment_id,
+                MAX(equipment_type) AS equipment_type,
+                MAX(route_step_demand_qty) AS route_step_demand_qty,
+                MAX(workload_seconds) AS workload_seconds,
+                MAX(workload_resource_hours) AS workload_resource_hours,
+                MAX(available_resource_hours) AS available_resource_hours,
+                MAX(capacity_qty) AS product_mix_capacity_qty
+            FROM capacity_data
+            GROUP BY ALL
+        ),
+        grouped AS (
+            SELECT
+                site_code,
+                month_key,
+                planning_version_id,
+                CASE WHEN resource_behavior = 'SHARED_POOL'
+                     THEN NULL ELSE product_number END AS product_number,
+                CASE WHEN resource_behavior = 'SHARED_POOL'
+                     THEN NULL ELSE route_step_id END AS route_step_id,
+                test_type,
+                capacity_mode,
+                retest_type,
+                resource_behavior,
+                COALESCE(pool_id, equipment_id) AS resource_constraint_id,
+                string_agg(
+                    DISTINCT equipment_id, ',' ORDER BY equipment_id
+                ) AS equipment_id,
+                string_agg(
+                    DISTINCT equipment_type, ',' ORDER BY equipment_type
+                ) AS equipment_type,
+                COUNT(DISTINCT product_number) AS affected_products,
+                MAX(route_step_demand_qty) AS route_step_demand_qty,
+                SUM(workload_seconds) AS workload_seconds,
+                SUM(workload_resource_hours) AS required_resource_hours,
+                CASE
+                    WHEN resource_behavior IN ('PAIRED_FIXTURE', 'SERIAL_STEP')
+                    THEN MIN(available_resource_hours)
+                    ELSE SUM(available_resource_hours)
+                END AS available_resource_hours,
+                CASE
+                    WHEN resource_behavior IN ('SHARED_POOL', 'ALTERNATIVE_POOL')
+                    THEN NULL
+                    ELSE SUM(product_mix_capacity_qty)
+                END AS declared_mix_capacity_qty
+            FROM resource_grain
+            GROUP BY
+                site_code, month_key, planning_version_id,
+                CASE WHEN resource_behavior = 'SHARED_POOL'
+                     THEN NULL ELSE product_number END,
+                CASE WHEN resource_behavior = 'SHARED_POOL'
+                     THEN NULL ELSE route_step_id END,
+                test_type, capacity_mode, retest_type, resource_behavior,
+                COALESCE(pool_id, equipment_id)
+        )
+        SELECT
+            md5(
+                site_code || '|' || CAST(month_key AS VARCHAR) || '|' ||
+                planning_version_id || '|' || COALESCE(product_number, 'SHARED') ||
+                '|' || COALESCE(route_step_id, 'POOL') || '|' ||
+                resource_constraint_id || '|' || capacity_mode || '|' || retest_type
+            ) AS resource_scenario_pk,
+            *,
+            available_resource_hours - required_resource_hours AS gap_resource_hours,
+            CASE WHEN required_resource_hours > 0
+                 THEN (available_resource_hours - required_resource_hours)
+                    / required_resource_hours
+                 ELSE 0 END AS gap_ratio,
+            CASE
+                WHEN required_resource_hours <= 0 THEN 'BALANCED'
+                WHEN (available_resource_hours - required_resource_hours)
+                     / required_resource_hours < -0.15 THEN 'CRITICAL'
+                WHEN (available_resource_hours - required_resource_hours)
+                     / required_resource_hours < -0.08 THEN 'HIGH'
+                WHEN (available_resource_hours - required_resource_hours)
+                     / required_resource_hours < -0.03 THEN 'MEDIUM'
+                WHEN available_resource_hours < required_resource_hours THEN 'LOW'
+                WHEN (available_resource_hours - required_resource_hours)
+                     / required_resource_hours <= 0.05 THEN 'BALANCED'
+                ELSE 'EXCESS'
+            END AS bottleneck_severity
+        FROM grouped
+        """
+    )
+    for column in ("month_key", "site_code", "resource_behavior"):
+        duck_conn.execute(
+            f"CREATE INDEX idx_gold_resource_scenarios_{column} "
+            f"ON gold_resource_scenarios ({column})"
+        )
+    return int(
+        duck_conn.execute("SELECT COUNT(*) FROM gold_resource_scenarios").fetchone()[0]
+    )
+
+
 def build_resource_scenario_table(duck_conn) -> int:
     """Publish resource scenarios with set-based DuckDB aggregation."""
+    columns = {
+        row[0] for row in duck_conn.execute("DESCRIBE gold_cap_normal").fetchall()
+    }
+    if {
+        "workload_seconds",
+        "workload_resource_hours",
+        "available_resource_hours",
+        "route_step_id",
+    } <= columns:
+        count = _build_workload_resource_scenario_table(duck_conn)
+        logger.info(f"    gold_resource_scenarios: {count:,} rows")
+        return count
     duck_conn.execute("DROP TABLE IF EXISTS gold_resource_scenarios")
     duck_conn.execute(
         """

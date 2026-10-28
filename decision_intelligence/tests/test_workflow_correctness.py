@@ -282,19 +282,53 @@ def test_capacity_merge_keeps_planning_versions_and_gap_units() -> None:
 
 def test_publication_changes_atomic_pointer_only_after_validation(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("CAPACITY_TWIN_HOME", str(tmp_path))
-    source = ml_support.source_database_path()
-    source.parent.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(str(source))
-    conn.execute("CREATE TABLE gold_input(value INTEGER)")
-    conn.close()
+    pipeline_run = "pipeline-test"
+    pipeline_root = tmp_path / "artifacts" / pipeline_run
+    pipeline_root.mkdir(parents=True)
+    files = {}
+    for layer in ("bronze", "silver", "gold", "serving"):
+        path = pipeline_root / f"{layer}.duckdb"
+        with duckdb.connect(str(path)) as conn:
+            conn.execute(f"CREATE TABLE {layer}_input(value INTEGER)")
+        files[path.name] = {"sha256": ml_support.file_sha256(path)}
+    source_root = tmp_path / "source_bundles" / "source-test"
+    source_root.mkdir(parents=True)
+    source_files = {}
+    for role in ("reference", "mapping"):
+        path = source_root / f"{role}.duckdb"
+        with duckdb.connect(str(path)):
+            pass
+        source_files[path.name] = {"role": role, "path": str(path)}
+    source_manifest = source_root / "source_bundle_manifest.json"
+    source_manifest.write_text(json.dumps({"files": source_files}), encoding="utf-8")
+    pipeline_manifest = pipeline_root / "manifest.json"
+    pipeline_manifest.write_text(
+        json.dumps(
+            {
+                "source_bundle_run_id": "source-test",
+                "source_bundle_checksum": "source-checksum",
+                "source_bundle_manifest": str(source_manifest),
+                "files": files,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "current.json").write_text(
+        json.dumps(
+            {"active_run_id": pipeline_run, "manifest": str(pipeline_manifest)}
+        ),
+        encoding="utf-8",
+    )
 
     candidate = publication.create_candidate()
     candidate_conn = duckdb.connect(str(candidate.database))
-    candidate_conn.execute("CREATE TABLE gold_test_output AS SELECT 1 AS value")
+    candidate_conn.execute("CREATE TABLE ml_test_output AS SELECT 1 AS value")
     candidate_conn.close()
     published = publication.publish_candidate(candidate, {1: {"status": "OK"}})
 
     pointer = json.loads((tmp_path / "ml_current.json").read_text(encoding="utf-8"))
+    release = json.loads((tmp_path / "release_current.json").read_text(encoding="utf-8"))
     assert published.is_file()
     assert pointer["database_sha256"] == ml_support.file_sha256(published)
     assert ml_support.published_database_path() == published.resolve()
+    assert release["ml"]["input_pipeline_run_id"] == pipeline_run

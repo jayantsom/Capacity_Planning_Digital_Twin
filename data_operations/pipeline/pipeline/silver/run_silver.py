@@ -12,6 +12,9 @@ import duckdb
 from capacity_twin_core.logging import logger
 from capacity_twin_core.runtime.database_paths import get_duckdb_connection, load_config
 from data_operations.pipeline.pipeline.bronze.schema import BRONZE_CONFIGS
+from data_operations.pipeline.pipeline.silver.transforms_contracts import (
+    build_conformed_contracts,
+)
 from data_operations.pipeline.pipeline.silver.transforms_machine import (
     transform_machine_execution,
     transform_machine_logs,
@@ -83,6 +86,8 @@ def run_silver_transforms(
     *,
     duck_conn: duckdb.DuckDBPyConnection | None = None,
     pipeline_run_id: str | None = None,
+    source_run_id: str = "unversioned",
+    source_bundle_checksum: str = "unversioned",
 ) -> dict[str, int]:
     start = time.time()
     run_id = pipeline_run_id or str(uuid.uuid4())
@@ -118,6 +123,15 @@ def run_silver_transforms(
     counts["slvr_machine_execution"] = transform_machine_execution(duck_conn, spark, run_id, ts)
     counts["slvr_machine_test_param"] = transform_machine_test_param(duck_conn, spark, run_id, ts)
     counts["slvr_machine_logs"] = transform_machine_logs(duck_conn, spark, run_id, ts)
+    counts.update(
+        build_conformed_contracts(
+            duck_conn,
+            run_id,
+            ts,
+            source_run_id=source_run_id,
+            source_bundle_checksum=source_bundle_checksum,
+        )
+    )
     counts["slvr_quarantine"] = _build_quarantine(duck_conn, run_id, ts)
 
     # ── Summary ────────────────────────────────────────────────────────────

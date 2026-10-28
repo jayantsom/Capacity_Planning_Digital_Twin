@@ -1,5 +1,6 @@
 """Component status, lineage, and guarded data-clearing tests."""
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -7,8 +8,7 @@ import pytest
 
 from capacity_twin_core.runtime.database_paths import (
     get_active_run_pointer,
-    get_control_run_pointer,
-    get_raw_run_pointer,
+    get_source_bundle_pointer,
 )
 from data_operations.backend import service
 from data_operations.pipeline.pipeline.run_state import DATABASE_FILES
@@ -40,29 +40,49 @@ def _write_json(path: Path, payload: dict) -> None:
 
 def _publish_raw(runtime: Path, run_id: str = "raw-1") -> None:
     """Create a complete two-file Raw publication."""
-    control_database = runtime / "control" / "control_reference.duckdb"
-    control_database.parent.mkdir(parents=True, exist_ok=True)
-    control_database.write_bytes(b"control")
-    _write_json(
-        get_control_run_pointer(runtime),
-        {
-            "control_run_id": "control-1",
-            "sha256": "control-sha",
-            "catalog_version": "test",
-            "database": str(control_database),
-        },
-    )
-    raw_dir = runtime / "raw" / "sqlite"
+    bundle = runtime / "source_bundles" / run_id
+    raw_dir = bundle / "raw"
     raw_dir.mkdir(parents=True)
     for name in ("first.db", "second.db"):
         (raw_dir / name).write_bytes(b"raw")
+    (bundle / "reference.duckdb").write_bytes(b"reference")
+    (bundle / "mapping.duckdb").write_bytes(b"mapping")
+    files = {}
+    for path, role in (
+        (raw_dir / "first.db", "raw"),
+        (raw_dir / "second.db", "raw"),
+        (bundle / "reference.duckdb", "reference"),
+        (bundle / "mapping.duckdb", "mapping"),
+    ):
+        files[path.name] = {
+            "path": str(path.relative_to(runtime)),
+            "role": role,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+    bundle_checksum = hashlib.sha256(
+        json.dumps(files, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    manifest = bundle / "source_bundle_manifest.json"
     _write_json(
-        get_raw_run_pointer(runtime),
+        manifest,
         {
+            "source_run_id": run_id,
+            "bundle_checksum": bundle_checksum,
+            "catalog_version": "test",
+            "files": files,
+        },
+    )
+    _write_json(
+        get_source_bundle_pointer(runtime),
+        {
+            "source_run_id": run_id,
             "run_id": run_id,
             "generated_at_utc": "2026-10-20T00:00:00+00:00",
-            "source_control_run_id": "control-1",
-            "source_control_sha256": "control-sha",
+            "bundle_checksum": bundle_checksum,
+            "manifest": str(manifest.relative_to(runtime)),
+            "raw_directory": str(raw_dir.relative_to(runtime)),
+            "reference_database": str((bundle / "reference.duckdb").relative_to(runtime)),
+            "mapping_database": str((bundle / "mapping.duckdb").relative_to(runtime)),
         },
     )
 
@@ -79,13 +99,16 @@ def _publish_pipeline(
     for name in DATABASE_FILES:
         (run_dir / name).write_bytes(b"derived")
     manifest = run_dir / "manifest.json"
+    source_pointer = json.loads(
+        get_source_bundle_pointer(runtime).read_text(encoding="utf-8")
+    )
     _write_json(
         manifest,
         {
             "run_id": run_id,
             "source_raw_run_id": source_raw_run_id,
-            "source_control_run_id": "control-1",
-            "source_control_sha256": "control-sha",
+            "source_control_run_id": source_raw_run_id,
+            "source_control_sha256": source_pointer["bundle_checksum"],
             "status": "PROMOTED",
         },
     )
@@ -131,8 +154,8 @@ def test_new_raw_generation_marks_existing_pipeline_stale(runtime: Path) -> None
     assert health["pipeline"]["status"] == "stale"
 
 
-def test_clear_raw_preserves_pipeline_logs_and_job_history(runtime: Path) -> None:
-    """Remove Raw assets without deleting promoted output or records."""
+def test_clear_raw_preserves_referenced_source_pipeline_and_records(runtime: Path) -> None:
+    """Keep source data pinned by a promoted pipeline."""
     _publish_raw(runtime)
     generator_run = runtime / "artifacts" / "generator-run-1"
     generator_run.mkdir(parents=True)
@@ -146,15 +169,15 @@ def test_clear_raw_preserves_pipeline_logs_and_job_history(runtime: Path) -> Non
     result = service.clear_raw_data()
 
     assert result["removed_files"] > 0
-    assert not (runtime / "raw").exists()
+    assert (runtime / "source_bundles" / "raw-1").exists()
     assert not generator_run.exists()
     assert (runtime / "artifacts" / "pipeline-1").is_dir()
     assert (runtime / "jobs" / "history.json").is_file()
     assert (runtime / "logs" / "app.log").is_file()
 
 
-def test_clear_all_preserves_only_operational_records(runtime: Path) -> None:
-    """Remove generated, pipeline, and model data while keeping records."""
+def test_clear_all_preserves_active_publications_and_operational_records(runtime: Path) -> None:
+    """Remove unreferenced data while retaining active publications."""
     _publish_raw(runtime)
     _publish_pipeline(runtime, source_raw_run_id="raw-1")
     for folder in (".staging", "models", "bronze", "silver", "gold", "serving"):
@@ -170,8 +193,10 @@ def test_clear_all_preserves_only_operational_records(runtime: Path) -> None:
     result = service.clear_all_data()
 
     assert result["message"] == "All generated data cleared"
-    for folder in ("raw", "artifacts", ".staging", "models", "bronze", "silver", "gold", "serving"):
+    for folder in ("raw", ".staging", "models", "bronze", "silver", "gold", "serving"):
         assert not (runtime / folder).exists()
+    assert (runtime / "artifacts" / "pipeline-1").exists()
+    assert (runtime / "source_bundles" / "raw-1").exists()
     assert not (runtime / "ml_current.json").exists()
     assert (runtime / "jobs" / "history.json").is_file()
     assert (runtime / "logs" / "app.log").is_file()

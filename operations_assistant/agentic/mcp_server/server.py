@@ -77,7 +77,10 @@ TOOL_REGISTRY: dict[str, dict] = {
         "parameters": {
             "type": "object",
             "properties": {
-                "table_name": {"type": "string", "description": "Table or view name, e.g. 'gold_bottleneck'"},
+                "table_name": {
+                    "type": "string",
+                    "description": "Release table name, e.g. 'srv_resource_constraints'",
+                },
             },
             "required": ["table_name"],
         },

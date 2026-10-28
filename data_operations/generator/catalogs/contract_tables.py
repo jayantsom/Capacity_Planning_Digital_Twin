@@ -211,33 +211,47 @@ def build_resource_contracts(
         for test_type in assignment["test_types"]:
             behavior = behavior_by_product_test[(assignment["product_number"], test_type)]
             if behavior == "STANDALONE":
-                selected = active_by_test[test_type]
-                systems = []
+                selected_resources = [active_by_test[test_type]]
             elif behavior == "PAIRED_FIXTURE":
                 systems = sorted(set(paired_systems_by_test[test_type]))
+                selected_resources = [
+                    systems[
+                        sum(f"{assignment['site_code']}|{test_type}".encode())
+                        % len(systems)
+                    ]
+                ]
             else:
                 systems = systems_by_test[test_type]
-            if systems:
-                selected = systems[
-                    sum(f"{assignment['site_code']}|{test_type}".encode())
-                    % len(systems)
-                ]
-            qualification_rows.append(
-                {
-                    "qualification_id": stable_id(
-                        "qualification", assignment["site_code"], assignment["product_number"], test_type
-                    ),
-                    "site_code": assignment["site_code"],
-                    "product_number": assignment["product_number"],
-                    "test_type": test_type,
-                    "resource_id": selected,
-                    "pool_id": f"POOL-{test_type}",
-                    "capacity_behavior": behavior,
-                    "is_primary": 1,
-                    "effective_start_date": "2023-01-01",
-                    "effective_end_date": "2027-12-31",
-                }
-            )
+                if behavior in {"ALTERNATIVE_POOL", "SHARED_POOL"}:
+                    selected_resources = sorted(systems)
+                else:
+                    selected_resources = [
+                        systems[
+                            sum(f"{assignment['site_code']}|{test_type}".encode())
+                            % len(systems)
+                        ]
+                    ]
+            for resource_index, selected in enumerate(selected_resources):
+                qualification_rows.append(
+                    {
+                        "qualification_id": stable_id(
+                            "qualification",
+                            assignment["site_code"],
+                            assignment["product_number"],
+                            test_type,
+                            selected,
+                        ),
+                        "site_code": assignment["site_code"],
+                        "product_number": assignment["product_number"],
+                        "test_type": test_type,
+                        "resource_id": selected,
+                        "pool_id": f"POOL-{test_type}",
+                        "capacity_behavior": behavior,
+                        "is_primary": int(resource_index == 0),
+                        "effective_start_date": "2023-01-01",
+                        "effective_end_date": "2027-12-31",
+                    }
+                )
 
     multi_rows: list[dict] = []
     for index, system in enumerate(SYSTEMS):

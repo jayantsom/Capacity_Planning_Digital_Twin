@@ -55,6 +55,10 @@ local_16gb:
   max_execution_rows: 3000000
   max_test_parameter_rows: 3000000
   max_log_rows: 300000
+  max_sop_rows: 100000
+  max_operations_lots: 12000
+  max_operations_movement_rows: 100000
+  max_npi_rows: 25000
   max_raw_bytes: 3000000000
   max_promoted_run_bytes: 6000000000
   max_peak_ram_bytes: 10000000000
@@ -63,26 +67,16 @@ local_16gb:
   min_free_disk_bytes: 12000000000
 
 databases:
-  control:
-    reference: control_reference.duckdb
   raw:
-    demand_forecast: raw_demand_forecast.db
-    product_master: raw_product_master.db
-    target_test_time: raw_target_test_time.db
-    target_yield: raw_target_yield.db
-    site_equipment_inventory: raw_site_equip_inv.db
-    site_soft: raw_site_soft.db
-    machine_execution: raw_machine_execution.db
-    test_x_parameter: raw_machine_test_param.db
-    machine_logs: raw_machine_logs.db
-    reference_data: raw_reference_data.db
-
-comparison_windows:
-  band_1:
-    label: Snapshot 1
-    start_date: "2023-01-01"
-    end_date: "2024-12-31"
-  band_2:
-    label: Snapshot 2
-    start_date: "2025-01-01"
-    end_date: "2026-10-31"
+    demand: raw_demand.db
+    product: raw_product.db
+    site: raw_site.db
+    machine: raw_machine.db
+    test: raw_test.db
+    yield: raw_yield.db
+    execution: raw_execution.db
+    inventory: raw_inventory.db
+    npi: raw_npi.db
+  source_bundle:
+    reference: reference.duckdb
+    mapping: mapping.duckdb

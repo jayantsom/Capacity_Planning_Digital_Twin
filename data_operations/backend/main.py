@@ -5,13 +5,14 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 import capacity_twin_core
 from capacity_twin_core.jobs import GLOBAL_JOBS, JobConflict
 from capacity_twin_core.runtime.database_paths import load_app_config
+from data_operations.backend.architecture import architecture_payload
 from data_operations.backend.models import (
     ClearDataRequest,
     GeneratorOptions,
@@ -40,12 +41,17 @@ ALLOWED_ORIGINS = set(APP_CONFIG["server"]["allowed_origins"])
 DATA_JOB_KINDS = {"generator", "pipeline", "rebuild"}
 
 app = FastAPI(title="Data Operations", docs_url=None, openapi_url=None)
+router = APIRouter()
 app.mount(
     "/data-operations/static",
     StaticFiles(directory=str(FRONTEND_DIR)),
     name="data_operations_static",
 )
-app.mount("/shared", StaticFiles(directory=str(CORE_FRONTEND_DIR)), name="shared_frontend")
+app.mount(
+    "/shared/static",
+    StaticFiles(directory=str(CORE_FRONTEND_DIR)),
+    name="shared_frontend",
+)
 
 
 def _require_local_origin(request: Request) -> None:
@@ -78,19 +84,19 @@ def _require_no_active_job() -> None:
         raise HTTPException(status_code=409, detail="A compute job is running")
 
 
-@app.get("/data-operations/", include_in_schema=False)
+@router.get("/data-operations/", include_in_schema=False)
 async def index() -> FileResponse:
     """Serve the Data Operations workspace."""
     return FileResponse(FRONTEND_DIR / "index.html")
 
 
-@app.get("/data-operations/api/health")
+@router.get("/data-operations/api/health")
 async def health() -> dict:
     """Report local Raw and medallion readiness."""
     return await asyncio.to_thread(health_payload)
 
 
-@app.get("/data-operations/api/config")
+@router.get("/data-operations/api/config")
 async def configuration() -> dict:
     """Return safe generator defaults and profile names."""
     options = default_options()
@@ -102,7 +108,7 @@ async def configuration() -> dict:
     }
 
 
-@app.get("/data-operations/api/publication")
+@router.get("/data-operations/api/publication")
 async def publication() -> dict:
     """Return safe details for the active medallion publication."""
     try:
@@ -111,14 +117,20 @@ async def publication() -> dict:
         raise HTTPException(status_code=503, detail=str(error)) from error
 
 
-@app.post("/data-operations/api/estimate")
+@router.get("/data-operations/api/architecture")
+async def architecture() -> dict:
+    """Return tracked lineage, formula, ownership, and catalog metadata."""
+    return await asyncio.to_thread(architecture_payload)
+
+
+@router.post("/data-operations/api/estimate")
 async def estimate(options: GeneratorOptions, request: Request) -> dict:
     """Validate controls and estimate local resource use."""
     _require_local_origin(request)
     return estimate_run(options)
 
 
-@app.post("/data-operations/api/jobs/generate", status_code=202)
+@router.post("/data-operations/api/jobs/generate", status_code=202)
 async def generate(payload: JobRequest, request: Request) -> dict:
     """Start one bounded Raw-data build."""
     _require_local_origin(request)
@@ -131,14 +143,14 @@ async def generate(payload: JobRequest, request: Request) -> dict:
     )
 
 
-@app.post("/data-operations/api/jobs/pipeline", status_code=202)
+@router.post("/data-operations/api/jobs/pipeline", status_code=202)
 async def pipeline(payload: PipelineRequest, request: Request) -> dict:
     """Start one complete Bronze-to-Serving build."""
     _require_local_origin(request)
     return _start_job("pipeline", run_pipeline_job, payload.model_dump())
 
 
-@app.post("/data-operations/api/jobs/rebuild", status_code=202)
+@router.post("/data-operations/api/jobs/rebuild", status_code=202)
 async def rebuild(payload: JobRequest, request: Request) -> dict:
     """Start Generator followed by the complete pipeline."""
     _require_local_origin(request)
@@ -151,14 +163,14 @@ async def rebuild(payload: JobRequest, request: Request) -> dict:
     )
 
 
-@app.get("/data-operations/api/jobs")
+@router.get("/data-operations/api/jobs")
 async def jobs(limit: int = Query(default=20, ge=1, le=100)) -> dict:
     """Return bounded local job history."""
     history = [job for job in GLOBAL_JOBS.history(limit=100) if job.get("kind") in DATA_JOB_KINDS]
     return {"jobs": history[:limit]}
 
 
-@app.get("/data-operations/api/jobs/{job_id}")
+@router.get("/data-operations/api/jobs/{job_id}")
 async def job(job_id: str) -> dict:
     """Return progress for one known local job."""
     try:
@@ -170,7 +182,7 @@ async def job(job_id: str) -> dict:
     return result
 
 
-@app.post("/data-operations/api/rollback")
+@router.post("/data-operations/api/rollback")
 async def rollback(request: Request) -> dict:
     """Activate the previous validated medallion run."""
     _require_local_origin(request)
@@ -179,7 +191,7 @@ async def rollback(request: Request) -> dict:
     return {"active_run_id": run_id, "status": "ROLLED_BACK"}
 
 
-@app.post("/data-operations/api/data/clear-raw")
+@router.post("/data-operations/api/data/clear-raw")
 async def clear_raw(payload: ClearDataRequest, request: Request) -> dict:
     """Clear Raw data after an exact typed confirmation."""
     _require_local_origin(request)
@@ -189,7 +201,7 @@ async def clear_raw(payload: ClearDataRequest, request: Request) -> dict:
     return await asyncio.to_thread(clear_raw_data)
 
 
-@app.post("/data-operations/api/data/clear-all")
+@router.post("/data-operations/api/data/clear-all")
 async def clear_all(payload: ClearDataRequest, request: Request) -> dict:
     """Clear generated and derived data after an exact confirmation."""
     _require_local_origin(request)
@@ -197,3 +209,6 @@ async def clear_all(payload: ClearDataRequest, request: Request) -> dict:
     if payload.confirmation != "CLEAR ALL":
         raise HTTPException(status_code=422, detail="Type CLEAR ALL to confirm")
     return await asyncio.to_thread(clear_all_data)
+
+
+app.include_router(router)

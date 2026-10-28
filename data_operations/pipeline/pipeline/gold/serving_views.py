@@ -1,12 +1,29 @@
-"""
-Gold layer: Serving views.
-Zero storage cost — views over Gold tables for dashboard consumers.
-Recreated on every pipeline run.
-"""
+"""Self-contained materialized Serving contracts built from attached candidates."""
 
 from capacity_twin_core.logging import logger
 
 SERVING_VIEWS = {
+    "srv_reference_site": """
+        SELECT site_code, site_name, factory_code, region, country, supplier_name
+        FROM slvr_ref_site
+        WHERE is_valid
+    """,
+    "srv_reference_product": """
+        SELECT product_number, product_description, product_family, platform,
+               product_status
+        FROM slvr_prod_master
+        WHERE is_valid
+    """,
+    "srv_reference_test_type": """
+        SELECT test_type, test_category_name, test_category_id
+        FROM slvr_ref_test_type
+        WHERE is_valid
+    """,
+    "srv_reference_equipment": """
+        SELECT equipment_id, equipment_name, equipment_type, manufacturer
+        FROM slvr_ref_equipment
+        WHERE is_valid
+    """,
     "srv_vw_capacity_summary": """
         SELECT
             dvc.site_code,
@@ -24,6 +41,7 @@ SERVING_VIEWS = {
             dvc.equipment_id,
             dvc.equipment_type,
             dvc.planning_version_id,
+            dvc.plan_as_of_date,
             dvc.capacity_mode,
             dvc.retest_type,
             dvc.demand_qty,
@@ -53,6 +71,7 @@ SERVING_VIEWS = {
             b.capacity_mode,
             b.retest_type,
             b.planning_version_id,
+            b.plan_as_of_date,
             b.bottleneck_severity,
             b.worst_gap_qty,
             b.total_investment_need_units,
@@ -87,6 +106,7 @@ SERVING_VIEWS = {
             dvc.capacity_mode,
             dvc.retest_type,
             dvc.planning_version_id,
+            dvc.plan_as_of_date,
             AVG(dvc.utilization_pct)        AS avg_utilization_pct,
             MAX(dvc.utilization_pct)        AS max_utilization_pct,
             MIN(dvc.capacity_qty)           AS min_capacity_qty,
@@ -97,7 +117,8 @@ SERVING_VIEWS = {
         GROUP BY
             dvc.site_code, rs.site_name, rs.region, dvc.month_key,
             dvc.test_type, dvc.equipment_id, dvc.equipment_type,
-            dvc.capacity_mode, dvc.retest_type, dvc.planning_version_id
+            dvc.capacity_mode, dvc.retest_type, dvc.planning_version_id,
+            dvc.plan_as_of_date
     """,
     "srv_vw_oee_trend": """
         SELECT
@@ -167,24 +188,52 @@ SERVING_VIEWS = {
             pm.product_family,
             ca.test_type,
             ca.month_key,
-            ca.planning_version_id,
             ca.actual_passed_qty,
             ca.actual_total_qty,
             ca.actual_yield_avg,
             ca.actual_test_duration_avg,
             ca.actual_throughput_avg,
-            ca.actual_downtime_avg,
-            ca.yield_variance,
-            ca.test_time_variance_sec,
-            -- Flag significant variances
-            CASE
-                WHEN ABS(ca.yield_variance) > 0.05 THEN 'SIGNIFICANT'
-                WHEN ABS(ca.yield_variance) > 0.02 THEN 'MODERATE'
-                ELSE 'WITHIN_TOLERANCE'
-            END                             AS yield_variance_flag
+            ca.actual_downtime_seconds,
+            ca.output_unit,
+            ca.output_method
         FROM gold_cap_actual ca
         LEFT JOIN slvr_ref_site rs    ON ca.site_code     = rs.site_code
         LEFT JOIN slvr_prod_master pm ON ca.product_number = pm.product_number
+    """,
+    "srv_demonstrated_capacity": """
+        SELECT
+            demonstrated.*,
+            site.site_name,
+            site.region,
+            product.product_description,
+            product.product_family
+        FROM gold_demonstrated_capacity demonstrated
+        LEFT JOIN slvr_ref_site site
+          ON demonstrated.site_code = site.site_code
+        LEFT JOIN slvr_prod_master product
+          ON demonstrated.product_number = product.product_number
+    """,
+    "srv_resource_constraints": """
+        SELECT scenario.*, site.site_name, product.product_description,
+               test_type.test_category_name, equipment.equipment_name
+        FROM gold_resource_scenarios scenario
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_prod_master product USING (product_number)
+        LEFT JOIN slvr_ref_test_type test_type USING (test_type)
+        LEFT JOIN slvr_ref_equipment equipment
+          ON scenario.resource_constraint_id = equipment.equipment_id
+    """,
+    "srv_ml_feature_store": """
+        SELECT * FROM gold_ml_feature_store
+    """,
+    "srv_gcm_resource_contract": """
+        SELECT * FROM gold_gcm_base
+    """,
+    "srv_oee_metrics": """
+        SELECT * FROM gold_oee_metrics
+    """,
+    "srv_actual_output": """
+        SELECT * FROM gold_cap_actual
     """,
     "srv_vw_operational_performance": """
         SELECT
@@ -247,16 +296,146 @@ SERVING_VIEWS = {
         LEFT JOIN slvr_prod_master pm ON oe.product_number = pm.product_number
         LEFT JOIN slvr_ref_test_type tt ON oe.test_type = tt.test_type
     """,
+    "srv_sop_balance": """
+        SELECT balance.*, site.site_name, product.product_description
+        FROM gold_sop_balance balance
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_prod_master product USING (product_number)
+    """,
+    "srv_npi_readiness": """
+        SELECT readiness.*, site.site_name, product.product_description
+        FROM gold_npi_readiness readiness
+        LEFT JOIN slvr_ref_site site ON readiness.lead_site_code = site.site_code
+        LEFT JOIN slvr_prod_master product USING (product_number)
+    """,
+    "srv_npi_ramp": """
+        SELECT ramp.*, site.site_name, product.product_description
+        FROM gold_npi_ramp ramp
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_prod_master product USING (product_number)
+    """,
+    "srv_npi_stage_gate": """
+        SELECT
+            gate.stage_gate_id,
+            gate.program_id,
+            program.program_name,
+            program.product_number,
+            program.lead_site_code,
+            site.site_name,
+            product.product_description,
+            gate.gate_sequence,
+            gate.gate_name,
+            gate.planned_gate_date,
+            gate.actual_gate_date,
+            gate.gate_status,
+            gate.approval_evidence_id
+        FROM slvr_npi_stage_gate gate
+        JOIN slvr_npi_program program USING (program_id)
+        LEFT JOIN slvr_ref_site site ON program.lead_site_code = site.site_code
+        LEFT JOIN slvr_prod_master product USING (product_number)
+        WHERE gate.is_valid AND program.is_valid
+    """,
+    "srv_operations_wip": """
+        SELECT flow.*, site.site_name, product.product_description,
+               equipment.equipment_name
+        FROM gold_operations_wip flow
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_prod_master product USING (product_number)
+        LEFT JOIN slvr_ref_equipment equipment ON flow.resource_id = equipment.equipment_id
+    """,
+    "srv_operations_queue": """
+        SELECT flow.*, site.site_name, equipment.equipment_name
+        FROM gold_operations_queue flow
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_ref_equipment equipment ON flow.resource_id = equipment.equipment_id
+    """,
+    "srv_operations_cycle_time": """
+        SELECT flow.*, site.site_name, product.product_description
+        FROM gold_operations_cycle_time flow
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_prod_master product USING (product_number)
+    """,
+    "srv_operations_throughput": """
+        SELECT flow.*, site.site_name, equipment.equipment_name
+        FROM gold_operations_throughput flow
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_ref_equipment equipment ON flow.resource_id = equipment.equipment_id
+    """,
+    "srv_operations_rework": """
+        SELECT flow.*, site.site_name, product.product_description
+        FROM gold_operations_rework flow
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_prod_master product USING (product_number)
+    """,
+    "srv_operations_route_adherence": """
+        SELECT flow.*, site.site_name, product.product_description
+        FROM gold_operations_route_adherence flow
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_prod_master product USING (product_number)
+    """,
+    "srv_operations_schedule_attainment": """
+        SELECT flow.*, site.site_name, product.product_description
+        FROM gold_operations_schedule_attainment flow
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_prod_master product USING (product_number)
+    """,
+    "srv_operations_bottleneck_movement": """
+        SELECT flow.*, site.site_name, equipment.equipment_name
+        FROM gold_operations_bottleneck_movement flow
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_ref_equipment equipment ON flow.resource_id = equipment.equipment_id
+    """,
+    "srv_operations_route_flow": """
+        WITH flow AS (
+            SELECT
+                movement_date,
+                site_code,
+                product_number,
+                route_id,
+                route_step_sequence,
+                from_operation,
+                to_operation,
+                resource_id,
+                COUNT(*) AS movement_count,
+                COUNT(DISTINCT lot_id) AS lot_count,
+                SUM(input_quantity_ea) AS input_quantity_ea,
+                SUM(output_quantity_ea) AS output_quantity_ea,
+                COUNT(*) FILTER (WHERE disposition_code = 'REWORK') AS rework_count,
+                'EA' AS quantity_unit
+            FROM gold_operations_event
+            GROUP BY ALL
+        )
+        SELECT flow.*, site.site_name, product.product_description,
+               equipment.equipment_name
+        FROM flow
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_prod_master product USING (product_number)
+        LEFT JOIN slvr_ref_equipment equipment ON flow.resource_id = equipment.equipment_id
+    """,
+    "srv_scenario_inputs": """
+        SELECT scenario.*, site.site_name, product.product_description,
+               equipment.equipment_name
+        FROM gold_scenario_inputs scenario
+        LEFT JOIN slvr_ref_site site USING (site_code)
+        LEFT JOIN slvr_prod_master product USING (product_number)
+        LEFT JOIN slvr_ref_equipment equipment ON scenario.resource_id = equipment.equipment_id
+    """,
+    "srv_equipment_cost_reference": """
+        SELECT cost.*, equipment.equipment_name, equipment.manufacturer
+        FROM gold_equipment_cost_reference cost
+        LEFT JOIN slvr_ref_equipment equipment USING (equipment_id)
+    """,
 }
 
 
 def build_serving_views(duck_conn) -> int:
-    logger.info("  Building serving views")
+    """Materialize every Serving object so the file has no attachment dependency."""
+    logger.info("  Materializing serving tables")
     count = 0
-    for view_name, sql in SERVING_VIEWS.items():
-        duck_conn.execute(f"DROP VIEW IF EXISTS {view_name}")
-        duck_conn.execute(f"CREATE VIEW {view_name} AS {sql}")
-        duck_conn.execute(f"SELECT * FROM {view_name} LIMIT 1").fetchall()
-        logger.info(f"    {view_name} ✓")
+    for table_name, sql in SERVING_VIEWS.items():
+        duck_conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
+        duck_conn.execute(f'CREATE TABLE "{table_name}" AS {sql}')
+        duck_conn.execute(f'SELECT * FROM "{table_name}" LIMIT 1').fetchall()
+        logger.info(f"    {table_name} ✓")
         count += 1
     return count

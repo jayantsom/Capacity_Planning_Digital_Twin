@@ -1,38 +1,41 @@
 # Data Engineering Pipeline
 
-The approved flow is Raw → Bronze → Silver → Gold → Serving, with ML published
-from validated Gold. Application mappings, resource qualifications, noise rules,
-calendar overrides, and comparison windows are compiled separately into
-`control_reference.duckdb`; they are not Raw source records.
+The flow is Raw to Bronze to Silver to Gold to Serving. ML reads the compatible Serving release and publishes evaluated outputs separately. Reference and Mapping are governed source controls, not Raw transactions.
 
 | Layer | Physical storage | Responsibility |
 |---|---|---|
-| Raw | Ten SQLite files | Synthetic source records, including declared noise |
+| Raw | Nine SQLite files | Synthetic source records, including declared noise |
+| Reference | `reference.duckdb` | Canonical business entities and rules |
+| Mapping | `mapping.duckdb` | Source-to-canonical identifiers and relationships |
 | Bronze | `bronze.duckdb` | Structural validation, typing, identity, and noise flags |
 | Silver | `silver.duckdb` | Deterministic cleaning, deduplication, conformance, and quarantine |
 | Gold | `gold.duckdb` | Capacity equations, demand reconciliation, OEE, and analytics |
+| Serving | `serving.duckdb` | Materialized application-facing tables |
 | ML | `ml.duckdb` | Evaluated workflow outputs and model metadata |
-| Serving | `serving.duckdb` | Stable read-only views for Operations Assistant and Data Explorer |
 
-Each downstream step reads upstream files without modifying them. Candidate files are built and validated under one run directory. Promotion changes only `current.json`; it never overwrites a promoted database.
+Each step reads upstream files without modifying them. Candidates are immutable. Promotion changes a small pointer file. It never overwrites a promoted database.
 
 ## Run lifecycle
 
-1. Compile and atomically publish the immutable control catalog, then estimate size.
-2. Generate all Raw databases from one seed and catalog.
-3. Write the Raw truth manifest and validation report.
-4. Build Bronze, Silver, Gold, ML, and Serving candidates in order.
+1. Compile Reference and Mapping, then estimate size.
+2. Generate all nine Raw databases from one seed and catalog.
+3. Write the source manifest and noise truth manifest.
+4. Build Bronze, Silver, Gold, and Serving in order.
 5. Validate schemas, checksums, business keys, dates, quantities, join cardinality, and capacity equations.
-6. Mark errors as blocking; report expected noise separately.
-7. Atomically promote the run pointer and retain the previous accepted run for rollback.
+6. Build and validate ML outputs.
+7. Promote one compatible release through `release_current.json`.
+8. Retain previous releases for rollback.
 
-Raw manifests pin the exact control run ID and checksum. Pipeline manifests pin
-both the Raw run and control run. Health is READY only when all three publications
-exist and their lineage agrees. Clearing Raw preserves controls; clearing all data
-removes controls, Raw, medallion, Serving, and ML publications.
+Source manifests pin Reference and Mapping checksums. Pipeline and ML manifests pin their upstream run IDs. Health is READY only when the selected release exists and lineage agrees.
 
-`TOTAL`, `SNAPSHOT 1`, and `SNAPSHOT 2` are browser-scoped analytical windows. They filter
-promoted date-capable data and never create extra Raw records or planning versions.
+Pointer roles:
+
+| Pointer | Selects |
+|---|---|
+| `source_current.json` | Source bundle |
+| `current.json` | Pipeline run |
+| `ml_current.json` | ML run |
+| `release_current.json` | Compatible source, pipeline, and ML release |
 
 ## Commands
 
@@ -41,7 +44,7 @@ promoted date-capable data and never create extra Raw records or planning versio
 uv run capacity-generate
 uv run capacity-pipeline
 
-# Publish the five existing ML workflow outputs.
+# Publish the ML workflow outputs.
 uv run capacity-ml
 ```
 

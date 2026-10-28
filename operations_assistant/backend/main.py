@@ -1,30 +1,28 @@
 """
 Step 13C — FastAPI Backend
 ==========================
-Serves the chat API and static frontend files.
+Serves the shared contextual Yukti API.
 
 Endpoints:
-  POST /operations-assistant/api/chat          — full response (JSON)
-  POST /operations-assistant/api/chat/stream   — streaming SSE response
-  GET  /operations-assistant/api/health        — health check
-  GET  /operations-assistant/api/agents        — list available agents and their tools
+  POST /shared/api/yukti/chat          - full response (JSON)
+  POST /shared/api/yukti/chat/stream   - streaming SSE response
+  GET  /shared/api/yukti/health        - health check
+  GET  /shared/api/yukti/agents        - list available agents and their tools
 """
 
 import asyncio
 import ipaddress
 import json
 import logging
-from pathlib import Path
+import re
 from urllib.parse import urlparse
 from uuid import uuid4
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
 
-from capacity_twin_core.comparison import get_comparison_window
 from capacity_twin_core.runtime.database_paths import load_app_config
 from operations_assistant.agentic.agents.domain_agents import AGENT_REGISTRY
 from operations_assistant.agentic.agents.router import route_question_async
@@ -32,12 +30,11 @@ from operations_assistant.agentic.mcp_server.db import get_conn
 from operations_assistant.backend.models import (
     ChatRequest,
     ChatResponse,
+    PageContext,
     PipelineStep,
     ToolResult,
 )
 
-APP_DIR = Path(__file__).resolve().parents[1]
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
 APP_CONFIG = load_app_config("operations_assistant")
 logger = logging.getLogger(__name__)
 
@@ -75,13 +72,14 @@ MODEL_SEMAPHORE = asyncio.Semaphore(1)
 # ── App setup ─────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="Operations Assistant API",
-    description="Multi-agent AI chatbot backed by DuckDB gold layer via MCP server.",
+    title="Yukti Shared API",
+    description="Context-aware local assistant backed by governed read-only data.",
     version="1.0.0",
-    docs_url="/operations-assistant/api/docs",
-    redoc_url="/operations-assistant/api/redoc",
-    openapi_url="/operations-assistant/api/openapi.json",
+    docs_url="/shared/api/yukti/docs",
+    redoc_url="/shared/api/yukti/redoc",
+    openapi_url="/shared/api/yukti/openapi.json",
 )
+router = APIRouter()
 
 app.add_middleware(
     CORSMiddleware,
@@ -91,13 +89,72 @@ app.add_middleware(
 )
 
 # Serve frontend static files
-FRONTEND_DIR = APP_DIR / "frontend"
-if FRONTEND_DIR.exists():
-    app.mount(
-        "/operations-assistant/static",
-        StaticFiles(directory=str(FRONTEND_DIR)),
-        name="operations_assistant_static",
-    )
+SCHEMA_TOOLS = frozenset(
+    {"list_tables", "get_schema", "get_table_preview", "get_distinct_values"}
+)
+ANALYTICS_TOOLS = frozenset(
+    {
+        "get_capacity_summary",
+        "get_bottleneck_analysis",
+        "get_demand_vs_supply",
+        "get_equipment_utilization",
+        "get_yield_prediction",
+        "get_yield_drivers",
+        "get_ml_adjusted_capacity",
+        "get_operational_performance",
+        "get_maintenance_alerts",
+        "get_failure_risk_trend",
+        "get_demand_forecast",
+        "get_forecast_accuracy",
+        "get_capex_recommendation",
+        "get_capex_scenarios",
+        *SCHEMA_TOOLS,
+    }
+)
+APP_TOOL_POLICY = {
+    "data-explorer": frozenset({*SCHEMA_TOOLS, "run_query"}),
+    "data-operations": SCHEMA_TOOLS,
+    "documentation": frozenset(),
+}
+APP_PATHS = {
+    "home": "/",
+    "data-explorer": "/explorer/",
+    "capacity-analysis": "/capacity-analysis/",
+    "decision-intelligence": "/decision-intelligence/",
+    "scenario-planning": "/scenario-planning/",
+    "demand-supply-planning": "/demand-supply-planning/",
+    "npi-ramp-planning": "/npi-ramp-planning/",
+    "operations-flow": "/operations-flow/",
+    "data-operations": "/data-operations/",
+    "documentation": "/documentation/",
+}
+FILTER_ALLOWLIST = frozenset(
+    {
+        "site",
+        "product",
+        "test_type",
+        "machine",
+        "planning_version",
+        "month_from",
+        "month_to",
+        "date_from",
+        "date_to",
+        "grain",
+        "capacity_mode",
+        "retest_type",
+        "program",
+        "operation",
+        "resource",
+        "layer",
+    }
+)
+WORKFLOW_AGENT = {
+    "demand": "forecast",
+    "yield": "yield",
+    "oee-risk": "maintenance",
+    "oee-anomaly": "maintenance",
+    "capex": "capex",
+}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -169,8 +226,8 @@ async def _database_health() -> tuple[tuple[bool, bool], tuple[bool, bool]]:
             return False, False
 
     serving, ml = await asyncio.gather(
-        asyncio.to_thread(safe_inspect, "serving", ("gold_", "srv_vw_")),
-        asyncio.to_thread(safe_inspect, "ml", ("gold_",)),
+        asyncio.to_thread(safe_inspect, "serving", ("srv_",)),
+        asyncio.to_thread(safe_inspect, "ml", ("ml_",)),
     )
     return serving, ml
 
@@ -219,44 +276,75 @@ def _public_error(correlation_id: str) -> str:
     return f"Request could not be completed. Reference: {correlation_id}"
 
 
-def _question_context(req: ChatRequest) -> tuple[str, dict]:
-    """Add a trusted analytical-window instruction to the agent request."""
-    if req.window_id == "total":
-        return req.question, {
-            "window_id": "total",
-            "display_name": "Total",
-            "start_date": None,
-            "end_date": None,
-        }
-    window = get_comparison_window(req.window_id)
-    metadata = window.as_dict()
-    month_from = window.start_date.year * 100 + window.start_date.month
-    month_to = window.end_date.year * 100 + window.end_date.month
-    instruction = (
-        "\n\nTrusted application context: analyze only dates from "
-        f"{metadata['start_date']} through {metadata['end_date']} "
-        f"for {metadata['display_name']}. For monthly tools, always pass "
-        f"month_from={month_from} and month_to={month_to}. "
-        "Do not combine data outside these bounds."
+def _validated_context(context: PageContext) -> dict:
+    expected_path = APP_PATHS[context.app_id]
+    if context.app_id == "home":
+        valid_path = context.path == "/"
+    else:
+        valid_path = context.path.startswith(expected_path)
+    if not valid_path:
+        raise HTTPException(status_code=422, detail="Page context does not match the app.")
+    if context.selected_table and not re.fullmatch(
+        r"[A-Za-z_][A-Za-z0-9_.]{0,149}",
+        context.selected_table,
+    ):
+        raise HTTPException(status_code=422, detail="Selected table is not valid.")
+    filters = {
+        key: value
+        for key, value in list(context.filters.items())[:20]
+        if key in FILTER_ALLOWLIST and value not in (None, "")
+    }
+    return {
+        "app_id": context.app_id,
+        "path": context.path,
+        "view": context.view,
+        "selected_table": context.selected_table,
+        "filters": filters,
+    }
+
+
+def _contextual_request(req: ChatRequest) -> tuple[str, str, frozenset[str]]:
+    context = _validated_context(req.context)
+    agent = WORKFLOW_AGENT.get(str(context["view"]))
+    if not agent:
+        agent = {
+            "capacity-analysis": "capacity",
+            "scenario-planning": "capacity",
+            "demand-supply-planning": "forecast",
+            "npi-ramp-planning": "forecast",
+            "operations-flow": "capacity",
+        }.get(str(context["app_id"]))
+    prompt = (
+        "Validated current page context:\n"
+        f"{json.dumps(context, sort_keys=True, default=str)}\n\n"
+        "Use this context when it is relevant. Do not invent filters, tables, "
+        "metrics, or results that are not returned by a tool. "
     )
-    return req.question + instruction, metadata
+    if context["app_id"] == "data-explorer":
+        prompt += (
+            "For data questions, inspect the published schema first when needed. "
+            "Only generate or run bounded read-only SQL against allowlisted tables. "
+        )
+    prompt += f"\nUser question: {req.question}"
+    allowed_tools = APP_TOOL_POLICY.get(str(context["app_id"]), ANALYTICS_TOOLS)
+    return agent or "", prompt, allowed_tools
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
-@app.get("/operations-assistant/api/health")
+@router.get("/shared/api/yukti/health")
 async def health():
     payload, _ = await _health_payload()
     return payload
 
 
-@app.get("/operations-assistant/api/ready")
+@router.get("/shared/api/yukti/ready")
 async def readiness():
     payload, ready = await _health_payload()
     return JSONResponse(payload, status_code=200 if ready else 503)
 
 
-@app.get("/operations-assistant/api/agents")
+@router.get("/shared/api/yukti/agents")
 async def list_agents():
     return {
         "agents": [
@@ -270,21 +358,21 @@ async def list_agents():
     }
 
 
-@app.post("/operations-assistant/api/chat", response_model=ChatResponse)
+@router.post("/shared/api/yukti/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
     """Return a complete response without blocking the server event loop."""
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
+    contextual_agent, contextual_prompt, allowed_tools = _contextual_request(req)
 
-    try:
-        contextual_question, window = _question_context(req)
-    except (FileNotFoundError, ValueError) as error:
-        raise HTTPException(status_code=503, detail=str(error)) from error
     try:
         async with MODEL_SEMAPHORE:
             async with asyncio.timeout(AGENT_TIMEOUT_SECONDS):
-                agent = await route_question_async(contextual_question)
-                result = await AGENT_REGISTRY[agent].arun(contextual_question)
+                agent = contextual_agent or await route_question_async(req.question)
+                result = await AGENT_REGISTRY[agent].arun(
+                    contextual_prompt,
+                    allowed_tools=allowed_tools,
+                )
     except TimeoutError as error:
         raise HTTPException(status_code=504, detail="The model request timed out.") from error
     except Exception as error:
@@ -305,12 +393,10 @@ async def chat(req: ChatRequest):
         tool_results=tool_results,
         pipeline_steps=pipeline,
         error=result.get("error"),
-        window_id=window["window_id"],
-        window_label=window["display_name"],
     )
 
 
-@app.post("/operations-assistant/api/chat/stream")
+@router.post("/shared/api/yukti/chat/stream")
 async def chat_stream(req: ChatRequest, request: Request):
     """
     Streaming SSE endpoint.
@@ -322,11 +408,7 @@ async def chat_stream(req: ChatRequest, request: Request):
     """
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
-    try:
-        contextual_question, window = _question_context(req)
-    except (FileNotFoundError, ValueError) as error:
-        raise HTTPException(status_code=503, detail=str(error)) from error
-
+    contextual_agent, contextual_prompt, allowed_tools = _contextual_request(req)
     async def event_stream():
         agent_name = "unknown"
         tool_results: list[dict] = []
@@ -335,7 +417,9 @@ async def chat_stream(req: ChatRequest, request: Request):
             yield _sse({"type": "accepted", "data": "Request accepted."})
             async with MODEL_SEMAPHORE:
                 async with asyncio.timeout(AGENT_TIMEOUT_SECONDS):
-                    agent_name = await route_question_async(contextual_question)
+                    agent_name = (
+                        contextual_agent or await route_question_async(req.question)
+                    )
                     yield _sse({
                         "type": "pipeline",
                         "data": {
@@ -346,7 +430,8 @@ async def chat_stream(req: ChatRequest, request: Request):
                     })
 
                     async for event in AGENT_REGISTRY[agent_name].astream(
-                        contextual_question
+                        contextual_prompt,
+                        allowed_tools=allowed_tools,
                     ):
                         if await request.is_disconnected():
                             return
@@ -397,8 +482,6 @@ async def chat_stream(req: ChatRequest, request: Request):
                     "agent": agent_name,
                     "tools_called": [item.get("tool") for item in tool_results],
                     "tool_count": len(tool_results),
-                    "window_id": window["window_id"],
-                    "window_label": window["display_name"],
                 },
             })
 
@@ -426,3 +509,6 @@ async def chat_stream(req: ChatRequest, request: Request):
 
 def _sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
+
+
+app.include_router(router)

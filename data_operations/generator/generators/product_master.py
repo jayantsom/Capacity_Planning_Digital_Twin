@@ -289,9 +289,7 @@ def generate_product_master_db(config: dict) -> pd.DataFrame:
     logger.info("GENERATING: raw_product_master.db")
     logger.info("=" * 60)
 
-    db_path = get_sqlite_path(
-        config["databases"]["raw"]["product_master"], config
-    )
+    db_path = get_sqlite_path(config["databases"]["raw"]["product"], config)
 
     df = generate_product_master()
     write_to_sqlite(df, "product_master", db_path)

@@ -1,30 +1,6 @@
 'use strict';
 
-import { apiJson } from '/shared/dashboard.js';
-
-const statusTargets = {
-  operationsAssistant: {
-    badge: document.getElementById('operations-assistant-status'),
-    detail: document.getElementById('operations-assistant-detail'),
-  },
-  explorer: {
-    badge: document.getElementById('explorer-status'),
-    detail: document.getElementById('explorer-detail'),
-  },
-  decision: {
-    badge: document.getElementById('decision-status'),
-    detail: document.getElementById('decision-detail'),
-  },
-  operations: {
-    badge: document.getElementById('operations-status'),
-    detail: document.getElementById('operations-detail'),
-  },
-};
-
-const operationsComponents = {
-  generator: document.getElementById('generator-home-status'),
-  pipeline: document.getElementById('pipeline-home-status'),
-};
+import { apiJson } from '/shared/static/dashboard.js';
 
 function setBadge(badge, state, label, baseClass = 'status') {
   badge.className = `${baseClass} status-${state}`;
@@ -38,107 +14,68 @@ function setBadge(badge, state, label, baseClass = 'status') {
   badge.append(icon, document.createTextNode(` ${label}`));
 }
 
-function setStatus(target, state, label, detail) {
-  setBadge(target.badge, state, label);
-  target.detail.textContent = detail;
+function cardFor(application) {
+  const card = document.createElement('a');
+  card.className = 'app-card';
+  card.href = application.route;
+  card.dataset.app = application.app_id;
+  const top = document.createElement('span');
+  top.className = 'card-top';
+  const mark = document.createElement('b');
+  mark.textContent = application.monogram;
+  const status = document.createElement('span');
+  status.className = 'status status-pending';
+  status.dataset.statusFor = application.app_id;
+  status.textContent = 'CHECKING';
+  top.append(mark, status);
+  const bottom = document.createElement('span');
+  bottom.className = 'card-bottom';
+  const title = document.createElement('strong');
+  title.textContent = application.title;
+  const detail = document.createElement('small');
+  detail.dataset.detailFor = application.app_id;
+  detail.textContent = application.description;
+  bottom.append(title, detail);
+  card.append(top, bottom);
+  return card;
 }
 
-async function fetchJson(url, timeoutMs = 5000) {
-  return apiJson(url, {}, timeoutMs);
+async function loadApplications() {
+  const payload = await apiJson('/shared/api/applications');
+  const applications = payload.applications.filter(
+    (application) => application.enabled && application.show_on_home,
+  );
+  const container = document.getElementById('applicationCards');
+  container.replaceChildren(...applications.map(cardFor));
+  await Promise.allSettled(applications.map(checkApplication));
 }
 
-async function checkOperationsAssistant() {
-  setStatus(statusTargets.operationsAssistant, 'pending', 'CHECKING', 'Checking service…');
-  try {
-    const health = await fetchJson('/operations-assistant/api/health');
-    const model = health.model || health.ollama || '';
-    const isDegraded = health.status && !['ok', 'healthy', 'ready'].includes(String(health.status).toLowerCase());
-    setStatus(
-      statusTargets.operationsAssistant,
-      isDegraded ? 'degraded' : 'ready',
-      isDegraded ? 'DEGRADED' : 'READY',
-      model ? `API ready · ${model}` : 'API responding',
-    );
-  } catch {
-    setStatus(statusTargets.operationsAssistant, 'offline', 'OFFLINE', 'API not responding');
+async function checkApplication(application) {
+  const badge = document.querySelector(`[data-status-for="${application.app_id}"]`);
+  const detail = document.querySelector(`[data-detail-for="${application.app_id}"]`);
+  if (!application.health_route) {
+    setBadge(badge, 'ready', 'READY');
+    return;
   }
-}
-
-async function checkExplorer() {
-  setStatus(statusTargets.explorer, 'pending', 'CHECKING', 'Checking sources…');
   try {
-    const sources = await fetchJson('/explorer/api/sources');
-    const count = Array.isArray(sources) ? sources.length : 0;
-    setStatus(
-      statusTargets.explorer,
-      count > 0 ? 'ready' : 'no-sources',
-      count > 0 ? 'READY' : 'NO SOURCES',
-      `${count} source${count === 1 ? '' : 's'} reported`,
-    );
+    const payload = await apiJson(application.health_route, {}, 5000);
+    const hasSources = Array.isArray(payload) ? payload.length > 0 : true;
+    const rawState = Array.isArray(payload) ? (hasSources ? 'ready' : 'no-sources') : payload.status;
+    const state = ['ready', 'ok', 'healthy', 'running'].includes(String(rawState).toLowerCase())
+      ? 'ready'
+      : 'degraded';
+    setBadge(badge, state, state.toUpperCase());
+    detail.textContent = application.description;
   } catch {
-    setStatus(statusTargets.explorer, 'offline', 'OFFLINE', 'Source API not responding');
-  }
-}
-
-async function checkDecisionIntelligence() {
-  setStatus(statusTargets.decision, 'pending', 'CHECKING', 'Five model workflows');
-  try {
-    const health = await fetchJson('/decision-intelligence/api/health');
-    const state = health.stale ? 'stale' : health.status === 'ready' ? 'ready' : 'degraded';
-    setStatus(
-      statusTargets.decision,
-      state,
-      health.stale ? 'STALE' : health.status === 'ready' ? 'READY' : 'DEGRADED',
-      health.run_id ? `Run ${health.run_id}` : 'No model publication',
-    );
-  } catch {
-    setStatus(statusTargets.decision, 'offline', 'OFFLINE', 'Model API unavailable');
-  }
-}
-
-async function checkDataOperations() {
-  setStatus(statusTargets.operations, 'pending', 'CHECKING', 'Raw and medallion status');
-  setBadge(operationsComponents.generator, 'pending', 'CHECKING', 'mini-status');
-  setBadge(operationsComponents.pipeline, 'pending', 'CHECKING', 'mini-status');
-  try {
-    const health = await fetchJson('/data-operations/api/health');
-    const generatorState = health.generator?.status
-      || (health.raw_database_count > 0 ? 'ready' : 'no-data');
-    const pipelineState = health.pipeline?.status
-      || (health.active_run_id ? 'ready' : 'no-data');
-    const state = ['ready', 'running'].includes(health.status) ? health.status : 'degraded';
-    setBadge(
-      operationsComponents.generator,
-      generatorState,
-      generatorState.replaceAll('-', ' ').toUpperCase(),
-      'mini-status',
-    );
-    setBadge(
-      operationsComponents.pipeline,
-      pipelineState,
-      pipelineState.replaceAll('-', ' ').toUpperCase(),
-      'mini-status',
-    );
-    setStatus(
-      statusTargets.operations,
-      state,
-      state.toUpperCase(),
-      `Generator ${generatorState.replaceAll('-', ' ').toUpperCase()} · Pipeline ${pipelineState.replaceAll('-', ' ').toUpperCase()}`,
-    );
-  } catch {
-    setStatus(statusTargets.operations, 'offline', 'OFFLINE', 'Operations API unavailable');
-    setBadge(operationsComponents.generator, 'offline', 'OFFLINE', 'mini-status');
-    setBadge(operationsComponents.pipeline, 'offline', 'OFFLINE', 'mini-status');
+    setBadge(badge, 'offline', 'OFFLINE');
+    detail.textContent = `${application.description} · unavailable`;
   }
 }
 
 function refreshStatus() {
-  void Promise.allSettled([
-    checkExplorer(),
-    checkDecisionIntelligence(),
-    checkOperationsAssistant(),
-    checkDataOperations(),
-  ]);
+  void loadApplications().catch(() => {
+    document.getElementById('applicationCards').textContent = 'Application registry is unavailable.';
+  });
 }
 
 document.getElementById('refresh-status').addEventListener('click', refreshStatus);

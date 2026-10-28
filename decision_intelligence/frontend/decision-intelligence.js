@@ -1,7 +1,10 @@
 'use strict';
 
-import { apiJson as api, readableLabel as labelFor } from '/shared/dashboard.js';
-import { mountComparisonBand } from '/shared/comparison-band.js';
+import { apiJson as api, readableLabel as labelFor } from '/shared/static/dashboard.js';
+import {
+  renderGovernedChart,
+  SEMANTIC_COLORS,
+} from '/shared/static/chart.js?v=20261027c';
 
 const FILTER_STORAGE_KEY = 'capacityTwin.decisionIntelligenceFilters';
 
@@ -11,8 +14,7 @@ const state = {
   rows: [],
   activeJobId: null,
   pollTimer: null,
-  comparisonWindow: 'total',
-  comparisonController: null,
+  chartHandles: [],
 };
 
 const elements = {
@@ -23,11 +25,8 @@ const elements = {
   jobProgress: document.getElementById('jobProgress'),
   jobPercent: document.getElementById('jobPercent'),
   kpis: document.getElementById('kpiStrip'),
-  trend: document.getElementById('trendChart'),
-  trendSummary: document.getElementById('trendSummary'),
-  primaryTitle: document.getElementById('primaryChartTitle'),
-  secondaryTitle: document.getElementById('secondaryChartTitle'),
-  rankings: document.getElementById('rankings'),
+  workflowCharts: document.getElementById('workflowCharts'),
+  modelMetadata: document.getElementById('modelMetadata'),
   tableHead: document.getElementById('tableHead'),
   tableBody: document.getElementById('tableBody'),
   operationalPanel: document.getElementById('operationalPanel'),
@@ -46,7 +45,7 @@ function setHealthStatus(stateName, label) {
 }
 
 function formatValue(value, key = '') {
-  if (value == null || Number.isNaN(Number(value))) return value == null ? '—' : String(value);
+  if (value == null || Number.isNaN(Number(value))) return value == null ? '-' : String(value);
   const number = Number(value);
   if (key.includes('usd')) {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(number);
@@ -78,7 +77,6 @@ function filters() {
     const value = control.value.trim();
     if (!control.closest('[data-filter]').hidden && value) params.set(key, value);
   });
-  params.set('window', state.comparisonWindow);
   return params;
 }
 
@@ -94,20 +92,8 @@ function persistFilterState(params) {
   } catch {
     stored = {};
   }
-  stored[state.workflow] = Object.fromEntries(
-    [...params.entries()].filter(([key]) => key !== 'window'),
-  );
+  stored[state.workflow] = Object.fromEntries(params.entries());
   window.sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(stored));
-}
-
-function applyComparisonWindow(windowId) {
-  state.comparisonWindow = windowId;
-  const locked = windowId !== 'total';
-  ['monthFrom', 'monthTo'].forEach((id) => {
-    const input = document.getElementById(id);
-    input.disabled = locked;
-    if (locked) input.value = '';
-  });
 }
 
 function fillSelect(id, options, placeholder) {
@@ -220,124 +206,340 @@ function renderKpis(kpis) {
   });
 }
 
-function renderTrend(chart) {
-  const series = chart?.points || [];
-  elements.trend.replaceChildren();
-  elements.primaryTitle.textContent = chart?.title || 'Workflow analysis';
-  if (!series.length) {
-    const empty = document.createElement('p');
-    empty.className = 'empty';
-    empty.textContent = 'No analytical records match the selected filters.';
-    elements.trend.append(empty);
-    elements.trendSummary.textContent = chart?.unit || 'No data';
-    return;
-  }
-  if (chart.kind === 'percentile_range') {
-    const maximum = Math.max(1, ...series.map((row) => Number(row.eq_needed_p95 || 0)));
-    series.forEach((row) => {
-      const group = document.createElement('div');
-      group.className = 'percentile-group';
-      ['eq_needed_p50', 'eq_needed_p80', 'eq_needed_p95'].forEach((key) => {
-        const bar = document.createElement('i');
-        bar.className = `percentile-bar ${key.replace('eq_needed_', '')}`;
-        bar.style.height = `${Math.max(2, Number(row[key] || 0) / maximum * 220)}px`;
-        bar.title = `${key.replace('eq_needed_', '').toUpperCase()}: ${formatValue(row[key])}`;
-        group.append(bar);
-      });
-      const name = document.createElement('em');
-      name.textContent = [
-        row.site_name || row.site_code,
-        row.test_type_name || row.test_type,
-      ].filter(Boolean).join(' · ');
-      group.append(name);
-      elements.trend.append(group);
-    });
-    elements.trendSummary.textContent = `${series.length} site-test combinations`;
-    return;
-  }
-  const keys = [
-    ['value', chart.primary_label, 'primary'],
-    ['secondary', chart.secondary_label, 'secondary'],
-    ['target', chart.target_label, 'target'],
-  ].filter(([key, label]) => label && series.some((row) => row[key] != null));
-  const maximum = Math.max(1, ...series.flatMap((row) => keys.map(([key]) => Number(row[key] || 0))));
-  const minimum = Math.min(0, ...series.flatMap((row) => keys.map(([key]) => Number(row[key] || 0))));
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 1000 220');
-  svg.setAttribute('preserveAspectRatio', 'none');
-  svg.setAttribute('aria-hidden', 'true');
-  series.forEach((row, index) => {
-    const column = document.createElement('div');
-    column.className = 'trend-column';
-    const period = document.createElement('em');
-    period.textContent = row.period;
-    column.append(period);
-    elements.trend.append(column);
-  });
-  keys.forEach(([key, label, className]) => {
-    const points = series
-      .map((row, index) => {
-        if (row[key] == null) return null;
-        const x = series.length === 1 ? 500 : index / (series.length - 1) * 1000;
-        const y = 210 - (Number(row[key]) - minimum) / (maximum - minimum || 1) * 190;
-        return `${x},${y}`;
-      })
-      .filter(Boolean);
-    if (points.length < 2) return;
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    line.setAttribute('points', points.join(' '));
-    line.setAttribute('class', className);
-    line.setAttribute('vector-effect', 'non-scaling-stroke');
-    line.setAttribute('aria-label', label);
-    svg.append(line);
-  });
-  elements.trend.prepend(svg);
-  const legend = document.createElement('div');
-  legend.className = 'chart-legend';
-  keys.forEach(([, label, className]) => {
-    const item = document.createElement('span');
-    item.className = className;
-    item.textContent = label;
-    legend.append(item);
-  });
-  elements.trend.prepend(legend);
-  elements.trendSummary.textContent = `${series.length} periods · ${chart.unit}`;
+function chartSpec({
+  title, metric, unit, grain = 'MONTH', source, xTitle, xValues = [],
+  yTitle, series, summary, xType = 'category', yType = 'value',
+  yValues, axesVisible = true, rows, columns, tooltip = 'axis',
+}) {
+  return {
+    title,
+    metric,
+    unit,
+    grain,
+    aggregation: 'WORKFLOW_DEFINED',
+    source,
+    axes: {
+      x: { type: xType, title: xTitle, values: xValues, show: axesVisible },
+      y: { type: yType, title: yTitle, values: yValues, show: axesVisible },
+    },
+    legend: { show: series.length > 1, type: 'scroll' },
+    tooltip: { show: true, trigger: tooltip },
+    thresholds: [],
+    dataZoom: { enabled: xValues.length > 12 },
+    export: { rowScope: 'displayed' },
+    emptyState: { message: 'No analytical records match the selected filters.' },
+    accessibility: {
+      summary,
+      table: true,
+      rows,
+      columns,
+    },
+    series,
+    height: 350,
+  };
 }
 
-function renderRankings(chart) {
-  const rankings = chart?.points || [];
-  elements.secondaryTitle.textContent = chart?.title || 'Priority analysis';
-  elements.rankings.replaceChildren();
-  if (!rankings.length) {
-    const empty = document.createElement('p');
-    empty.className = 'empty';
-    empty.textContent = 'No ranked records match these filters.';
-    elements.rankings.append(empty);
-    return;
+function rankingSpec(title, metric, unit, source, points, summary, color) {
+  const rows = points.slice(0, 12).reverse();
+  return chartSpec({
+    title,
+    metric,
+    unit,
+    source,
+    xTitle: unit,
+    xType: 'value',
+    yTitle: 'Priority',
+    yType: 'category',
+    yValues: rows.map((row) => row.label),
+    series: [{
+      name: metric,
+      type: 'bar',
+      color,
+      data: rows.map((row) => row.value),
+    }],
+    rows: rows.map((row) => [row.label, row.value]),
+    columns: ['Priority', metric],
+    summary,
+  });
+}
+
+function donutSpec(title, metric, source, points, summary) {
+  return chartSpec({
+    title,
+    metric,
+    unit: 'RECORDS',
+    source,
+    xTitle: '',
+    yTitle: '',
+    axesVisible: false,
+    tooltip: 'item',
+    series: [{
+      name: metric,
+      type: 'pie',
+      radius: ['42%', '70%'],
+      data: points.map((row) => ({ name: row.label, value: row.value })),
+    }],
+    rows: points.map((row) => [row.label, row.value]),
+    columns: ['Category', 'Records'],
+    summary,
+  });
+}
+
+function workflowSpecs(payload) {
+  if (payload.workflow === 'demand') {
+    const periods = payload.series.map((row) => String(row.period));
+    return [
+      chartSpec({
+        title: 'Historical demand and 18-month forecast',
+        metric: 'Demand',
+        unit: 'EA',
+        source: 'srv_ml_feature_store, ml_demand_forecast',
+        xTitle: 'Month',
+        xValues: periods,
+        yTitle: 'Demand (EA)',
+        summary: 'Historical actual demand and the published forward forecast. No prediction interval is claimed.',
+        series: [
+          { name: 'Actual demand', type: 'line', color: SEMANTIC_COLORS.actualOutput, data: payload.series.map((row) => row.value) },
+          { name: 'Forecast demand', type: 'line', color: SEMANTIC_COLORS.demand, data: payload.series.map((row) => row.secondary) },
+        ],
+      }),
+      chartSpec({
+        title: 'Forecast demand by horizon',
+        metric: 'Forecast demand',
+        unit: 'EA',
+        source: 'ml_demand_forecast',
+        xTitle: 'Months ahead',
+        xValues: payload.horizon.map((row) => row.horizon_month),
+        yTitle: 'Forecast demand (EA)',
+        summary: 'Total forecast demand by months ahead across the selected portfolio.',
+        series: [{ name: 'Forecast demand', type: 'bar', color: SEMANTIC_COLORS.demand, data: payload.horizon.map((row) => row.forecast_demand_ea) }],
+      }),
+      rankingSpec(
+        'Forecast error priorities',
+        'MAPE',
+        'PERCENT',
+        'ml_forecast_accuracy',
+        payload.rankings,
+        'Highest backtest percentage errors by product and site.',
+        SEMANTIC_COLORS.shortage,
+      ),
+    ];
   }
-  const maximum = Math.max(1, ...rankings.map((row) => Number(row.value || 0)));
-  rankings.slice(0, 12).forEach((row, index) => {
-    const item = document.createElement('div');
-    item.className = 'rank-row';
-    const rank = document.createElement('b');
-    rank.textContent = String(index + 1).padStart(2, '0');
-    const label = document.createElement('span');
-    label.className = 'rank-label';
-    label.textContent = row.label;
-    label.title = row.label;
-    const track = document.createElement('span');
-    track.className = 'rank-track';
-    const fill = document.createElement('span');
-    fill.style.width = `${Math.max(1, Number(row.value || 0) / maximum * 100)}%`;
-    track.append(fill);
-    const value = document.createElement('span');
-    value.className = 'rank-value';
-    value.textContent = formatValue(
-      row.value,
-      chart?.unit === 'usd' ? 'usd' : chart?.unit === 'percent' ? 'pct' : '',
-    );
-    item.append(rank, label, track, value);
-    elements.rankings.append(item);
+  if (payload.workflow === 'yield') {
+    const periods = payload.series.map((row) => String(row.period));
+    return [
+      chartSpec({
+        title: 'Measured, predicted, and target yield',
+        metric: 'Yield',
+        unit: 'PERCENT',
+        source: 'ml_yield_predictions',
+        xTitle: 'Month',
+        xValues: periods,
+        yTitle: 'Yield (%)',
+        summary: 'Measured yield compared with model prediction and target.',
+        series: [
+          { name: 'Measured yield', type: 'line', color: SEMANTIC_COLORS.actualOutput, data: payload.series.map((row) => row.value) },
+          { name: 'Predicted yield', type: 'line', color: SEMANTIC_COLORS.demand, data: payload.series.map((row) => row.secondary) },
+          { name: 'Target yield', type: 'line', color: SEMANTIC_COLORS.warning, data: payload.series.map((row) => row.target) },
+        ],
+      }),
+      chartSpec({
+        title: 'Yield prediction residual by month',
+        metric: 'Measured minus predicted yield',
+        unit: 'PERCENTAGE POINTS',
+        source: 'ml_yield_predictions',
+        xTitle: 'Month',
+        xValues: periods,
+        yTitle: 'Residual (percentage points)',
+        summary: 'Positive values mean measured yield exceeded the prediction.',
+        series: [{
+          name: 'Residual',
+          type: 'bar',
+          color: SEMANTIC_COLORS.normalCapacity,
+          data: payload.series.map((row) => Number(row.value || 0) - Number(row.secondary || 0)),
+        }],
+      }),
+      rankingSpec(
+        'Global SHAP driver importance',
+        'Mean absolute SHAP',
+        'SHAP',
+        'ml_yield_shap',
+        payload.drivers,
+        'Global model-driver importance for the filtered prediction rows.',
+        SEMANTIC_COLORS.maximumCapacity,
+      ),
+    ];
+  }
+  if (payload.workflow === 'oee-risk') {
+    const periods = payload.series.map((row) => String(row.period));
+    return [
+      chartSpec({
+        title: 'OEE degradation risk trend',
+        metric: 'Mean degradation risk',
+        unit: 'PERCENT',
+        source: 'ml_oee_degradation_risk',
+        xTitle: 'Month',
+        xValues: periods,
+        yTitle: 'Risk probability (%)',
+        summary: 'Mean predicted degradation risk. This is a risk signal, not a failure prediction.',
+        series: [{ name: 'Mean risk', type: 'line', color: SEMANTIC_COLORS.shortage, data: payload.series.map((row) => row.value) }],
+      }),
+      donutSpec(
+        'Risk tier distribution',
+        'Risk tier',
+        'ml_oee_degradation_risk',
+        payload.distribution,
+        'Distribution of published machine risk tiers.',
+      ),
+      rankingSpec(
+        'Machines requiring review',
+        'Maximum degradation risk',
+        'PERCENT',
+        'ml_oee_degradation_risk',
+        payload.rankings,
+        'Machines ranked by maximum degradation risk.',
+        SEMANTIC_COLORS.shortage,
+      ),
+    ];
+  }
+  if (payload.workflow === 'oee-anomaly') {
+    const periods = payload.series.map((row) => String(row.period));
+    return [
+      chartSpec({
+        title: 'OEE across the evaluation window',
+        metric: 'Mean OEE',
+        unit: 'PERCENT',
+        source: 'ml_oee_anomalies',
+        xTitle: 'Month',
+        xValues: periods,
+        yTitle: 'OEE (%)',
+        summary: 'Mean OEE in the historical anomaly evaluation window.',
+        series: [{ name: 'Mean OEE', type: 'line', color: SEMANTIC_COLORS.actualOutput, data: payload.series.map((row) => row.value) }],
+      }),
+      chartSpec({
+        title: 'Detected anomalies by month',
+        metric: 'Anomaly count',
+        unit: 'RECORDS',
+        source: 'ml_oee_anomalies',
+        xTitle: 'Month',
+        xValues: periods,
+        yTitle: 'Anomalies',
+        summary: 'Count of records classified as anomalous in each month.',
+        series: [{ name: 'Anomalies', type: 'bar', color: SEMANTIC_COLORS.warning, data: payload.series.map((row) => row.secondary) }],
+      }),
+      donutSpec(
+        'Anomaly severity distribution',
+        'Anomaly severity',
+        'ml_oee_anomalies',
+        payload.distribution,
+        'Distribution of calibrated historical anomaly severities.',
+      ),
+      rankingSpec(
+        'Site and test anomaly priorities',
+        'Anomaly count',
+        'RECORDS',
+        'ml_oee_anomalies',
+        payload.rankings,
+        'Sites and test types ranked by anomaly count.',
+        SEMANTIC_COLORS.warning,
+      ),
+    ];
+  }
+  const combinations = payload.rows.slice(0, 12);
+  const labels = combinations.map(
+    (row) => `${row.site_name || row.site_code} | ${row.test_type_name || row.test_type}`,
+  );
+  const frontier = [...payload.scenarios].sort(
+    (left, right) => Number(left.capex_usd) - Number(right.capex_usd),
+  );
+  return [
+    chartSpec({
+      title: 'Equipment requirement percentiles',
+      metric: 'Required equipment',
+      unit: 'EQUIPMENT',
+      source: 'ml_capex_summary',
+      xTitle: 'Site and test',
+      xValues: labels,
+      yTitle: 'Equipment count',
+      summary: 'P50, P80, and P95 required equipment by site and test combination.',
+      series: [
+        { name: 'P50', type: 'bar', color: SEMANTIC_COLORS.normalCapacity, data: combinations.map((row) => row.eq_needed_p50) },
+        { name: 'P80', type: 'bar', color: SEMANTIC_COLORS.maximumCapacity, data: combinations.map((row) => row.eq_needed_p80) },
+        { name: 'P95', type: 'bar', color: SEMANTIC_COLORS.shortage, data: combinations.map((row) => row.eq_needed_p95) },
+      ],
+    }),
+    rankingSpec(
+      'P80 capital exposure',
+      'P80 capital',
+      'USD',
+      'ml_capex_summary',
+      payload.rankings,
+      'Site and test combinations ranked by P80 capital exposure.',
+      SEMANTIC_COLORS.maximumCapacity,
+    ),
+    chartSpec({
+      title: 'Investment sufficiency frontier',
+      metric: 'Probability of sufficient capacity',
+      unit: 'PERCENT',
+      source: 'ml_capex_scenarios',
+      xTitle: 'Capital investment (USD)',
+      xType: 'value',
+      yTitle: 'Probability sufficient (%)',
+      summary: 'Scenario investment compared with simulated probability of sufficient capacity.',
+      tooltip: 'item',
+      series: [{
+        name: 'Scenario',
+        type: 'scatter',
+        color: SEMANTIC_COLORS.actualOutput,
+        data: frontier.map((row) => [row.capex_usd, Number(row.probability_sufficient || 0) * 100]),
+      }],
+      rows: frontier.map((row) => [
+        row.site_name || row.site_code,
+        row.test_type_name || row.test_type,
+        row.scenario,
+        row.capex_usd,
+        Number(row.probability_sufficient || 0) * 100,
+      ]),
+      columns: ['Site', 'Test', 'Scenario', 'CapEx USD', 'Probability sufficient %'],
+    }),
+  ];
+}
+
+async function renderWorkflowCharts(payload) {
+  state.chartHandles.forEach((handle) => handle.dispose());
+  state.chartHandles = [];
+  elements.workflowCharts.replaceChildren();
+  const specs = workflowSpecs(payload);
+  for (const spec of specs) {
+    const panel = document.createElement('article');
+    panel.className = 'panel workflow-chart-panel';
+    const host = document.createElement('div');
+    panel.append(host);
+    elements.workflowCharts.append(panel);
+    const handle = await renderGovernedChart(host, spec, {
+      releaseId: payload.model_registry?.ml_run_id,
+      filters: Object.fromEntries(filters()),
+      pointLimit: 5000,
+    });
+    state.chartHandles.push(handle);
+  }
+}
+
+function renderModelMetadata(model) {
+  elements.modelMetadata.replaceChildren();
+  const fields = model ? [
+    ['Workflow', model.workflow_name],
+    ['Status', model.status],
+    ['ML run', model.ml_run_id],
+    ['Input pipeline run', model.input_pipeline_run_id],
+    ['Serving checksum', model.input_serving_sha256],
+  ] : [['Status', 'Model registry is not available']];
+  fields.forEach(([name, value]) => {
+    const term = document.createElement('dt');
+    term.textContent = name;
+    const description = document.createElement('dd');
+    description.textContent = value || '-';
+    elements.modelMetadata.append(term, description);
   });
 }
 
@@ -400,8 +602,8 @@ async function loadDashboard() {
       `/decision-intelligence/api/dashboard/${encodeURIComponent(state.workflow)}?${query}`,
     );
     renderKpis(payload.kpis);
-    renderTrend(payload.charts?.[0]);
-    renderRankings(payload.charts?.[1]);
+    await renderWorkflowCharts(payload);
+    renderModelMetadata(payload.model_registry);
     renderTable(payload.rows);
     renderOperational(payload.operational);
     elements.pageStatus.textContent = payload.notice
@@ -409,8 +611,10 @@ async function loadDashboard() {
   } catch (error) {
     elements.pageStatus.textContent = error.message;
     renderKpis({});
-    renderTrend(null);
-    renderRankings(null);
+    state.chartHandles.forEach((handle) => handle.dispose());
+    state.chartHandles = [];
+    elements.workflowCharts.replaceChildren();
+    renderModelMetadata(null);
     renderTable([]);
     renderOperational(null);
   }
@@ -532,8 +736,6 @@ document.getElementById('grainFilter').addEventListener('change', () => {
 });
 document.getElementById('clearFilters').addEventListener('click', () => {
   document.getElementById('filters').reset();
-  state.comparisonController?.select('total', false);
-  applyComparisonWindow('total');
   void loadFilterMetadata().then(loadDashboard);
 });
 document.getElementById('runAll').addEventListener('click', () => void startRun(null));
@@ -541,18 +743,6 @@ document.getElementById('runSelected').addEventListener('click', () => void star
 document.getElementById('exportCsv').addEventListener('click', exportCsv);
 
 async function initialize() {
-  try {
-    state.comparisonController = await mountComparisonBand(
-      document.getElementById('comparisonBand'),
-      (windowId) => {
-        applyComparisonWindow(windowId);
-        void loadDashboard();
-      },
-    );
-    applyComparisonWindow(state.comparisonController.windowId);
-  } catch (error) {
-    elements.pageStatus.textContent = error.message;
-  }
   const initialTab = document.querySelector(`[data-workflow="${window.location.hash.slice(1)}"]`)
     || document.querySelector('[data-workflow="demand"]');
   await selectWorkflow(initialTab);

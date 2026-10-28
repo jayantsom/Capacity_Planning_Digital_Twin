@@ -1,5 +1,6 @@
 """Fast tests for immutable candidates, promotion, retry safety, and rollback."""
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -17,22 +18,55 @@ def _config(runtime_home: Path) -> dict:
 
 def _publish_inputs(runtime_home: Path) -> None:
     """Create the immutable source pointers required by a pipeline candidate."""
-    (runtime_home / "raw_current.json").write_text(
+    bundle = runtime_home / "source_bundles" / "source-test"
+    raw = bundle / "raw"
+    raw.mkdir(parents=True)
+    (raw / "raw_test.db").write_bytes(b"sqlite")
+    for name in ("reference.duckdb", "mapping.duckdb"):
+        with duckdb.connect(str(bundle / name)) as connection:
+            connection.execute("CREATE TABLE ready(value INTEGER)")
+    files = {
+        "raw_test.db": {
+            "path": "source_bundles/source-test/raw/raw_test.db",
+            "role": "raw",
+            "sha256": hashlib.sha256((raw / "raw_test.db").read_bytes()).hexdigest(),
+        },
+        "reference.duckdb": {
+            "path": "source_bundles/source-test/reference.duckdb",
+            "role": "reference",
+            "sha256": hashlib.sha256(
+                (bundle / "reference.duckdb").read_bytes()
+            ).hexdigest(),
+        },
+        "mapping.duckdb": {
+            "path": "source_bundles/source-test/mapping.duckdb",
+            "role": "mapping",
+            "sha256": hashlib.sha256(
+                (bundle / "mapping.duckdb").read_bytes()
+            ).hexdigest(),
+        },
+    }
+    bundle_checksum = hashlib.sha256(
+        json.dumps(files, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    manifest = bundle / "source_bundle_manifest.json"
+    manifest.write_text(
         json.dumps(
             {
-                "run_id": "raw-test",
-                "source_control_run_id": "control-test",
-                "source_control_sha256": "control-sha",
+                "source_run_id": "source-test",
+                "bundle_checksum": bundle_checksum,
+                "catalog_version": "test",
+                "files": files,
             }
         ),
         encoding="utf-8",
     )
-    (runtime_home / "control_current.json").write_text(
+    (runtime_home / "source_current.json").write_text(
         json.dumps(
             {
-                "control_run_id": "control-test",
-                "sha256": "control-sha",
-                "catalog_version": "test",
+                "source_run_id": "source-test",
+                "bundle_checksum": bundle_checksum,
+                "manifest": str(manifest),
             }
         ),
         encoding="utf-8",

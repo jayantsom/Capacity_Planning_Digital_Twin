@@ -6,34 +6,19 @@
   <meta name="color-scheme" content="light">
   <title>Data Operations</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/data-operations/static/data-operations.css?v=20261020e">
+  <link rel="stylesheet" href="/shared/static/shell.css?v=20261027">
+  <link rel="stylesheet" href="/data-operations/static/data-operations.css?v=20261027g">
 </head>
 <body>
-  <a class="skip-link" href="#workspace">Skip to workspace</a>
-  <header class="product-header">
-    <a class="brand" href="/" aria-label="Test Equipment Capacity Planning Digital Twin home">
-      <span class="brand-mark" aria-hidden="true">CP</span>
-    </a>
-    <nav aria-label="Primary navigation">
-      <a href="/">Home</a>
-      <a href="/explorer/">Data Explorer</a>
-      <a href="/decision-intelligence/">Decision Intelligence</a>
-      <a href="/operations-assistant/">Operations Assistant</a>
-      <a href="/data-operations/" aria-current="page">Data Operations</a>
-    </nav>
-  </header>
+  <div data-shared-shell></div>
 
   <main id="workspace" class="workspace">
-    <div class="title-row">
-      <div class="page-heading">
-        <span class="page-heading-mark" aria-hidden="true">DO</span>
-        <div>
-          <p class="eyebrow">GENERATOR AND PIPELINE</p>
-          <h1>Data Operations</h1>
-        </div>
+    <section data-shared-page-header data-mark="DO" data-eyebrow="GENERATOR AND PIPELINE"
+      data-title="Data Operations">
+      <div data-page-actions>
+        <span id="healthStatus" class="service-status status-checking"><span aria-hidden="true">◌</span><span>CHECKING</span></span>
       </div>
-      <span id="healthStatus" class="service-status status-checking"><span aria-hidden="true">◌</span><span>CHECKING</span></span>
-    </div>
+    </section>
 
     <div class="tab-strip" role="tablist" aria-label="Data Operations sections">
       <button role="tab" aria-selected="true" aria-controls="generatorPanel" id="generatorTab" data-tab="generator">
@@ -43,6 +28,10 @@
       <button role="tab" aria-selected="false" aria-controls="pipelinePanel" id="pipelineTab" data-tab="pipeline" tabindex="-1">
         <span class="tab-title-line"><strong>Data Pipeline</strong><span id="pipelineStatus" class="component-status status-checking"><span aria-hidden="true">◌</span><span>CHECKING</span></span></span>
         <small>BRONZE · SILVER · GOLD · SERVING</small>
+      </button>
+      <button role="tab" aria-selected="false" aria-controls="architecturePanel" id="architectureTab" data-tab="architecture" tabindex="-1">
+        <span class="tab-title-line"><strong>Data Architecture</strong></span>
+        <small>LINEAGE · SCHEMA · FORMULAS</small>
       </button>
     </div>
 
@@ -79,10 +68,10 @@
         </div>
 
         <div class="kpi-strip" aria-label="Estimated run size">
-          <div><span>ROWS</span><strong id="estimateRows">—</strong></div>
-          <div><span>RAW SIZE</span><strong id="estimateBytes">—</strong></div>
-          <div><span>TIME</span><strong id="estimateMinutes">—</strong></div>
-          <div><span>LOCAL LIMIT</span><strong id="estimateLimit">—</strong></div>
+          <div><span>ROWS</span><strong id="estimateRows">-</strong></div>
+          <div><span>RAW SIZE</span><strong id="estimateBytes">-</strong></div>
+          <div><span>TIME</span><strong id="estimateMinutes">-</strong></div>
+          <div><span>LOCAL LIMIT</span><strong id="estimateLimit">-</strong></div>
         </div>
 
         <div class="action-row">
@@ -105,10 +94,10 @@
     <section id="pipelinePanel" role="tabpanel" aria-labelledby="pipelineTab" hidden>
       <p class="status-guidance" id="pipelineGuidance" role="status" hidden></p>
       <div class="kpi-strip">
-        <div><span>RAW DATABASES</span><strong id="rawCount">—</strong></div>
-        <div><span>ACTIVE RUN</span><strong id="activeRun">—</strong></div>
-        <div><span>PROMOTED</span><strong id="promotedAt">—</strong></div>
-        <div><span>JAVA</span><strong id="javaStatus">—</strong></div>
+        <div><span>RAW DATABASES</span><strong id="rawCount">-</strong></div>
+        <div><span>ACTIVE RUN</span><strong id="activeRun">-</strong></div>
+        <div><span>PROMOTED</span><strong id="promotedAt">-</strong></div>
+        <div><span>JAVA</span><strong id="javaStatus">-</strong></div>
       </div>
       <div class="pipeline-flow" aria-label="Pipeline stages">
         <div><b>01</b><strong>Bronze</strong><span>Ingest and preserve</span></div>
@@ -122,7 +111,31 @@
       </div>
     </section>
 
-    <section class="history-section" aria-labelledby="historyTitle">
+    <section id="architecturePanel" role="tabpanel" aria-labelledby="architectureTab" hidden>
+      <div class="architecture-toolbar">
+        <label>Layer<select id="architectureLayer"><option value="">All layers</option></select></label>
+        <label>Find object<input id="architectureSearch" type="search" placeholder="Table or view name"></label>
+        <button class="button secondary" id="resetArchitecture" type="button">Reset view</button>
+        <span id="architectureStatus" role="status">Loading tracked lineage</span>
+      </div>
+      <div id="architectureCounts" class="architecture-counts" aria-label="Objects by layer"></div>
+      <div class="architecture-workspace">
+        <section class="architecture-canvas" aria-labelledby="architectureDiagramTitle">
+          <div class="section-title">
+            <h2 id="architectureDiagramTitle">End-to-end data lineage</h2>
+            <span>SELECT A NODE TO INSPECT ITS CONTRACT</span>
+          </div>
+          <div id="architectureGraph" role="img" aria-label="Raw to ML data lineage diagram"></div>
+        </section>
+        <aside class="architecture-inspector" aria-labelledby="architectureInspectorTitle">
+          <h2 id="architectureInspectorTitle">Object inspector</h2>
+          <dl id="architectureDetails"></dl>
+          <div class="table-wrap"><table id="architectureSchema"></table></div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="operationsHistory" class="history-section" aria-labelledby="historyTitle">
       <div class="section-title"><h2 id="historyTitle">Run history</h2><button id="refreshButton" type="button">Refresh</button></div>
       <div class="table-wrap">
         <table>
@@ -132,7 +145,7 @@
       </div>
     </section>
 
-    <section class="danger-zone" aria-labelledby="dangerTitle">
+    <section id="operationsDanger" class="danger-zone" aria-labelledby="dangerTitle">
       <div class="section-title">
         <div><p class="eyebrow">DESTRUCTIVE ACTIONS</p><h2 id="dangerTitle">Danger zone</h2></div>
         <span id="clearStatus" role="status"></span>
@@ -150,6 +163,7 @@
       <p class="danger-note">Logs and job history are preserved. Clear All Data cannot be rolled back.</p>
     </section>
   </main>
-  <script type="module" src="/data-operations/static/data-operations.js?v=20261020e"></script>
+  <script type="module" src="/shared/static/shell.js?v=20261027"></script>
+  <script type="module" src="/data-operations/static/data-operations.js?v=20261027h"></script>
 </body>
 </html>

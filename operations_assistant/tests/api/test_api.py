@@ -15,10 +15,10 @@ class FakeAgent:
     description = "Offline fake"
     tools: ClassVar[dict] = {}
 
-    async def arun(self, question: str) -> dict:
+    async def arun(self, question: str, **_kwargs) -> dict:
         return {"answer": f"answer:{question}", "tool_results": []}
 
-    async def astream(self, _question: str):
+    async def astream(self, _question: str, **_kwargs):
         yield {
             "type": "tools",
             "tool_results": [{"tool": "safe_tool", "result": {"row_count": 1}}],
@@ -39,15 +39,59 @@ def _client(monkeypatch) -> TestClient:
 
 def test_chat_uses_nonblocking_agent_contract(monkeypatch):
     client = _client(monkeypatch)
-    response = client.post("/operations-assistant/api/chat", json={"question": "hello"})
+    response = client.post("/shared/api/yukti/chat", json={"question": "hello"})
     assert response.status_code == 200
-    assert response.json()["answer"] == "answer:hello"
+    assert response.json()["answer"].endswith("User question: hello")
+
+
+def test_page_context_controls_tool_permissions(monkeypatch):
+    captured = {}
+
+    class CapturingAgent(FakeAgent):
+        async def arun(self, question: str, **kwargs) -> dict:
+            captured["question"] = question
+            captured["allowed_tools"] = kwargs["allowed_tools"]
+            return {"answer": "ok", "tool_results": []}
+
+    client = _client(monkeypatch)
+    monkeypatch.setitem(main.AGENT_REGISTRY, "capacity", CapturingAgent())
+    response = client.post(
+        "/shared/api/yukti/chat",
+        json={
+            "question": "Write SQL for this table",
+            "context": {
+                "app_id": "data-explorer",
+                "path": "/explorer/",
+                "selected_table": "srv_vw_capacity_summary",
+                "filters": {"site": "S1", "not_allowed": "ignored"},
+            },
+        },
+    )
+    assert response.status_code == 200
+    assert "run_query" in captured["allowed_tools"]
+    assert "get_capex_scenarios" not in captured["allowed_tools"]
+    assert "not_allowed" not in captured["question"]
+
+
+def test_page_context_rejects_a_mismatched_path(monkeypatch):
+    client = _client(monkeypatch)
+    response = client.post(
+        "/shared/api/yukti/chat",
+        json={
+            "question": "hello",
+            "context": {
+                "app_id": "data-explorer",
+                "path": "/decision-intelligence/",
+            },
+        },
+    )
+    assert response.status_code == 422
 
 
 def test_sse_has_immediate_event_and_real_model_chunks(monkeypatch):
     client = _client(monkeypatch)
     response = client.post(
-        "/operations-assistant/api/chat/stream",
+        "/shared/api/yukti/chat/stream",
         json={"question": "hello"},
     )
     assert response.status_code == 200
@@ -78,8 +122,8 @@ def test_health_is_degraded_without_leaking_details(monkeypatch):
 
     monkeypatch.setattr(main, "_health_payload", fake_health)
     client = TestClient(main.app)
-    health = client.get("/operations-assistant/api/health")
-    ready = client.get("/operations-assistant/api/ready")
+    health = client.get("/shared/api/yukti/health")
+    ready = client.get("/shared/api/yukti/ready")
     assert health.status_code == 200
     assert ready.status_code == 503
     assert "path" not in health.text.lower()
@@ -89,14 +133,14 @@ def test_health_is_degraded_without_leaking_details(monkeypatch):
 def test_cors_allows_localhost_but_not_remote_origin(monkeypatch):
     client = _client(monkeypatch)
     local = client.options(
-        "/operations-assistant/api/chat",
+        "/shared/api/yukti/chat",
         headers={
             "Origin": "http://localhost:8000",
             "Access-Control-Request-Method": "POST",
         },
     )
     remote = client.options(
-        "/operations-assistant/api/chat",
+        "/shared/api/yukti/chat",
         headers={
             "Origin": "https://evil.example",
             "Access-Control-Request-Method": "POST",
@@ -108,12 +152,12 @@ def test_cors_allows_localhost_but_not_remote_origin(monkeypatch):
 
 def test_client_errors_are_sanitized(monkeypatch):
     class BrokenAgent(FakeAgent):
-        async def arun(self, _question: str) -> dict:
+        async def arun(self, _question: str, **_kwargs) -> dict:
             raise RuntimeError("C:\\secret\\database.duckdb password=hidden")
 
     client = _client(monkeypatch)
     monkeypatch.setitem(main.AGENT_REGISTRY, "capacity", BrokenAgent())
-    response = client.post("/operations-assistant/api/chat", json={"question": "hello"})
+    response = client.post("/shared/api/yukti/chat", json={"question": "hello"})
     assert response.status_code == 503
     assert "secret" not in response.text
     assert "password" not in response.text
@@ -124,7 +168,7 @@ def test_health_stays_responsive_during_slow_chat(monkeypatch):
     started = threading.Event()
 
     class SlowAgent(FakeAgent):
-        async def arun(self, _question: str) -> dict:
+        async def arun(self, _question: str, **_kwargs) -> dict:
             started.set()
             await asyncio.sleep(0.25)
             return {"answer": "done", "tool_results": []}
@@ -141,7 +185,7 @@ def test_health_stays_responsive_during_slow_chat(monkeypatch):
     monkeypatch.setattr(main, "_health_payload", fake_health)
     worker = threading.Thread(
         target=lambda: client.post(
-            "/operations-assistant/api/chat",
+            "/shared/api/yukti/chat",
             json={"question": "slow"},
         ),
         daemon=True,
@@ -150,7 +194,7 @@ def test_health_stays_responsive_during_slow_chat(monkeypatch):
     assert started.wait(timeout=1)
 
     before = time.monotonic()
-    response = client.get("/operations-assistant/api/health")
+    response = client.get("/shared/api/yukti/health")
     elapsed = time.monotonic() - before
     worker.join(timeout=1)
 
@@ -160,13 +204,13 @@ def test_health_stays_responsive_during_slow_chat(monkeypatch):
 
 def test_chat_timeout_is_sanitized(monkeypatch):
     class SlowAgent(FakeAgent):
-        async def arun(self, _question: str) -> dict:
+        async def arun(self, _question: str, **_kwargs) -> dict:
             await asyncio.sleep(1)
             return {"answer": "late", "tool_results": []}
 
     client = _client(monkeypatch)
     monkeypatch.setitem(main.AGENT_REGISTRY, "capacity", SlowAgent())
     monkeypatch.setattr(main, "AGENT_TIMEOUT_SECONDS", 0.01)
-    response = client.post("/operations-assistant/api/chat", json={"question": "slow"})
+    response = client.post("/shared/api/yukti/chat", json={"question": "slow"})
     assert response.status_code == 504
     assert response.json()["detail"] == "The model request timed out."

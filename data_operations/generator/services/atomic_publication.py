@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
-import shutil
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from capacity_twin_core.runtime.database_paths import get_raw_run_pointer
+import duckdb
+
+from capacity_twin_core.runtime.database_paths import get_source_bundle_pointer
 from data_operations.generator.rules.determinism import stable_id
+
+RAW_SCHEMA_VERSION = "raw-source-1.0"
+BUNDLE_SCHEMA_VERSION = "source-bundle-1.0"
 
 
 def _atomic_json(path: Path, value: dict[str, Any]) -> None:
@@ -22,7 +28,7 @@ def _atomic_json(path: Path, value: dict[str, Any]) -> None:
 
 
 def create_candidate(config: dict[str, Any]) -> tuple[str, Path]:
-    """Create an external run directory for candidate Raw databases."""
+    """Create one run-scoped candidate for all source files."""
     run_id = stable_id(
         "generator-run",
         config["data_generation"]["random_seed"],
@@ -30,52 +36,183 @@ def create_candidate(config: dict[str, Any]) -> tuple[str, Path]:
         datetime.now(UTC).isoformat(),
     )
     runtime_home = Path(config["paths"]["runtime_home"])
-    candidate = runtime_home / "artifacts" / run_id / "raw"
-    candidate.mkdir(parents=True, exist_ok=False)
+    candidate = runtime_home / "source_bundles" / run_id
+    (candidate / "raw").mkdir(parents=True, exist_ok=False)
     return run_id, candidate
+
+
+def initialize_raw_databases(raw_dir: Path, config: dict[str, Any]) -> None:
+    """Create exactly the nine configured source files before generation."""
+    names = list(config["databases"]["raw"].values())
+    if len(names) != 9 or len(set(names)) != 9:
+        raise ValueError("Source bundle requires exactly nine unique Raw databases")
+    for filename in names:
+        with sqlite3.connect(raw_dir / filename):
+            pass
+
+
+def add_source_metadata(
+    raw_dir: Path,
+    config: dict[str, Any],
+    *,
+    source_run_id: str,
+    extracted_at_utc: str,
+) -> None:
+    """Add source identity and extraction lineage to every generated Raw row."""
+    company_id = str(config.get("brand", {}).get("primary_company", "UNKNOWN"))
+    for source_system_id, filename in config["databases"]["raw"].items():
+        with sqlite3.connect(raw_dir / filename) as connection:
+            tables = [
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+                )
+            ]
+            for table in tables:
+                columns = {
+                    row[1]
+                    for row in connection.execute(f'PRAGMA table_info("{table}")')
+                }
+                site_column = (
+                    "site_code"
+                    if "site_code" in columns
+                    else ("site" if "site" in columns else None)
+                )
+                additions = {
+                    "source_system_id": source_system_id,
+                    "source_company_id": company_id,
+                    "source_site_id": None,
+                    "source_record_id": None,
+                    "source_batch_id": source_run_id,
+                    "extracted_at_utc": extracted_at_utc,
+                }
+                for column in additions:
+                    if column not in columns:
+                        connection.execute(
+                            f'ALTER TABLE "{table}" ADD COLUMN "{column}" TEXT'
+                        )
+                site_expression = f'CAST("{site_column}" AS TEXT)' if site_column else "NULL"
+                connection.execute(
+                    f"""
+                    UPDATE "{table}"
+                    SET source_system_id = ?,
+                        source_company_id = ?,
+                        source_site_id = {site_expression},
+                        source_record_id = ? || ':' || CAST(rowid AS TEXT),
+                        source_batch_id = ?,
+                        extracted_at_utc = ?
+                    """,
+                    (
+                        source_system_id,
+                        company_id,
+                        table,
+                        source_run_id,
+                        extracted_at_utc,
+                    ),
+                )
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for block in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _sqlite_tables(path: Path) -> dict[str, int]:
+    with sqlite3.connect(path) as connection:
+        tables = [
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            )
+        ]
+        return {
+            table: int(
+                connection.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+            )
+            for table in tables
+        }
+
+
+def _duckdb_tables(path: Path) -> dict[str, int]:
+    with duckdb.connect(str(path), read_only=True) as connection:
+        objects = connection.execute(
+            """
+            SELECT table_schema, table_name
+            FROM information_schema.tables
+            WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+            ORDER BY table_schema, table_name
+            """
+        ).fetchall()
+        return {
+            f"{schema}.{table}": int(
+                connection.execute(f'SELECT COUNT(*) FROM "{schema}"."{table}"').fetchone()[0]
+            )
+            for schema, table in objects
+        }
 
 
 def publish_candidate(
     run_id: str,
     candidate_dir: Path,
-    final_dir: Path,
     config: dict[str, Any],
     validation_report: dict[str, Any],
     preflight_report: dict[str, Any],
+    catalog_report: dict[str, Any],
 ) -> Path:
-    """Replace all ten databases with rollback if any file operation fails."""
-    final_dir.mkdir(parents=True, exist_ok=True)
-    rollback_dir = candidate_dir.parent / "rollback"
-    rollback_dir.mkdir(parents=True, exist_ok=True)
-    database_names = list(config["databases"]["raw"].values())
-    replaced: list[str] = []
-    try:
-        for filename in database_names:
-            final_path = final_dir / filename
-            if final_path.exists():
-                shutil.copy2(final_path, rollback_dir / filename)
-            publish_temp = final_dir / f".{filename}.{run_id}.tmp"
-            shutil.copy2(candidate_dir / filename, publish_temp)
-            os.replace(publish_temp, final_path)
-            replaced.append(filename)
-    except Exception:
-        for filename in replaced:
-            backup = rollback_dir / filename
-            if backup.exists():
-                os.replace(backup, final_dir / filename)
-            else:
-                (final_dir / filename).unlink(missing_ok=True)
-        for filename in database_names:
-            (final_dir / f".{filename}.{run_id}.tmp").unlink(missing_ok=True)
-        raise
-
+    """Seal all eleven source files and atomically select the bundle."""
+    runtime_home = Path(config["paths"]["runtime_home"]).resolve()
+    raw_dir = candidate_dir / "raw"
+    file_details: dict[str, dict[str, Any]] = {}
+    for filename in config["databases"]["raw"].values():
+        path = raw_dir / filename
+        tables = _sqlite_tables(path)
+        file_details[filename] = {
+            "role": "raw",
+            "path": path.relative_to(runtime_home).as_posix(),
+            "sha256": _sha256(path),
+            "size_bytes": path.stat().st_size,
+            "schema_version": RAW_SCHEMA_VERSION,
+            "table_count": len(tables),
+            "tables": tables,
+        }
+    for role, filename in config["databases"]["source_bundle"].items():
+        path = candidate_dir / filename
+        tables = _duckdb_tables(path)
+        file_details[filename] = {
+            "role": role,
+            "path": path.relative_to(runtime_home).as_posix(),
+            "sha256": _sha256(path),
+            "size_bytes": path.stat().st_size,
+            "schema_version": catalog_report["schema_versions"][role],
+            "table_count": len(tables),
+            "tables": tables,
+        }
+    if len(file_details) != 11:
+        raise ValueError("A source bundle must contain nine Raw files and two DuckDB files")
+    checksum_payload = json.dumps(
+        file_details, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    bundle_checksum = hashlib.sha256(checksum_payload).hexdigest()
+    generated_at = catalog_report["published_at"]
     manifest = {
+        "manifest_version": 1,
+        "source_run_id": run_id,
         "run_id": run_id,
-        "schema_version": "raw-telecom-2.0",
+        "shared_run_id": run_id,
+        "schema_version": BUNDLE_SCHEMA_VERSION,
+        "schema_versions": {
+            "bundle": BUNDLE_SCHEMA_VERSION,
+            "raw": RAW_SCHEMA_VERSION,
+            **catalog_report["schema_versions"],
+        },
         "catalog_version": "telecom-1.0",
-        "source_control_run_id": config["control_publication"]["control_run_id"],
-        "source_control_sha256": config["control_publication"]["sha256"],
-        "generated_at_utc": datetime.now(UTC).isoformat(),
+        "generated_at_utc": generated_at,
+        "bundle_checksum": bundle_checksum,
         "seed": config["data_generation"]["random_seed"],
         "volume": config["data_generation"]["volume"],
         "date_contract": {
@@ -90,35 +227,29 @@ def publish_candidate(
         },
         "preflight": preflight_report,
         "validation": validation_report,
+        "files": file_details,
         "promotion_state": "published",
     }
-    manifest_path = candidate_dir.parent / "manifest.json"
+    manifest_path = candidate_dir / "source_bundle_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
-
-    truth_manifest = {
-        "run_id": run_id,
-        "noise_profile": config["data_generation"]["noise_profile"],
-        "declared_noise_rules": config["noise"]["allowed_rule_ids"],
-        "expected_silver_disposition": {
-            "RAW_DUPLICATE_EXECUTION": "DEDUPLICATE_BY_EVENT_ID",
-            "RAW_MISSING_EXECUTION": "REPORT_COVERAGE_GAP",
-            "RAW_NULL_MEASUREMENT": "QUARANTINE_OR_IMPUTE_WITH_FLAG",
-            "RAW_TEST_TIME_OUTLIER": "RETAIN_WITH_OUTLIER_FLAG",
-        },
-    }
-    (candidate_dir.parent / "truth_manifest.json").write_text(
-        json.dumps(truth_manifest, indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
-    runtime_home = Path(config["paths"]["runtime_home"]).resolve()
     _atomic_json(
-        get_raw_run_pointer(runtime_home),
+        get_source_bundle_pointer(runtime_home),
         {
+            "pointer_version": 1,
+            "source_run_id": run_id,
             "run_id": run_id,
-            "generated_at_utc": manifest["generated_at_utc"],
-            "source_control_run_id": manifest["source_control_run_id"],
-            "source_control_sha256": manifest["source_control_sha256"],
-            "manifest": str(manifest_path.relative_to(runtime_home)),
+            "shared_run_id": run_id,
+            "generated_at_utc": generated_at,
+            "bundle_checksum": bundle_checksum,
+            "manifest": manifest_path.relative_to(runtime_home).as_posix(),
+            "raw_directory": raw_dir.relative_to(runtime_home).as_posix(),
+            "reference_database": file_details[
+                config["databases"]["source_bundle"]["reference"]
+            ]["path"],
+            "mapping_database": file_details[
+                config["databases"]["source_bundle"]["mapping"]
+            ]["path"],
+            "schema_versions": manifest["schema_versions"],
         },
     )
     return manifest_path

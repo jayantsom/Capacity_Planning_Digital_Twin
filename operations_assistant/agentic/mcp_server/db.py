@@ -7,6 +7,7 @@ from typing import Literal
 
 import duckdb
 
+from capacity_twin_core.runtime.analytics import open_analytics_connection
 from capacity_twin_core.runtime.database_paths import (
     get_active_run_pointer,
     get_runtime_home,
@@ -82,13 +83,11 @@ def ml_database_path() -> Path:
 def get_conn(
     database: Literal["serving", "ml"] = "serving",
 ) -> duckdb.DuckDBPyConnection:
-    """Return a read-only DuckDB connection to the analytics database."""
-    path = ml_database_path() if database == "ml" else database_path()
-    if not path.is_file():
-        raise DatabaseUnavailableError("The analytics database is unavailable.")
+    """Return one release-pinned connection over Serving, Reference, and ML."""
+    del database
     try:
-        return duckdb.connect(str(path), read_only=True)
-    except duckdb.Error as error:
+        return open_analytics_connection()
+    except (duckdb.Error, OSError, KeyError, ValueError) as error:
         raise DatabaseUnavailableError("The analytics database is unavailable.") from error
 
 
@@ -151,7 +150,7 @@ def query_custom(sql: str, limit: int) -> list[dict]:
             for row in conn.execute(
                 "SELECT table_name FROM information_schema.tables "
                 "WHERE table_schema = 'main' "
-                "AND (table_name LIKE 'gold_%' OR table_name LIKE 'srv_vw_%')"
+                "AND (table_name LIKE 'ml_%' OR table_name LIKE 'srv_%')"
             ).fetchall()
         ]
         validated = validate_read_only_query(sql, conn, allowed_tables, limit=limit)

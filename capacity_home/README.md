@@ -1,6 +1,7 @@
 # Capacity Home
 
-The local landing page is a compact launcher for Data Explorer, Decision Intelligence,
-Operations Assistant, and Data Operations. Each card reports live application health.
+Capacity Home is the compact application launcher. It lists every enabled workspace and reports live health.
 
-Settings are in `config.yaml`; frontend files and tests stay in this app folder.
+Yukti opens from the shared top navigation. It is not a Home card.
+
+Settings are in `config.yaml`. Frontend files and tests stay in this folder.

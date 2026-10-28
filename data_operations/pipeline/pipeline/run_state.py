@@ -15,9 +15,10 @@ from typing import Any
 import duckdb
 
 from capacity_twin_core.runtime.database_paths import (
+    capture_source_bundle,
     get_active_run_pointer,
-    get_control_run_pointer,
-    get_raw_run_pointer,
+    get_release_pointer,
+    get_source_bundle_pointer,
 )
 
 DATABASE_FILES = ("bronze.duckdb", "silver.duckdb", "gold.duckdb", "serving.duckdb")
@@ -89,23 +90,32 @@ class PipelineRun:
         self.paths = RunPaths(runtime_home, run_id or _new_run_id())
         self.paths.run_dir.mkdir(parents=True, exist_ok=False)
         current = self.read_pointer(runtime_home)
-        raw_pointer = self.read_raw_pointer(runtime_home)
-        control_pointer = self.read_control_pointer(runtime_home)
-        if not raw_pointer.get("run_id"):
-            raise ValueError("A published Raw run is required before starting the pipeline")
-        if not control_pointer.get("control_run_id"):
-            raise ValueError("A published control catalog is required before starting the pipeline")
-        if raw_pointer.get("source_control_run_id") != control_pointer.get("control_run_id"):
-            raise ValueError("Raw and control catalog publications are not aligned")
+        source = capture_source_bundle(runtime_home)
+        source_manifest = source["manifest_data"]
+        source_run_id = source["source_run_id"]
+        source_checksum = source["bundle_checksum"]
+        raw_paths = [
+            path
+            for name, path in source["files"].items()
+            if source_manifest["files"][name]["role"] == "raw"
+        ]
+        self.source_raw_directory = raw_paths[0].parent
+        self.source_reference_database = source["files"]["reference.duckdb"]
+        self.source_mapping_database = source["files"]["mapping.duckdb"]
+        self.source_bundle_checksum = source_checksum
+        self.source_run_id = source_run_id
         self.manifest: dict[str, Any] = {
             "manifest_version": 1,
             "run_id": self.paths.run_id,
             "parent_run_id": current.get("active_run_id"),
             "retry_of_run_id": retry_of,
-            "source_raw_run_id": raw_pointer.get("run_id"),
-            "source_control_run_id": control_pointer.get("control_run_id"),
-            "source_control_sha256": control_pointer.get("sha256"),
-            "control_catalog_version": control_pointer.get("catalog_version"),
+            "source_bundle_run_id": source_run_id,
+            "source_bundle_checksum": source_checksum,
+            "source_bundle_manifest": str(source["manifest_path"]),
+            "source_raw_run_id": source_run_id,
+            "source_control_run_id": source_run_id,
+            "source_control_sha256": source_checksum,
+            "control_catalog_version": source_manifest.get("catalog_version"),
             "config_hash": _config_hash(config),
             "created_at": _utc_now(),
             "completed_at": None,
@@ -129,16 +139,16 @@ class PipelineRun:
 
     @staticmethod
     def read_raw_pointer(runtime_home: Path) -> dict[str, Any]:
-        """Read the Raw publication used as this pipeline's source."""
-        pointer = get_raw_run_pointer(runtime_home)
+        """Compatibility reader for the unified source publication."""
+        pointer = get_source_bundle_pointer(runtime_home)
         if not pointer.is_file():
             return {}
         return json.loads(pointer.read_text(encoding="utf-8"))
 
     @staticmethod
     def read_control_pointer(runtime_home: Path) -> dict[str, Any]:
-        """Read the immutable control catalog used by this pipeline."""
-        pointer = get_control_run_pointer(runtime_home)
+        """Compatibility reader for the unified source publication."""
+        pointer = get_source_bundle_pointer(runtime_home)
         if not pointer.is_file():
             return {}
         return json.loads(pointer.read_text(encoding="utf-8"))
@@ -229,15 +239,12 @@ class PipelineRun:
 
     def promote(self) -> None:
         """Atomically point readers at a complete, validated artifact set."""
-        raw_pointer = self.read_raw_pointer(self.paths.runtime_home)
-        control_pointer = self.read_control_pointer(self.paths.runtime_home)
-        if raw_pointer.get("run_id") != self.manifest["source_raw_run_id"]:
-            raise ValueError("Raw publication changed while the pipeline was building")
+        source_pointer = self.read_raw_pointer(self.paths.runtime_home)
         if (
-            control_pointer.get("control_run_id") != self.manifest["source_control_run_id"]
-            or control_pointer.get("sha256") != self.manifest["source_control_sha256"]
+            source_pointer.get("source_run_id") != self.source_run_id
+            or source_pointer.get("bundle_checksum") != self.source_bundle_checksum
         ):
-            raise ValueError("Control catalog changed while the pipeline was building")
+            raise ValueError("Source bundle changed while the pipeline was building")
         missing = [name for name in DATABASE_FILES if not (self.paths.run_dir / name).is_file()]
         if missing:
             raise ValueError(f"Cannot promote incomplete run; missing {missing}")
@@ -267,8 +274,12 @@ class PipelineRun:
             "source_raw_run_id": self.manifest["source_raw_run_id"],
             "source_control_run_id": self.manifest["source_control_run_id"],
             "source_control_sha256": self.manifest["source_control_sha256"],
+            "release_pending_ml": True,
         }
         _atomic_json(self.paths.pointer, pointer)
+        # current.json remains a compatibility pointer for pipeline and ML staging.
+        # release_current.json is intentionally not changed here.  The ML publisher
+        # performs the one atomic release switch after compatible ML is available.
         self.manifest.update(
             {
                 "status": "PROMOTED",
@@ -326,6 +337,26 @@ def rollback(runtime_home: Path) -> str:
             "rollback_from_run_id": active,
         },
     )
+    release_pointer = get_release_pointer(runtime_home)
+    if release_pointer.is_file():
+        current_release = json.loads(release_pointer.read_text(encoding="utf-8"))
+        previous_release = current_release.get("previous_release")
+        if (
+            previous_release
+            and previous_release.get("publications", {})
+            .get("serving", {})
+            .get("run_id")
+            == previous
+            and previous_release.get("ml")
+        ):
+            restored_release = {
+                **previous_release,
+                "previous_release_id": current_release.get("release_id"),
+                "previous_release": current_release,
+                "promoted_at": rolled_at,
+                "rollback_from_release_id": current_release.get("release_id"),
+            }
+            _atomic_json(release_pointer, restored_release)
     active_manifest_path = runtime_home / "artifacts" / active / "manifest.json"
     if active_manifest_path.is_file():
         active_manifest = json.loads(active_manifest_path.read_text(encoding="utf-8"))

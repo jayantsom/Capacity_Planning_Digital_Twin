@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import sqlite3
 from collections.abc import Iterator
@@ -54,16 +56,77 @@ def get_active_run_pointer(runtime_home: Path | None = None) -> Path:
     return (runtime_home or get_runtime_home()) / pointer_name
 
 
-def get_raw_run_pointer(runtime_home: Path | None = None) -> Path:
-    """Return the pointer for the currently published Raw generation."""
-    pointer_name = load_app_config("capacity_twin_core")["runtime"]["raw_run_pointer"]
+def get_release_pointer(runtime_home: Path | None = None) -> Path:
+    """Return the top-level compatible publication pointer."""
+    pointer_name = load_app_config("capacity_twin_core")["runtime"]["release_pointer"]
     return (runtime_home or get_runtime_home()) / pointer_name
+
+
+def get_raw_run_pointer(runtime_home: Path | None = None) -> Path:
+    """Compatibility alias for the unified source-bundle pointer."""
+    return get_source_bundle_pointer(runtime_home)
 
 
 def get_control_run_pointer(runtime_home: Path | None = None) -> Path:
-    """Return the pointer for the active application-owned control catalog."""
-    pointer_name = load_app_config("capacity_twin_core")["runtime"]["control_run_pointer"]
+    """Compatibility alias for the unified source-bundle pointer."""
+    return get_source_bundle_pointer(runtime_home)
+
+
+def get_source_bundle_pointer(runtime_home: Path | None = None) -> Path:
+    """Return the only mutable pointer for immutable source publications."""
+    pointer_name = load_app_config("capacity_twin_core")["runtime"][
+        "source_bundle_pointer"
+    ]
     return (runtime_home or get_runtime_home()) / pointer_name
+
+
+def capture_source_bundle(runtime_home: Path | None = None) -> dict[str, Any]:
+    """Capture and validate the current immutable source-bundle paths once."""
+    runtime = (runtime_home or get_runtime_home()).resolve()
+    pointer_path = get_source_bundle_pointer(runtime)
+    if not pointer_path.is_file():
+        raise FileNotFoundError("No published source bundle")
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    manifest_path = Path(pointer["manifest"])
+    if not manifest_path.is_absolute():
+        manifest_path = runtime / manifest_path
+    manifest_path = manifest_path.resolve()
+    if runtime != manifest_path and runtime not in manifest_path.parents:
+        raise ValueError("Source bundle manifest escapes the runtime home")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("source_run_id") != pointer.get("source_run_id"):
+        raise ValueError("Source bundle pointer and manifest run IDs differ")
+    if manifest.get("bundle_checksum") != pointer.get("bundle_checksum"):
+        raise ValueError("Source bundle pointer and manifest checksums differ")
+    canonical = json.dumps(
+        manifest.get("files", {}), sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    if hashlib.sha256(canonical).hexdigest() != manifest.get("bundle_checksum"):
+        raise ValueError("Source bundle canonical checksum failed")
+
+    files: dict[str, Path] = {}
+    for name, details in manifest.get("files", {}).items():
+        path = Path(details["path"])
+        if not path.is_absolute():
+            path = runtime / path
+        path = path.resolve()
+        if runtime != path and runtime not in path.parents:
+            raise ValueError(f"Source bundle file escapes runtime home: {name}")
+        if not path.is_file():
+            raise FileNotFoundError(f"Source bundle file is missing: {path}")
+        digest = hashlib.sha256()
+        with path.open("rb") as file:
+            for block in iter(lambda: file.read(1024 * 1024), b""):
+                digest.update(block)
+        if digest.hexdigest() != details.get("sha256"):
+            raise ValueError(f"Source bundle checksum failed: {name}")
+        files[name] = path
+    return {
+        **pointer,
+        "manifest_path": manifest_path,
+        "manifest_data": manifest,
+        "files": files,
+    }
 
 
 def load_app_config(app_name: str) -> dict[str, Any]:

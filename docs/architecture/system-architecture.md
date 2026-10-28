@@ -1,63 +1,78 @@
 # System Architecture
 
-## Approved essential architecture
+## Runtime
 
-The project is a local telecom/networking manufacturing digital twin with five root
-applications and one shared core package. Capacity Home launches Data Explorer,
-Decision Intelligence, Operations Assistant, and Data Operations. Capacity Twin Core
-contains shared runtime, job, and business contracts.
+One FastAPI process serves every page and API on `127.0.0.1:8000`. Capacity Twin Core owns the shared application registry, navigation, chart contracts, runtime paths, and release readers.
 
 ```mermaid
-%% Show the approved local data flow.
 flowchart LR
-  D[Data Operations] --> G[Generator]
-  D --> P[Pipeline]
-  G --> R[Ten Raw SQLite files]
-  R --> B[bronze.duckdb]
-  B --> S[silver.duckdb]
-  S --> O[gold.duckdb]
-  O --> M[Decision Intelligence]
-  M --> MD[ml.duckdb]
-  O --> V[serving.duckdb]
-  MD --> V
-  V --> Y[Operations Assistant]
-  V --> E[Data Explorer]
-  H[Capacity Home] --> Y
-  H --> E
-  H --> D
-  H --> M
+  G[Data Generator] --> R[9 Raw SQLite databases]
+  G --> RF[Reference DuckDB]
+  G --> MP[Mapping DuckDB]
+  R --> B[Bronze DuckDB]
+  RF --> S[Silver DuckDB]
+  MP --> S
+  B --> S
+  S --> O[Gold DuckDB]
+  O --> V[Serving DuckDB]
+  V --> ML[ML workflows]
+  ML --> M[ML DuckDB]
+  V --> A[Planning apps]
+  M --> A
+  V --> Y[Yukti]
+  M --> Y
 ```
 
-Runtime files belong under `CAPACITY_TWIN_HOME`, not in the repository. The approved run layout places every candidate under `artifacts/<run_id>/`, stores validation and provenance in `manifest.json`, and promotes it by atomically changing `current.json`. Downstream steps read upstream databases without modifying them.
+## Source systems
 
-## Data contracts
+Raw data represents separate industrial source systems:
 
-- Actual and execution dates: 2023-01-01 through 2026-10-31.
-- Forecast dates: 2026-11-01 through 2027-12-31.
-- Demand types: direct customer, spare, service, and BOM-dependent.
-- Product routes apply to made children as well as completed parents.
-- Capacity behavior is explicit for alternative, serial, paired-fixture, multi-DUT, standalone, shared-pool, and dedicated resources.
-- Raw noise is intentional only when a named rule and truth-manifest outcome exist.
-- Promotion requires schema, checksum, key, date, quantity, cardinality, and capacity reconciliation checks.
+| Database | Subject |
+|---|---|
+| `raw_demand.db` | Demand, customer orders, constrained plans, allocations |
+| `raw_product.db` | Products, BOMs, routes, sourcing |
+| `raw_site.db` | Sites, calendars, shift rules |
+| `raw_machine.db` | Equipment, inventory, logs, cost references |
+| `raw_test.db` | Test types, test times, test parameters |
+| `raw_yield.db` | Target and measured yield inputs |
+| `raw_execution.db` | Execution, schedules, lot route movements |
+| `raw_inventory.db` | Inventory, receipts, shipments, service policies |
+| `raw_npi.db` | NPI programs, gates, evidence, ramp, risks |
 
-## Serving and UI
+Raw databases never contain analytical comparison bands. Planning versions remain because they represent real forecast vintages.
 
-The target is one FastAPI process bound to `127.0.0.1`. It serves:
+Reference and Mapping are governed source controls. They are not Raw source transactions.
 
-- `/` — compact launcher for all four workspaces;
-- `/operations-assistant/` — Operations Assistant;
-- `/operations-assistant/api/*` — Operations Assistant API;
-- `/operations-assistant/static/*` — Operations Assistant frontend assets;
-- `/explorer/` — Data Explorer;
-- `/decision-intelligence/` — five ML workflow dashboards;
-- `/data-operations/` — Generator and Pipeline tabs;
-- `/operations-assistant/api/health` — API, promoted-data, and optional Ollama status.
+## Publication
 
-The Graphite/Dark Cyan UI uses `#F7F8FA`, `#20242A`, `#006D77`, `#1597A5`, and `#D9F0F2`. Ollama being offline may degrade Operations Assistant but must not make Data Explorer unavailable.
+Every generated source bundle and pipeline run is immutable.
 
-## Verification boundary
+1. Generate a candidate.
+2. Validate schema, checksums, keys, dates, units, row counts, and reconciliations.
+3. Build ML outputs against the same Serving release.
+4. Promote one compatible release through `release_current.json`.
 
-Each root app owns its configuration, implementation, and tests. Generated data and
-model artifacts remain external. Candidate publications are validated before their
-small current-pointer file changes. Dashboard and job behavior must pass the app-owned
-test suites before a release is accepted.
+Readers pin one release for the complete request.
+
+## Applications
+
+| Route | Application |
+|---|---|
+| `/` | Capacity Home |
+| `/explorer/` | Data Explorer |
+| `/capacity-analysis/` | Capacity Analysis |
+| `/decision-intelligence/` | Decision Intelligence |
+| `/scenario-planning/` | Scenario Planning |
+| `/demand-supply-planning/` | S&OP Planning |
+| `/npi-ramp-planning/` | NPI Ramp Planning |
+| `/operations-flow/` | Operations Flow |
+| `/data-operations/` | Data Operations |
+| `/documentation/` | Documentation |
+
+Yukti is a shared widget. It has no standalone page. Its API uses `/shared/api/yukti/*`.
+
+## UI
+
+The UI uses Graphite and Dark Cyan for structure. Analytical charts use semantic colors. All chart assets are local. Apache ECharts does not require a CDN.
+
+Every page uses the same navigation, page header, status format, and Yukti widget.

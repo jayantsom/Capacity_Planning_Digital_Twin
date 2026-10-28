@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operations Flow</title>
+  <link rel="stylesheet" href="/shared/static/shell.css">
+  <link rel="stylesheet" href="/shared/static/planning.css?v=20261027g">
+</head>
+<body>
+  <div data-shared-shell></div>
+  <div class="planning-page">
+    <section data-shared-page-header data-mark="OF" data-eyebrow="PLANNING" data-title="Operations Flow">
+      <div data-page-actions><span id="release-status" class="ct-status" data-state="pending">Checking release</span></div>
+    </section>
+    <main id="main" tabindex="-1">
+      <div class="role-tabs" role="tablist" aria-label="Operations role views">
+        <button role="tab" aria-selected="true" data-view="production-control">Production Control</button>
+        <button role="tab" aria-selected="false" data-view="industrial-engineering" tabindex="-1">Industrial Engineering</button>
+        <button role="tab" aria-selected="false" data-view="test-operations" tabindex="-1">Test Operations</button>
+      </div>
+      <form id="filters" class="ct-filter-band" aria-label="Operations Flow filters">
+        <label>Site full name<select name="site"><option value="">All sites</option></select></label>
+        <label>Product full name<select name="product"><option value="">All products</option></select></label>
+        <label>Operation full name<select name="operation"><option value="">All operations</option></select></label>
+        <label>Resource full name<select name="resource"><option value="">All resources</option></select></label>
+        <label>Date from<input name="date_from" type="date"></label>
+        <label>Date to<input name="date_to" type="date"></label>
+        <button type="submit">Apply filters</button>
+      </form>
+      <p id="filter-scope" class="view-state"></p>
+      <p id="view-state" class="view-state" role="status" aria-live="polite">Loading operations flow.</p>
+      <div id="flow-kpis" class="ct-kpi-strip" aria-label="Operations Flow KPIs"></div>
+      <div class="dashboard-grid">
+        <section class="dashboard-section" data-views="production-control test-operations"><h2>Queue heatmap</h2><div id="queue-heatmap"></div></section>
+        <section class="dashboard-section" data-views="production-control industrial-engineering"><h2>Cycle-time percentiles</h2><div id="cycle-chart"></div></section>
+      </div>
+      <div class="dashboard-grid">
+        <section class="dashboard-section" data-views="production-control test-operations"><h2>Throughput and rework</h2><div id="throughput-chart"></div></section>
+        <section class="dashboard-section" data-views="industrial-engineering test-operations"><h2>Queue-age control chart</h2><div id="control-chart"></div></section>
+      </div>
+      <section class="dashboard-section" data-views="production-control industrial-engineering test-operations">
+        <h2>Dynamic bottleneck migration</h2>
+        <div id="bottleneck-chart"></div>
+        <div class="ct-table-scroll"><table id="bottleneck-table"></table></div>
+      </section>
+      <section class="dashboard-section" data-views="production-control">
+        <h2>Work in process</h2>
+        <div class="ct-table-scroll"><table id="wip-table"></table></div>
+      </section>
+      <div class="dashboard-grid">
+        <section class="dashboard-section" data-views="industrial-engineering">
+          <h2>Route adherence</h2>
+          <div class="ct-table-scroll"><table id="route-table"></table></div>
+        </section>
+        <section class="dashboard-section" data-views="production-control">
+          <h2>Schedule attainment</h2>
+          <div class="ct-table-scroll"><table id="schedule-table"></table></div>
+        </section>
+      </div>
+      <section class="dashboard-section" data-views="production-control industrial-engineering">
+        <h2>Route Sankey</h2>
+        <p id="sankey-state" class="unavailable"></p>
+        <div id="sankey-chart"></div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/shared/static/shell.js"></script>
+  <script type="module" src="/operations-flow/static/operations-flow.js?v=20261027e"></script>
+</body>
+</html>

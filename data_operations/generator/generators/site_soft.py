@@ -12,6 +12,7 @@ from capacity_twin_core.domain.constants import RANDOM_SEED
 from capacity_twin_core.logging import logger
 from capacity_twin_core.runtime.database_paths import get_sqlite_path, load_config
 from data_operations.generator.generators.reference_data import SITES, write_to_sqlite
+from data_operations.generator.rules.contracts import DateContract
 from data_operations.generator.rules.determinism import stable_seed
 
 # ── Regional shift profiles ────────────────────────────────────────────────────
@@ -71,11 +72,10 @@ def generate_site_soft_db(config: dict) -> pd.DataFrame:
     logger.info("GENERATING: raw_site_soft.db")
     logger.info("=" * 60)
 
-    db_path = get_sqlite_path(
-        config["databases"]["raw"]["site_soft"], config
-    )
+    db_path = get_sqlite_path(config["databases"]["raw"]["site"], config)
 
-    all_month_keys = get_all_month_keys()
+    dates = DateContract.from_config(config)
+    all_month_keys = get_all_month_keys(dates.actual_start, dates.forecast_end)
     rows = []
 
     for site_tuple in SITES:

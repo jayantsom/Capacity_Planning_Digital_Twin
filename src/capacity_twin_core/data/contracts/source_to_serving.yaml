@@ -1,0 +1,766 @@
+contract_version: "1.0"
+schema_version: "source-contract-1.0"
+required_fields:
+  - owner
+  - natural_keys
+  - canonical_keys
+  - grain
+  - units
+  - effective_dates
+  - null_policy
+  - unmatched_mapping_policy
+  - lineage
+  - row_budget
+  - schema_version
+  - consuming_apps
+
+tables:
+  site_master:
+    owner: SOURCE_RAW
+    natural_keys: [site_code]
+    canonical_keys: [canonical_site_id]
+    grain: one source site
+    units: {}
+    effective_dates: {start: null, end: null}
+    null_policy: keys_required_attributes_source_nullable
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_site.db.site_master, brnz_ref_site, slvr_ref_site]
+    row_budget: 30
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer, capacity_planning]
+  test_type_master:
+    owner: SOURCE_RAW
+    natural_keys: [test_type]
+    canonical_keys: [canonical_test_type_id]
+    grain: one source test type
+    units: {}
+    effective_dates: {start: null, end: null}
+    null_policy: keys_required_attributes_source_nullable
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_test.db.test_type_master, brnz_ref_test_type, slvr_ref_test_type]
+    row_budget: 24
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer, capacity_planning]
+  equipment_master:
+    owner: SOURCE_RAW
+    natural_keys: [equipment_id]
+    canonical_keys: [canonical_machine_id]
+    grain: one source equipment model
+    units: {}
+    effective_dates: {start: null, end: null}
+    null_policy: equipment_id_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_machine.db.equipment_master, brnz_ref_equipment, slvr_ref_equipment]
+    row_budget: 85
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer, capacity_planning]
+  manufacturer_master:
+    owner: SOURCE_RAW
+    natural_keys: [manufacturer]
+    canonical_keys: [canonical_manufacturer_id]
+    grain: one source manufacturer
+    units: {}
+    effective_dates: {start: null, end: null}
+    null_policy: key_required
+    unmatched_mapping_policy: retain_source_code_until_contract_activated
+    lineage: [raw_product.db.manufacturer_master]
+    row_budget: 100
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer]
+  product_master:
+    owner: SOURCE_RAW
+    natural_keys: [product_number]
+    canonical_keys: [canonical_product_id]
+    grain: one source product
+    units: {}
+    effective_dates: {start: null, end: null}
+    null_policy: product_number_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_product.db.product_master, brnz_prod_master, slvr_prod_master]
+    row_budget: 48
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer, capacity_planning]
+  product_bom:
+    owner: SOURCE_RAW
+    natural_keys: [bom_id]
+    canonical_keys: [canonical_parent_product_id, canonical_child_product_id]
+    grain: parent product by child product by effective interval
+    units: {quantity_per_parent: EA}
+    effective_dates: {start: effective_start_date, end: effective_end_date}
+    null_policy: keys_and_quantity_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_product.db.product_bom]
+    row_budget: 200
+    schema_version: "1.0"
+    consuming_apps: [data_operations, demand_supply_planning]
+  product_route:
+    owner: SOURCE_RAW
+    natural_keys: [route_id]
+    canonical_keys: [canonical_product_id, canonical_route_id]
+    grain: product route by effective interval
+    units: {}
+    effective_dates: {start: effective_start_date, end: effective_end_date}
+    null_policy: keys_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_product.db.product_route]
+    row_budget: 48
+    schema_version: "1.0"
+    consuming_apps: [data_operations, capacity_planning]
+  route_step:
+    owner: SOURCE_RAW
+    natural_keys: [route_step_id]
+    canonical_keys: [canonical_route_id, canonical_test_type_id]
+    grain: route by ordered step
+    units: {}
+    effective_dates: {start: null, end: null}
+    null_policy: route_step_test_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_product.db.route_step]
+    row_budget: 384
+    schema_version: "1.0"
+    consuming_apps: [data_operations, capacity_planning]
+  site_product_source:
+    owner: SOURCE_RAW
+    natural_keys: [source_id]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: product by source site by effective interval
+    units: {allocation_ratio: PCT}
+    effective_dates: {start: effective_start_date, end: effective_end_date}
+    null_policy: keys_and_allocation_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_product.db.site_product_source]
+    row_budget: 120
+    schema_version: "1.0"
+    consuming_apps: [data_operations, demand_supply_planning]
+  demand_requirement:
+    owner: SOURCE_RAW
+    natural_keys: [demand_id]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: site by product by month by planning version by demand class
+    units: {quantity: EA, total_requirement: EA}
+    effective_dates: {start: plan_as_of_date, end: null}
+    null_policy: keys_and_quantities_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_demand.db.demand_requirement, brnz_demand_requirement, slvr_demand_long, serving]
+    row_budget: 1000000
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer, capacity_planning, decision_intelligence]
+  target_test_time:
+    owner: SOURCE_RAW
+    natural_keys: [site, product_number, test_type, planning_version_id]
+    canonical_keys: [canonical_site_id, canonical_product_id, canonical_test_type_id]
+    grain: site by product by test by planning version
+    units: {monthly_values: SEC}
+    effective_dates: {start: plan_as_of_date, end: null}
+    null_policy: keys_required_month_values_may_be_null_before_npi
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_test.db.target_test_time, brnz_tgt_test_time, slvr_tgt_test_time_long, serving]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer, capacity_planning]
+  target_yield:
+    owner: SOURCE_RAW
+    natural_keys: [site, product_number, test_type, planning_version_id]
+    canonical_keys: [canonical_site_id, canonical_product_id, canonical_test_type_id]
+    grain: site by product by test by planning version
+    units: {monthly_values: PCT}
+    effective_dates: {start: plan_as_of_date, end: null}
+    null_policy: keys_required_month_values_may_be_null_before_npi
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_yield.db.target_yield, brnz_tgt_yield, slvr_tgt_yield_long, serving]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer, capacity_planning, decision_intelligence]
+  site_equipment_inventory:
+    owner: SOURCE_RAW
+    natural_keys: [site, test_equipment_id]
+    canonical_keys: [canonical_site_id, canonical_machine_id]
+    grain: site by machine
+    units: {monthly_values: EA, cycle_time_sec: SEC}
+    effective_dates: {start: null, end: null}
+    null_policy: keys_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_machine.db.site_equipment_inventory, brnz_site_equip_inv, slvr_site_equip_inv_long, serving]
+    row_budget: 300
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer, capacity_planning]
+  site_soft:
+    owner: SOURCE_RAW
+    natural_keys: [site]
+    canonical_keys: [canonical_site_id]
+    grain: site
+    units: {hours: HR, allowance_pct: PCT, productivity_pct: PCT}
+    effective_dates: {start: null, end: null}
+    null_policy: site_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_site.db.site_soft, brnz_site_soft, slvr_site_soft_long, serving]
+    row_budget: 30
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer, capacity_planning]
+  machine_execution:
+    owner: SOURCE_RAW
+    natural_keys: [record_id]
+    canonical_keys: [canonical_site_id, canonical_product_id, canonical_test_type_id]
+    grain: source execution event
+    units: {passed_qty: EA, failed_qty: EA, total_qty: EA, test_duration_avg_sec: SEC}
+    effective_dates: {start: execution_date, end: execution_date}
+    null_policy: event_keys_and_quantities_required_measurements_source_nullable
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_execution.db.machine_execution, brnz_machine_execution, slvr_machine_execution, serving]
+    row_budget: 3000000
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer, capacity_planning, decision_intelligence]
+  machine_test_param:
+    owner: SOURCE_RAW
+    natural_keys: [parameter_record_id]
+    canonical_keys: [canonical_execution_id, canonical_test_type_id]
+    grain: execution event by test parameter outcome
+    units: {total_qty: EA, first_pass_yield: PCT}
+    effective_dates: {start: execution_date, end: execution_date}
+    null_policy: execution_reference_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_test.db.machine_test_param, brnz_machine_test_param, slvr_machine_test_param, serving]
+    row_budget: 3000000
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer, capacity_planning]
+  machine_logs:
+    owner: SOURCE_RAW
+    natural_keys: [log_event_id]
+    canonical_keys: [canonical_execution_id, canonical_site_id]
+    grain: source machine log event
+    units: {}
+    effective_dates: {start: log_ts, end: log_ts}
+    null_policy: log_timestamp_and_execution_reference_required
+    unmatched_mapping_policy: retain_with_explicit_exception
+    lineage: [raw_machine.db.machine_logs, brnz_machine_logs, slvr_machine_logs]
+    row_budget: 300000
+    schema_version: "1.0"
+    consuming_apps: [data_operations, data_explorer, decision_intelligence]
+  customer_order:
+    owner: SOURCE_RAW
+    natural_keys: [customer_order_line_id]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: customer order line
+    units: {ordered_quantity_ea: EA}
+    effective_dates: {start: order_date, end: confirmed_delivery_date}
+    null_policy: keys_dates_quantity_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_demand.db.customer_order, brnz_customer_order, slvr_customer_order, gold_sop_balance, srv_sop_balance]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [demand_supply_planning, scenario_planning]
+  backlog_position:
+    owner: SOURCE_RAW
+    natural_keys: [backlog_position_id]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: customer order line by position date
+    units: {open_quantity_ea: EA, backlog_age_days: DAY}
+    effective_dates: {start: position_date, end: position_date}
+    null_policy: keys_date_quantity_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_demand.db.backlog_position, brnz_backlog_position, slvr_backlog_position, gold_sop_balance, srv_sop_balance]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [demand_supply_planning]
+  constrained_production_plan:
+    owner: SOURCE_RAW
+    natural_keys: [production_plan_id]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: site by product by month by planning version
+    units: {constrained_production_quantity_ea: EA}
+    effective_dates: {start: plan_as_of_date, end: null}
+    null_policy: keys_version_quantity_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_demand.db.constrained_production_plan, brnz_constrained_production_plan, slvr_constrained_production_plan, gold_sop_balance, srv_sop_balance]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [demand_supply_planning, scenario_planning]
+  shared_resource_allocation:
+    owner: SOURCE_RAW
+    natural_keys: [resource_allocation_id]
+    canonical_keys: [canonical_site_id, canonical_product_id, canonical_resource_id]
+    grain: site by product by resource by month by planning version
+    units: {allocated_resource_hours: HR, allocation_ratio_pct: PCT}
+    effective_dates: {start: plan_as_of_date, end: null}
+    null_policy: keys_version_hours_ratio_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_demand.db.shared_resource_allocation, brnz_shared_resource_allocation, slvr_shared_resource_allocation, gold_scenario_inputs, srv_scenario_inputs]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [demand_supply_planning, scenario_planning]
+  material_inventory_position:
+    owner: SOURCE_RAW
+    natural_keys: [inventory_position_id]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: site by product by inventory class by position date
+    units: {beginning_inventory_quantity_ea: EA, on_hand_quantity_ea: EA, reserved_quantity_ea: EA, in_transit_quantity_ea: EA, available_quantity_ea: EA}
+    effective_dates: {start: position_date, end: position_date}
+    null_policy: keys_date_quantities_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_inventory.db.material_inventory_position, brnz_material_inventory_position, slvr_material_inventory_position, gold_sop_balance, srv_sop_balance]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [demand_supply_planning]
+  inbound_receipt:
+    owner: SOURCE_RAW
+    natural_keys: [inbound_receipt_line_id]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: inbound receipt line
+    units: {received_quantity_ea: EA}
+    effective_dates: {start: expected_receipt_date, end: actual_receipt_date}
+    null_policy: actual_date_nullable_until_received
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_inventory.db.inbound_receipt, brnz_inbound_receipt, slvr_inbound_receipt, gold_sop_balance, srv_sop_balance]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [demand_supply_planning]
+  shipment:
+    owner: SOURCE_RAW
+    natural_keys: [shipment_line_id]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: customer order shipment line
+    units: {shipped_quantity_ea: EA}
+    effective_dates: {start: shipment_date, end: shipment_date}
+    null_policy: keys_date_quantity_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_inventory.db.shipment, brnz_shipment, slvr_shipment, gold_sop_balance, srv_sop_balance]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [demand_supply_planning]
+  safety_stock_policy:
+    owner: SOURCE_RAW
+    natural_keys: [safety_stock_policy_id]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: site by product by effective interval
+    units: {safety_stock_quantity_ea: EA, coverage_days: DAY}
+    effective_dates: {start: effective_start_date, end: effective_end_date}
+    null_policy: keys_interval_quantity_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_inventory.db.safety_stock_policy, brnz_safety_stock_policy, slvr_safety_stock_policy, gold_sop_balance, srv_sop_balance]
+    row_budget: 1000
+    schema_version: "1.0"
+    consuming_apps: [demand_supply_planning, scenario_planning]
+  service_target:
+    owner: SOURCE_RAW
+    natural_keys: [service_target_id]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: site by product by customer segment by effective interval
+    units: {fill_rate_target_pct: PCT, on_time_in_full_target_pct: PCT, maximum_backlog_days: DAY}
+    effective_dates: {start: effective_start_date, end: effective_end_date}
+    null_policy: keys_interval_targets_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_inventory.db.service_target, brnz_service_target, slvr_service_target, gold_sop_balance, srv_scenario_inputs]
+    row_budget: 1000
+    schema_version: "1.0"
+    consuming_apps: [demand_supply_planning, scenario_planning]
+  equipment_cost_reference:
+    owner: SOURCE_RAW
+    natural_keys: [equipment_cost_reference_id]
+    canonical_keys: [canonical_equipment_id]
+    grain: equipment by effective interval
+    units: {purchase_cost_usd: USD, annual_maintenance_cost_usd: USD, installation_cost_usd: USD, lead_time_days: DAY}
+    effective_dates: {start: effective_start_date, end: effective_end_date}
+    null_policy: equipment_interval_cost_currency_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_machine.db.equipment_cost_reference, brnz_equipment_cost_reference, slvr_equipment_cost_reference, gold_equipment_cost_reference, srv_equipment_cost_reference]
+    row_budget: 100
+    schema_version: "1.0"
+    consuming_apps: [scenario_planning, decision_intelligence]
+  lot_route_movement_event:
+    owner: SOURCE_RAW
+    natural_keys: [movement_event_id]
+    canonical_keys: [canonical_site_id, canonical_product_id, canonical_route_id, canonical_route_step_id, canonical_machine_id]
+    grain: immutable lot work-order route movement event
+    units: {input_quantity_ea: EA, output_quantity_ea: EA}
+    effective_dates: {start: movement_event_at, end: movement_event_at}
+    null_policy: event_lot_work_order_route_resource_timestamps_quantities_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_execution.db.lot_route_movement_event, brnz_lot_route_movement_event, slvr_lot_route_movement_event, gold_operations_event, serving]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [operations_flow]
+  production_schedule:
+    owner: SOURCE_RAW
+    natural_keys: [production_schedule_line_id]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: production schedule line by work order and lot
+    units: {planned_quantity_ea: EA, completed_quantity_ea: EA}
+    effective_dates: {start: scheduled_start_at, end: scheduled_complete_at}
+    null_policy: actual_complete_nullable_until_complete
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_execution.db.production_schedule, brnz_production_schedule, slvr_production_schedule, gold_operations_schedule_attainment, srv_operations_schedule_attainment]
+    row_budget: 12000
+    schema_version: "1.0"
+    consuming_apps: [operations_flow]
+  npi_program:
+    owner: SOURCE_RAW
+    natural_keys: [program_id]
+    canonical_keys: [canonical_program_id, canonical_site_id, canonical_product_id]
+    grain: NPI program by effective interval
+    units: {}
+    effective_dates: {start: effective_start_date, end: effective_end_date}
+    null_policy: program_product_site_launch_interval_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_npi.db.npi_program, brnz_npi_program, slvr_npi_program, gold_npi_readiness, srv_npi_readiness]
+    row_budget: 100
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+  npi_stage_gate:
+    owner: SOURCE_RAW
+    natural_keys: [stage_gate_id]
+    canonical_keys: [canonical_program_id]
+    grain: NPI program by ordered stage gate
+    units: {}
+    effective_dates: {start: planned_gate_date, end: actual_gate_date}
+    null_policy: actual_date_and_evidence_nullable_until_passed
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_npi.db.npi_stage_gate, brnz_npi_stage_gate, slvr_npi_stage_gate, gold_npi_readiness, srv_npi_readiness]
+    row_budget: 1000
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+  npi_milestone:
+    owner: SOURCE_RAW
+    natural_keys: [milestone_id]
+    canonical_keys: [canonical_program_id]
+    grain: NPI program milestone
+    units: {}
+    effective_dates: {start: planned_date, end: actual_date}
+    null_policy: actual_date_nullable_until_complete
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_npi.db.npi_milestone, brnz_npi_milestone, slvr_npi_milestone, gold_npi_readiness]
+    row_budget: 1000
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+  npi_qualification_evidence:
+    owner: SOURCE_RAW
+    natural_keys: [qualification_evidence_id]
+    canonical_keys: [canonical_program_id, canonical_site_id]
+    grain: NPI program by site by qualification evidence
+    units: {}
+    effective_dates: {start: evidence_date, end: evidence_date}
+    null_policy: program_site_type_date_result_reference_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_npi.db.npi_qualification_evidence, brnz_npi_qualification_evidence, slvr_npi_qualification_evidence, gold_npi_readiness]
+    row_budget: 1000
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+  npi_pilot_lot:
+    owner: SOURCE_RAW
+    natural_keys: [pilot_lot_id]
+    canonical_keys: [canonical_program_id, canonical_site_id]
+    grain: NPI program by ordered pilot lot
+    units: {started_quantity_ea: EA, passed_quantity_ea: EA, yield_pct: PCT}
+    effective_dates: {start: lot_start_date, end: lot_complete_date}
+    null_policy: program_site_sequence_dates_quantities_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_npi.db.npi_pilot_lot, brnz_npi_pilot_lot, slvr_npi_pilot_lot, gold_npi_readiness]
+    row_budget: 1000
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+  npi_tooling_readiness:
+    owner: SOURCE_RAW
+    natural_keys: [tooling_readiness_id]
+    canonical_keys: [canonical_program_id, canonical_site_id]
+    grain: NPI program by site by tooling type by effective date
+    units: {required_quantity_ea: EA, ready_quantity_ea: EA, readiness_pct: PCT}
+    effective_dates: {start: effective_date, end: null}
+    null_policy: program_site_type_quantities_readiness_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_npi.db.npi_tooling_readiness, brnz_npi_tooling_readiness, slvr_npi_tooling_readiness, gold_npi_readiness]
+    row_budget: 1000
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+  npi_ramp_target:
+    owner: SOURCE_RAW
+    natural_keys: [ramp_target_id]
+    canonical_keys: [canonical_program_id, canonical_site_id]
+    grain: NPI program by site by month
+    units: {target_quantity_ea: EA, target_yield_pct: PCT}
+    effective_dates: {start: month_key, end: month_key}
+    null_policy: program_site_month_targets_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_npi.db.npi_ramp_target, brnz_npi_ramp_target, slvr_npi_ramp_target, gold_npi_ramp, srv_npi_ramp]
+    row_budget: 10000
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+  npi_ramp_actual:
+    owner: SOURCE_RAW
+    natural_keys: [ramp_actual_id]
+    canonical_keys: [canonical_program_id, canonical_site_id]
+    grain: NPI program by site by month
+    units: {actual_quantity_ea: EA, cumulative_quantity_ea: EA, actual_yield_pct: PCT}
+    effective_dates: {start: month_key, end: month_key}
+    null_policy: program_site_month_actuals_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_npi.db.npi_ramp_actual, brnz_npi_ramp_actual, slvr_npi_ramp_actual, gold_npi_ramp, srv_npi_ramp]
+    row_budget: 10000
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+  npi_risk:
+    owner: SOURCE_RAW
+    natural_keys: [risk_id]
+    canonical_keys: [canonical_program_id]
+    grain: NPI program risk by effective date
+    units: {probability_pct: PCT, impact_score: SCORE}
+    effective_dates: {start: effective_date, end: null}
+    null_policy: program_category_description_probability_impact_owner_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_npi.db.npi_risk, brnz_npi_risk, slvr_npi_risk, gold_npi_readiness]
+    row_budget: 1000
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+  npi_owner:
+    owner: SOURCE_RAW
+    natural_keys: [program_owner_id]
+    canonical_keys: [canonical_program_id]
+    grain: NPI program by owner role by effective interval
+    units: {}
+    effective_dates: {start: effective_start_date, end: effective_end_date}
+    null_policy: program_role_name_interval_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_npi.db.npi_owner, brnz_npi_owner, slvr_npi_owner, gold_npi_readiness]
+    row_budget: 1000
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+  npi_status_history:
+    owner: SOURCE_RAW
+    natural_keys: [status_history_id]
+    canonical_keys: [canonical_program_id]
+    grain: immutable NPI program status transition
+    units: {}
+    effective_dates: {start: status_effective_at, end: status_effective_at}
+    null_policy: program_sequence_timestamp_status_reason_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_npi.db.npi_status_history, brnz_npi_status_history, slvr_npi_status_history, gold_npi_readiness]
+    row_budget: 1000
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+
+metrics:
+  demand_quantity:
+    owner: demand_requirement
+    natural_keys: [site, product_number, month_key, planning_version_id, demand_class]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: site by product by month by planning version by demand class
+    units: {value: EA}
+    effective_dates: {start: plan_as_of_date, end: null}
+    formula: SUM(total_requirement)
+    null_policy: reject
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_demand.db.demand_requirement, serving]
+    row_budget: 1000000
+    schema_version: "1.0"
+    consuming_apps: [capacity_planning, decision_intelligence]
+  target_test_time_seconds:
+    owner: target_test_time
+    natural_keys: [site, product_number, test_type, month_key, planning_version_id]
+    canonical_keys: [canonical_site_id, canonical_product_id, canonical_test_type_id]
+    grain: site by product by test by month by planning version
+    units: {value: SEC}
+    effective_dates: {start: plan_as_of_date, end: null}
+    formula: governed_month_value
+    null_policy: exclude_null_with_coverage_flag
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_test.db.target_test_time, serving]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [capacity_planning]
+  target_yield_ratio:
+    owner: target_yield
+    natural_keys: [site, product_number, test_type, month_key, planning_version_id]
+    canonical_keys: [canonical_site_id, canonical_product_id, canonical_test_type_id]
+    grain: site by product by test by month by planning version
+    units: {value: PCT}
+    effective_dates: {start: plan_as_of_date, end: null}
+    formula: governed_month_value
+    null_policy: exclude_null_with_coverage_flag
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_yield.db.target_yield, serving]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [capacity_planning, decision_intelligence]
+  actual_output_quantity:
+    owner: machine_execution
+    natural_keys: [record_id]
+    canonical_keys: [canonical_site_id, canonical_product_id, canonical_test_type_id]
+    grain: site by product by test by execution date
+    units: {value: EA}
+    effective_dates: {start: execution_date, end: execution_date}
+    formula: SUM(passed_qty)
+    null_policy: reject
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [raw_execution.db.machine_execution, serving]
+    row_budget: 3000000
+    schema_version: "1.0"
+    consuming_apps: [capacity_planning, decision_intelligence]
+
+datasets:
+  srv_sop_balance:
+    owner: SERVING
+    natural_keys: [site_code, product_number, month_key, planning_version_id]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: site by product by month by planning version
+    units: {beginning_inventory_ea: EA, constrained_production_ea: EA, receipt_quantity_ea: EA, shipment_quantity_ea: EA, ending_inventory_ea: EA, ending_backlog_ea: EA}
+    effective_dates: {start: plan_as_of_date, end: null}
+    null_policy: balance_components_and_backlog_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_sop_balance, srv_sop_balance]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [demand_supply_planning, scenario_planning]
+  srv_npi_readiness:
+    owner: SERVING
+    natural_keys: [program_id]
+    canonical_keys: [canonical_program_id]
+    grain: NPI program
+    units: {readiness_score_pct: PCT, pilot_yield_pct: PCT, maximum_risk_score: SCORE}
+    effective_dates: {start: planned_launch_date, end: null}
+    null_policy: program_readiness_components_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_npi_readiness, srv_npi_readiness]
+    row_budget: 100
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+  srv_npi_ramp:
+    owner: SERVING
+    natural_keys: [program_id, site_code, month_key]
+    canonical_keys: [canonical_program_id, canonical_site_id]
+    grain: NPI program by site by month
+    units: {target_quantity_ea: EA, actual_quantity_ea: EA, target_yield_pct: PCT, actual_yield_pct: PCT}
+    effective_dates: {start: month_key, end: month_key}
+    null_policy: actuals_nullable_before_reporting
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_npi_ramp, srv_npi_ramp]
+    row_budget: 10000
+    schema_version: "1.0"
+    consuming_apps: [npi_ramp_planning]
+  srv_operations_wip:
+    owner: SERVING
+    natural_keys: [site_code, product_number, current_operation, resource_id]
+    canonical_keys: [canonical_site_id, canonical_product_id, canonical_resource_id]
+    grain: site by product by current operation by resource
+    units: {wip_quantity_ea: EA, maximum_queue_age_minutes: MIN}
+    effective_dates: {start: null, end: null}
+    null_policy: dimensions_counts_quantities_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_operations_wip, srv_operations_wip]
+    row_budget: 10000
+    schema_version: "1.0"
+    consuming_apps: [operations_flow]
+  srv_operations_queue:
+    owner: SERVING
+    natural_keys: [movement_date, site_code, operation, resource_id]
+    canonical_keys: [canonical_site_id, canonical_resource_id]
+    grain: movement date by site by operation by resource
+    units: {queued_quantity_ea: EA, average_queue_age_minutes: MIN, p50_queue_age_minutes: MIN, p90_queue_age_minutes: MIN}
+    effective_dates: {start: movement_date, end: movement_date}
+    null_policy: dimensions_counts_quantities_ages_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_operations_queue, srv_operations_queue]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [operations_flow]
+  srv_operations_cycle_time:
+    owner: SERVING
+    natural_keys: [release_date, site_code, product_number]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: release date by site by product
+    units: {average_cycle_time_minutes: MIN, p50_cycle_time_minutes: MIN, p90_cycle_time_minutes: MIN}
+    effective_dates: {start: release_date, end: release_date}
+    null_policy: dimensions_counts_percentiles_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_operations_cycle_time, srv_operations_cycle_time]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [operations_flow]
+  srv_operations_throughput:
+    owner: SERVING
+    natural_keys: [movement_date, site_code, operation, resource_id]
+    canonical_keys: [canonical_site_id, canonical_resource_id]
+    grain: movement date by site by operation by resource
+    units: {throughput_quantity_ea: EA, throughput_quantity_per_hour: EA_PER_HR}
+    effective_dates: {start: movement_date, end: movement_date}
+    null_policy: dimensions_counts_quantity_rate_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_operations_throughput, srv_operations_throughput]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [operations_flow]
+  srv_operations_rework:
+    owner: SERVING
+    natural_keys: [movement_date, site_code, product_number, operation]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: movement date by site by product by operation
+    units: {rework_rate_pct: PCT}
+    effective_dates: {start: movement_date, end: movement_date}
+    null_policy: dimensions_counts_rate_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_operations_rework, srv_operations_rework]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [operations_flow]
+  srv_operations_route_adherence:
+    owner: SERVING
+    natural_keys: [work_order_id, lot_id]
+    canonical_keys: [canonical_site_id, canonical_product_id, canonical_route_id]
+    grain: work order by lot
+    units: {observed_step_count: COUNT, expected_step_count: COUNT}
+    effective_dates: {start: null, end: null}
+    null_policy: work_order_lot_route_counts_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_operations_route_adherence, srv_operations_route_adherence]
+    row_budget: 12000
+    schema_version: "1.0"
+    consuming_apps: [operations_flow]
+  srv_operations_schedule_attainment:
+    owner: SERVING
+    natural_keys: [schedule_date, site_code, product_number]
+    canonical_keys: [canonical_site_id, canonical_product_id]
+    grain: schedule date by site by product
+    units: {planned_quantity_ea: EA, completed_quantity_ea: EA, schedule_attainment_pct: PCT}
+    effective_dates: {start: schedule_date, end: schedule_date}
+    null_policy: dimensions_counts_quantities_rate_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_operations_schedule_attainment, srv_operations_schedule_attainment]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [operations_flow]
+  srv_operations_bottleneck_movement:
+    owner: SERVING
+    natural_keys: [movement_date, site_code]
+    canonical_keys: [canonical_site_id, canonical_resource_id]
+    grain: movement date by site
+    units: {p90_queue_age_minutes: MIN}
+    effective_dates: {start: movement_date, end: movement_date}
+    null_policy: date_site_operation_resource_age_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_operations_bottleneck_movement, srv_operations_bottleneck_movement]
+    row_budget: 100000
+    schema_version: "1.0"
+    consuming_apps: [operations_flow]
+  srv_scenario_inputs:
+    owner: SERVING
+    natural_keys: [assumption_type, site_code, product_number, month_key, resource_id, planning_version_id]
+    canonical_keys: [canonical_site_id, canonical_product_id, canonical_resource_id]
+    grain: assumption type by optional site product month resource and planning version
+    units: {baseline_value: DECLARED_BY_UNIT_CODE}
+    effective_dates: {start: plan_as_of_date, end: null}
+    null_policy: non_applicable_dimensions_nullable
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_scenario_inputs, srv_scenario_inputs]
+    row_budget: 500000
+    schema_version: "1.0"
+    consuming_apps: [scenario_planning]
+  srv_equipment_cost_reference:
+    owner: SERVING
+    natural_keys: [equipment_cost_reference_id]
+    canonical_keys: [canonical_equipment_id]
+    grain: equipment by effective interval
+    units: {purchase_cost_usd: USD, annual_maintenance_cost_usd: USD, installation_cost_usd: USD, lead_time_days: DAY}
+    effective_dates: {start: effective_start_date, end: effective_end_date}
+    null_policy: equipment_interval_cost_currency_status_required
+    unmatched_mapping_policy: reject_unless_mapping_exception
+    lineage: [gold_equipment_cost_reference, srv_equipment_cost_reference]
+    row_budget: 100
+    schema_version: "1.0"
+    consuming_apps: [scenario_planning, decision_intelligence]

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Documentation</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/shared/static/shell.css">
+  <link rel="stylesheet" href="/documentation/static/documentation.css?v=20261027b">
+</head>
+<body>
+  <div data-shared-shell></div>
+  <div class="documentation-page">
+    <section data-shared-page-header data-mark="DC" data-eyebrow="KNOWLEDGE BASE"
+      data-title="Documentation">
+      <div data-page-actions>
+        <span id="documentationStatus" class="ct-status" data-state="pending">CHECKING</span>
+      </div>
+    </section>
+    <main id="main" class="documentation-workspace" tabindex="-1">
+      <aside class="documentation-sidebar" aria-label="Documentation pages">
+        <label>Find a page<input id="documentationSearch" type="search" placeholder="Search titles"></label>
+        <nav id="documentationNavigation"></nav>
+      </aside>
+      <article class="documentation-content">
+        <header>
+          <p id="documentationPath"></p>
+          <h2 id="documentationTitle">Loading documentation</h2>
+        </header>
+        <div id="markdownContent" class="markdown-content"></div>
+      </article>
+    </main>
+  </div>
+  <script type="module" src="/shared/static/shell.js"></script>
+  <script type="module" src="/documentation/static/documentation.js?v=20261027b"></script>
+</body>
+</html>

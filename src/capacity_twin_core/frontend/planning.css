@@ -1,0 +1,68 @@
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ct-canvas); color: var(--ct-graphite); font-family: var(--ct-font); }
+.planning-page { width: min(1600px, 100%); margin: 0 auto; padding: 12px; }
+main { display: grid; gap: 12px; margin-top: 12px; }
+.role-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid var(--ct-border); background: var(--ct-surface); }
+.role-tabs button { min-height: 44px; padding: 0 18px; border: 0; border-right: 1px solid var(--ct-border); background: transparent; color: var(--ct-muted); font: 700 13px var(--ct-font); white-space: nowrap; cursor: pointer; }
+.role-tabs button[aria-selected="true"] { box-shadow: inset 0 -4px var(--ct-cyan); color: var(--ct-graphite); }
+.ct-filter-band label, .assumption-grid label { min-width: 145px; display: grid; gap: 4px; color: var(--ct-muted); font-size: 11px; font-weight: 700; }
+.ct-filter-band select, .ct-filter-band input, .ct-filter-band button, .session-actions button, .session-actions input, .assumption-grid input { min-height: 36px; border: 1px solid var(--ct-border); background: #fff; color: var(--ct-graphite); font: 12px var(--ct-font); }
+.ct-filter-band button, .session-actions button { padding: 0 16px; border-color: var(--ct-cyan); background: var(--ct-cyan); color: #fff; font-weight: 700; cursor: pointer; }
+.view-state {
+  min-height: 20px;
+  margin: 0;
+  padding: 2px 4px;
+  color: var(--ct-muted);
+  font-size: 10px;
+  line-height: 16px;
+}
+.view-state[data-state="error"] { border-left: 4px solid var(--ct-shortage); }
+.view-state[data-state="empty"], .unavailable { border-left: 4px solid var(--ct-warning); }
+.dashboard-section { min-width: 0; padding: 14px; border: 1px solid var(--ct-border); background: var(--ct-surface); }
+.dashboard-section h2 { margin: 0 0 5px; font-size: 15px; }
+.dashboard-section > p { margin: 0 0 10px; color: var(--ct-muted); font-size: 12px; }
+.dashboard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ct-kpi-strip {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  margin-top: 14px;
+  background: var(--ct-surface);
+}
+.ct-kpi-strip article { min-height: 66px; padding: 11px 12px; border-right: 1px solid #d8dcdf; }
+.ct-kpi-strip article:last-child { border-right: 0; }
+.ct-kpi-strip small { display: block; }
+.ct-kpi-strip small { color: var(--ct-muted); font: 9px var(--ct-mono); letter-spacing: .07em; text-transform: uppercase; }
+.ct-kpi-value {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin-top: 8px;
+  white-space: nowrap;
+}
+.ct-kpi-strip strong { min-width: 0; font: 700 clamp(13px, 1.2vw, 18px) var(--ct-mono); }
+.ct-kpi-strip span {
+  display: inline;
+  color: var(--ct-muted);
+  font: 9px var(--ct-mono);
+  white-space: nowrap;
+}
+.assumption-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.assumption-grid output { font-family: var(--ct-mono); }
+.session-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.session-actions input[type="file"] { max-width: 280px; padding: 7px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+caption { padding: 7px 0; color: var(--ct-muted); text-align: left; }
+th, td { padding: 8px 9px; border-bottom: 1px solid #d8dde1; text-align: left; }
+th { position: sticky; top: 0; background: #edf1f3; font-size: 10px; text-transform: uppercase; }
+td.numeric { font-family: var(--ct-mono); text-align: right; }
+.status-marker::before { content: "■"; margin-right: 6px; color: var(--ct-muted); }
+.status-marker[data-status="HIGH"]::before, .status-marker[data-status="BACKLOG_RISK"]::before { color: var(--ct-shortage); }
+.status-marker[data-status="MEDIUM"]::before, .status-marker[data-status="INVENTORY_RISK"]::before { color: var(--ct-warning); }
+.status-marker[data-status="LOW"]::before, .status-marker[data-status="ON_TARGET"]::before { color: var(--ct-positive-headroom); }
+[role="tabpanel"][hidden] { display: none; }
+@media (max-width: 900px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .ct-kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .planning-page { padding: 8px; }
+}
+@media (max-width: 620px) { .ct-kpi-strip { grid-template-columns: 1fr; } }
+@media (prefers-contrast: more) { .dashboard-section, th, td, .role-tabs { border-width: 2px; } }

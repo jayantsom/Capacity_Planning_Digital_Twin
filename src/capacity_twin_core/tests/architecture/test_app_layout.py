@@ -7,6 +7,11 @@ from capacity_twin_core.runtime.database_paths import PROJECT_ROOT, load_config
 
 APPLICATION_NAMES = {
     "capacity_home",
+    "capacity_analysis",
+    "scenario_planning",
+    "demand_supply_planning",
+    "npi_ramp_planning",
+    "operations_flow",
     "operations_assistant",
     "data_explorer",
     "data_operations",
@@ -62,6 +67,11 @@ def test_apps_do_not_import_other_apps_private_code() -> None:
         if owner == "capacity_home":
             allowed.update(
                 {
+                    "capacity_analysis",
+                    "scenario_planning",
+                    "demand_supply_planning",
+                    "npi_ramp_planning",
+                    "operations_flow",
                     "operations_assistant",
                     "data_explorer",
                     "data_operations",

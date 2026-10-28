@@ -9,7 +9,7 @@ Validation is contract-based; fixed row counts and performance numbers are not a
 uv run pytest -q
 
 # Check Python source style.
-uv run ruff check capacity_home operations_assistant data_explorer data_operations decision_intelligence src
+uv run ruff check .
 ```
 
 ## Generator gates
@@ -31,8 +31,9 @@ uv run ruff check capacity_home operations_assistant data_explorer data_operatio
 - Join-cardinality assertions
 - Demand, execution, test-parameter, log, OEE, and capacity reconciliation
 - Valid Serving views and read-only smoke queries
-- Failed candidate cannot change `current.json`
+- Failed candidate cannot change a promotion pointer
 - Prior promoted run remains a valid rollback target
+- `release_current.json` selects compatible source, pipeline, and ML runs
 
 ## ML gates
 
@@ -44,14 +45,13 @@ uv run ruff check capacity_home operations_assistant data_explorer data_operatio
 - `not_evaluable` behavior for edge cases
 - Model checksum, feature schema, versions, and evaluation windows
 
-## UI/API gates
+## UI and API gates
 
-- `/`, `/operations-assistant/`, `/explorer/`,
-  `/decision-intelligence/`, and `/data-operations/` on one server
-- Exactly four Home cards in the approved order
+- Every enabled route works on one local server
+- Home lists every enabled application in registry order
 - Read-only query restrictions and identifier validation
 - Degraded Ollama health without Explorer failure
 - Sanitized output/errors, timeout, one-heavy-job concurrency, and restart tests
 - Keyboard, responsive, and WCAG 2.2 AA checks
-
-The current repository has app-owned tests, but a complete promoted-run smoke result was not verified during this documentation update.
+- Yukti receives validated context and uses server-owned permissions
+- Data Architecture metadata resolves to a Data Explorer object

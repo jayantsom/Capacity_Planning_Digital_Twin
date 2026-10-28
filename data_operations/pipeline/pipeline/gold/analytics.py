@@ -15,47 +15,58 @@ def build_demand_vs_capacity(duck_conn) -> int:
     duck_conn.execute("DROP TABLE IF EXISTS gold_dmnd_vs_cap")
     duck_conn.execute("""
         CREATE TABLE gold_dmnd_vs_cap AS
+        WITH capacity_data AS (
+            SELECT * FROM gold_cap_normal
+            UNION ALL BY NAME
+            SELECT * FROM gold_cap_maximum
+        )
         SELECT
             md5(
-                n.site_code || '|' || n.product_number || '|' ||
-                n.test_type  || '|' || n.equipment_id  || '|' ||
-                CAST(n.month_key AS VARCHAR) || '|' || n.planning_version_id ||
-                '|' || n.capacity_mode || '|' || n.retest_type
+                capacity.site_code || '|' || capacity.product_number || '|' ||
+                capacity.test_type  || '|' || capacity.equipment_id  || '|' ||
+                CAST(capacity.month_key AS VARCHAR) || '|' ||
+                capacity.planning_version_id || '|' ||
+                capacity.capacity_mode || '|' || capacity.retest_type
             )                           AS gap_pk,
-            n.gcm_pk,
-            n.site_code,
-            n.factory_code,
-            n.month_key,
-            n.planning_version_id,
-            n.product_number,
-            n.product_family,
-            n.platform,
-            n.product_status,
-            n.test_type,
-            n.equipment_id,
-            n.equipment_type,
-            n.capacity_mode,
-            n.retest_type,
-            n.effective_demand_qty      AS demand_qty,
-            n.capacity_qty,
-            n.gap_qty,
-            n.gap_pct,
-            n.utilization_pct,
-            n.is_bottleneck,
-            n.is_excess,
-            n.excess_capacity_units,
-            n.investment_need_units,
-            n.bottleneck_severity,
+            capacity.gcm_pk,
+            capacity.site_code,
+            capacity.factory_code,
+            capacity.month_key,
+            capacity.planning_version_id,
+            capacity.plan_as_of_date,
+            capacity.product_number,
+            capacity.product_family,
+            capacity.platform,
+            capacity.product_status,
+            capacity.test_type,
+            capacity.equipment_id,
+            capacity.equipment_type,
+            capacity.capacity_mode,
+            capacity.retest_type,
+            capacity.effective_demand_qty AS demand_qty,
+            capacity.capacity_qty,
+            capacity.gap_qty,
+            capacity.gap_pct,
+            capacity.utilization_pct,
+            capacity.is_bottleneck,
+            capacity.is_excess,
+            capacity.excess_capacity_units,
+            capacity.investment_need_units,
+            capacity.bottleneck_severity,
             -- Flexibility: how much surge normal→max provides
             CASE
-                WHEN n.capacity_mode = 'NORMAL' AND m.capacity_qty > 0
-                THEN (m.capacity_qty - n.capacity_qty) / n.capacity_qty
+                WHEN normal.capacity_qty > 0 AND maximum.capacity_qty > 0
+                THEN (maximum.capacity_qty - normal.capacity_qty)
+                    / normal.capacity_qty
                 ELSE NULL
             END                         AS flexibility_pct
-        FROM gold_cap_normal n
-        LEFT JOIN gold_cap_maximum m
-            ON  n.gcm_pk      = m.gcm_pk
-            AND n.retest_type = m.retest_type
+        FROM capacity_data capacity
+        LEFT JOIN gold_cap_normal normal
+            ON capacity.gcm_pk = normal.gcm_pk
+           AND capacity.retest_type = normal.retest_type
+        LEFT JOIN gold_cap_maximum maximum
+            ON capacity.gcm_pk = maximum.gcm_pk
+           AND capacity.retest_type = maximum.retest_type
     """)
     duck_conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_gold_dvc_month
@@ -85,6 +96,7 @@ def build_bottleneck_table(duck_conn) -> int:
             site_code,
             month_key,
             planning_version_id,
+            plan_as_of_date,
             capacity_mode,
             retest_type,
             test_type,
@@ -110,7 +122,7 @@ def build_bottleneck_table(duck_conn) -> int:
             AVG(utilization_pct)            AS avg_utilization_pct
         FROM gold_dmnd_vs_cap
         GROUP BY
-            site_code, month_key, planning_version_id, capacity_mode,
+            site_code, month_key, planning_version_id, plan_as_of_date, capacity_mode,
             retest_type, test_type, equipment_type
     """)
     count = duck_conn.execute("SELECT COUNT(*) FROM gold_bottleneck").fetchone()[0]
@@ -510,92 +522,43 @@ def build_forecast_accuracy(duck_conn) -> int:
 
 
 def build_actual_capacity(duck_conn) -> int:
+    """Publish measured output at execution grain, independent of planning vintages."""
     logger.info("  Building gold_cap_actual")
     duck_conn.execute("DROP TABLE IF EXISTS gold_cap_actual")
     duck_conn.execute("""
         CREATE TABLE gold_cap_actual AS
-        WITH machine_monthly AS (
-            SELECT
-                factory_code,
-                site_code,
-                product_number,
-                test_category_id,
-                test_type,
-                month_key,
-                SUM(passed_qty_sum)                AS actual_passed_qty,
-                SUM(failed_qty_sum)                AS actual_failed_qty,
-                SUM(total_qty_sum)                 AS actual_total_qty,
-                AVG(yield_avg)                     AS actual_yield_avg,
-                AVG(final_test_yield_avg)          AS actual_final_yield_avg,
-                AVG(test_duration_avg)             AS actual_test_duration_avg,
-                AVG(handling_time_avg)             AS actual_handling_time_avg,
-                AVG(actual_throughput)             AS actual_throughput_avg,
-                AVG(equipment_downtime_avg)        AS actual_downtime_avg
-            FROM slvr_machine_execution
-            WHERE yield_avg IS NOT NULL
-            GROUP BY
-                factory_code, site_code, product_number,
-                test_category_id, test_type, month_key
-        ),
-        target_grain AS (
-            SELECT
-                site_code,
-                factory_code,
-                product_number,
-                test_category_id,
-                test_type,
-                month_key,
-                planning_version_id,
-                MIN(target_yield) AS target_yield,
-                MIN(target_test_time_sec) AS target_test_time_sec
-            FROM gold_gcm_base
-            WHERE data_type = 'ACTUAL'
-            GROUP BY
-                site_code, factory_code, product_number,
-                test_category_id, test_type, month_key, planning_version_id
-            HAVING
-                MIN(target_yield) = MAX(target_yield)
-                AND MIN(target_test_time_sec) = MAX(target_test_time_sec)
-        )
         SELECT
             md5(
-                g.site_code || '|' || g.product_number || '|' ||
-                g.test_type || '|' || CAST(m.month_key AS VARCHAR) || '|' ||
-                g.planning_version_id
+                site_code || '|' || product_number || '|' ||
+                test_type || '|' || CAST(month_key AS VARCHAR)
             )                               AS cap_act_pk,
-            g.factory_code || '|' || g.test_category_id
-                || '|' || g.product_number AS gcm_machine_join_key,
-            g.site_code,
-            g.factory_code,
-            m.month_key,
-            g.planning_version_id,
-            g.product_number,
-            m.test_category_id,
-            m.test_type,
-            m.actual_passed_qty,
-            m.actual_failed_qty,
-            m.actual_total_qty,
-            m.actual_yield_avg,
-            m.actual_final_yield_avg,
-            m.actual_test_duration_avg,
-            m.actual_handling_time_avg,
-            m.actual_throughput_avg,
-            m.actual_downtime_avg,
-            -- Variance vs target
-            g.target_yield,
-            g.target_test_time_sec,
-            m.actual_yield_avg - g.target_yield
-                                            AS yield_variance,
-            m.actual_test_duration_avg - g.target_test_time_sec
-                                            AS test_time_variance_sec
-        FROM machine_monthly m
-        JOIN target_grain g
-          ON m.site_code = g.site_code
-         AND m.factory_code = g.factory_code
-         AND m.product_number = g.product_number
-         AND m.test_category_id = g.test_category_id
-         AND m.test_type = g.test_type
-         AND m.month_key = g.month_key
+            factory_code || '|' || test_category_id || '|' || product_number
+                AS gcm_machine_join_key,
+            site_code,
+            factory_code,
+            month_key,
+            product_number,
+            test_category_id,
+            test_type,
+            SUM(passed_qty_sum) AS actual_passed_qty,
+            SUM(failed_qty_sum) AS actual_failed_qty,
+            SUM(total_qty_sum) AS actual_total_qty,
+            SUM(passed_qty_sum) / NULLIF(SUM(total_qty_sum), 0) AS actual_yield_avg,
+            AVG(final_test_yield_avg) AS actual_final_yield_avg,
+            SUM(test_duration_avg * total_qty_sum) / NULLIF(SUM(total_qty_sum), 0)
+                AS actual_test_duration_avg,
+            SUM(handling_time_avg * total_qty_sum) / NULLIF(SUM(total_qty_sum), 0)
+                AS actual_handling_time_avg,
+            SUM(actual_throughput * total_qty_sum) / NULLIF(SUM(total_qty_sum), 0)
+                AS actual_throughput_avg,
+            SUM(equipment_downtime_avg) AS actual_downtime_seconds,
+            'EA' AS output_unit,
+            'MEASURED_EXECUTION' AS output_method
+        FROM slvr_machine_execution
+        WHERE is_valid AND yield_avg IS NOT NULL
+        GROUP BY
+            factory_code, site_code, product_number,
+            test_category_id, test_type, month_key
     """)
     duck_conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_gold_cap_act_month
@@ -606,9 +569,65 @@ def build_actual_capacity(duck_conn) -> int:
     return count
 
 
+def build_demonstrated_capacity(duck_conn) -> int:
+    """Publish a trailing measured-output capacity without reapplying loss factors."""
+    logger.info("  Building gold_demonstrated_capacity")
+    duck_conn.execute("DROP TABLE IF EXISTS gold_demonstrated_capacity")
+    duck_conn.execute(
+        """
+        CREATE TABLE gold_demonstrated_capacity AS
+        WITH monthly AS (
+            SELECT * FROM gold_cap_actual
+        ),
+        demonstrated AS (
+            SELECT
+                site_code,
+                factory_code,
+                product_number,
+                test_category_id,
+                test_type,
+                month_key,
+                MIN(month_key) OVER window_3 AS observation_start_month,
+                MAX(month_key) OVER window_3 AS observation_end_month,
+                COUNT(*) OVER window_3 AS observation_months,
+                AVG(actual_passed_qty) OVER window_3 AS demonstrated_capacity_qty,
+                SUM(actual_passed_qty) OVER window_3 AS observed_passed_qty,
+                SUM(actual_total_qty) OVER window_3 AS observed_tested_qty
+            FROM monthly
+            WINDOW window_3 AS (
+                PARTITION BY site_code, product_number, test_type
+                ORDER BY month_key
+                ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+            )
+        )
+        SELECT
+            md5(
+                site_code || '|' || product_number || '|' || test_type || '|' ||
+                CAST(month_key AS VARCHAR)
+            ) AS demonstrated_capacity_pk,
+            *,
+            'EA_PER_MONTH' AS capacity_unit,
+            'TRAILING_3_MONTH_MEAN_ACTUAL_OUTPUT' AS formula_id,
+            CASE WHEN observation_months < 3
+                 THEN 'AVAILABLE_HISTORY_MEAN'
+                 ELSE 'NONE' END AS fallback_policy,
+            true AS excludes_future_actuals,
+            true AS loss_factors_not_reapplied
+        FROM demonstrated
+        """
+    )
+    count = int(
+        duck_conn.execute("SELECT COUNT(*) FROM gold_demonstrated_capacity").fetchone()[0]
+    )
+    logger.info(f"    gold_demonstrated_capacity: {count:,} rows")
+    return count
+
+
 def build_ml_feature_store(duck_conn) -> int:
     logger.info("  Building gold_ml_feature_store")
-    latest_version = latest_planning_version_predicate("gold_gcm_base")
+    latest_version = latest_planning_version_predicate(
+        "gold_gcm_base", row_alias="candidate"
+    )
     latest_version_aliased = latest_planning_version_predicate(
         "gold_gcm_base", row_alias="g"
     )
@@ -618,7 +637,7 @@ def build_ml_feature_store(duck_conn) -> int:
         FROM (
             SELECT
                 site_code, product_number, test_type, month_key, planning_version_id
-            FROM gold_gcm_base
+            FROM gold_gcm_base AS candidate
             WHERE {latest_version}
             GROUP BY
                 site_code, product_number, test_type, month_key, planning_version_id
@@ -647,7 +666,7 @@ def build_ml_feature_store(duck_conn) -> int:
                 g.test_type,
                 g.month_key,
                 g.planning_version_id,
-                g.effective_demand_qty      AS demand_qty,
+                g.route_step_demand_qty     AS demand_qty,
                 g.target_yield,
                 g.target_test_time_sec,
                 g.region,

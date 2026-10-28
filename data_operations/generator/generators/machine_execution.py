@@ -20,10 +20,6 @@ from data_operations.generator.rules.determinism import stable_id, stable_seed
 from data_operations.generator.rules.npi import npi_ramp
 from data_operations.generator.services.control_catalog import load_assignments
 
-# ── Date range ────────────────────────────────────────────────────────────────
-ACTUAL_START = date(2023, 1, 1)
-ACTUAL_END = date(2026, 10, 31)
-
 # ── Base throughput ranges by test type (units/day/site) ──────────────────────
 # Derived from: demand / working_days / equipment_qty (approximated)
 DAILY_THROUGHPUT_BASE = {
@@ -72,7 +68,7 @@ def generate_machine_execution_db(config: dict) -> None:
     logger.info("GENERATING: raw_machine_execution.db")
     logger.info("=" * 60)
 
-    db_path = get_sqlite_path(config["databases"]["raw"]["machine_execution"], config)
+    db_path = get_sqlite_path(config["databases"]["raw"]["execution"], config)
 
     dates = DateContract.from_config(config)
     volume = VolumeContract.from_config(config)

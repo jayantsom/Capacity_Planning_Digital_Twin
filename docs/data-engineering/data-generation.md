@@ -4,7 +4,7 @@
 checks, noise, and Raw publication. Run it from the Data Operations dashboard or with:
 
 ```powershell
-# Build the ten configured Raw SQLite databases.
+# Build one immutable source bundle.
 uv run capacity-generate
 ```
 
@@ -12,22 +12,25 @@ uv run capacity-generate
 
 Erivon is the single fictional primary brand and uses `ERV_*` codes. Products cover telecom/networking parent systems and child PCB, RF, optical, power, and access modules. Sites, routes, volumes, capabilities, and performance are synthetic. Real EMS or equipment-vendor references do not imply affiliation or actual production assignments.
 
-Actual and execution records span 2023-01-01 through 2026-10-31. Forecast records span 2026-11-01 through 2027-12-31. Historical actuals are stable across later planning versions, and each planning version sees actuals only through its own as-of date.
+Dates come from the run configuration. The default actual cutoff is 2026-10-31. Historical actuals are stable across later planning versions, and each planning version sees actuals only through its own as-of date.
 
-## Ten Raw databases
+## Source bundle
 
-The app configuration declares:
+Every run publishes nine Raw SQLite files plus `reference.duckdb` and `mapping.duckdb`:
 
-- `raw_demand_forecast.db`
-- `raw_product_master.db`
-- `raw_target_test_time.db`
-- `raw_target_yield.db`
-- `raw_site_equip_inv.db`
-- `raw_site_soft.db`
-- `raw_machine_execution.db`
-- `raw_machine_test_param.db`
-- `raw_machine_logs.db`
-- `raw_reference_data.db`
+- `raw_demand.db`
+- `raw_product.db`
+- `raw_site.db`
+- `raw_machine.db`
+- `raw_test.db`
+- `raw_yield.db`
+- `raw_execution.db`
+- `raw_inventory.db`
+- `raw_npi.db`
+- `reference.duckdb`
+- `mapping.duckdb`
+
+The source bundle manifest records the shared run ID, schema versions, table counts, file checksums, and canonical bundle checksum. `source_current.json` is switched only after validation.
 
 ## Business contracts
 
@@ -47,8 +50,8 @@ Each route step declares exactly one behavior:
 
 ## Noise and validation
 
-Raw data is intentionally noisy, not arbitrarily corrupt. Named rules cover duplicates, missing execution, null measurements, outliers, late records, stale dimensions, and controlled broken references. Stable event IDs link each injected defect to a private truth manifest and an expected Bronze/Silver disposition.
+Raw data is intentionally noisy, not arbitrarily corrupt. Named rules cover duplicates, missing execution, null measurements, outliers, late records, stale dimensions, and controlled broken references.
 
 Preflight must reject invalid dates, BOM cycles, missing routes, impossible sourcing, orphan resources, invalid pools, incompatible tester-fixture links, physical multi-DUT violations, nondeterministic keys, and projected profile overages. Publication is atomic only after schema, checksum, reconciliation, and validation checks pass.
 
-The configuration and contract tables verify much of this vocabulary. Full truth-manifest and atomic Raw publication behavior could not be confirmed across the current generator implementation.
+The tracked source contracts and migration matrix define ownership, keys, grain, units, null policy, mapping policy, lineage, budgets, schema versions, and consumers.

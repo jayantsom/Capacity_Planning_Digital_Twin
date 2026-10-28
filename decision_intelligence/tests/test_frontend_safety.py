@@ -12,11 +12,11 @@ def test_frontend_has_five_tabs_and_local_assets() -> None:
     assert html.count('role="tab"') == 5
     assert "Run all workflows" in html
     assert "Export CSV" in html
-    assert "<h1>Decision Intelligence</h1>" in html
+    assert 'data-title="Decision Intelligence"' in html
     assert 'class="service-status status-checking"' in html
-    assert '<span class="brand-mark" aria-hidden="true">CP</span>' in html
-    assert 'href="/">Home</a>' in html
-    assert html.index('id="filters"') < html.index('id="comparisonBand"')
+    assert "data-shared-shell" in html
+    assert 'id="workflowCharts"' in html
+    assert "/shared/static/planning.css" in html
     assert not re.search(r"https?://", html)
     assert not re.search(r"\son[a-z]+=", html, re.IGNORECASE)
 

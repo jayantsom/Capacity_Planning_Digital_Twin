@@ -6,34 +6,22 @@
   <meta name="color-scheme" content="light">
   <title>Decision Intelligence</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/shared/comparison-band.css?v=20261020a">
+  <link rel="stylesheet" href="/shared/static/shell.css?v=20261027">
+  <link rel="stylesheet" href="/shared/static/planning.css?v=20261027g">
   <link rel="stylesheet" href="/decision-intelligence/static/decision-intelligence.css?v=20261020f">
 </head>
 <body>
-  <a class="skip-link" href="#workspace">Skip to workspace</a>
-  <header class="product-header">
-    <a class="brand" href="/" aria-label="Test Equipment Capacity Planning Digital Twin home"><span class="brand-mark" aria-hidden="true">CP</span></a>
-    <nav aria-label="Primary navigation">
-      <a href="/">Home</a>
-      <a href="/explorer/">Data Explorer</a>
-      <a href="/decision-intelligence/" aria-current="page">Decision Intelligence</a>
-      <a href="/operations-assistant/">Operations Assistant</a>
-      <a href="/data-operations/">Data Operations</a>
-    </nav>
-  </header>
+  <div data-shared-shell></div>
 
   <main id="workspace" class="workspace">
-    <div class="title-row">
-      <div class="page-heading">
-        <span class="page-heading-mark" aria-hidden="true">DI</span>
-        <div><p class="eyebrow">MODEL DASHBOARDS</p><h1>Decision Intelligence</h1></div>
-      </div>
-      <div class="title-actions">
+    <section data-shared-page-header data-mark="DI" data-eyebrow="MODEL DASHBOARDS"
+      data-title="Decision Intelligence">
+      <div class="title-actions" data-page-actions>
         <span id="healthStatus" class="service-status status-checking"><span aria-hidden="true">◌</span><span>CHECKING</span></span>
         <button id="runSelected" class="button secondary" type="button">Run this workflow</button>
         <button id="runAll" class="button primary" type="button">Run all workflows</button>
       </div>
-    </div>
+    </section>
 
     <div class="tab-strip" role="tablist" aria-label="ML workflows">
       <button role="tab" aria-selected="true" data-workflow="demand" data-priority="1"><strong>Demand Forecasting</strong><small>18-MONTH FORECAST</small></button>
@@ -62,19 +50,13 @@
       <button class="button primary" type="submit">Apply</button>
     </form>
 
-    <section id="comparisonBand" class="comparison-band" aria-label="Snapshot window"></section>
-
     <section class="kpi-strip" id="kpiStrip" aria-label="Workflow metrics"></section>
 
-    <section class="analytics-grid">
-      <article class="panel">
-        <div class="panel-title"><h2 id="primaryChartTitle">Workflow analysis</h2><span id="trendSummary"></span></div>
-        <div id="trendChart" class="trend-chart" role="img" aria-label="Workflow trend chart"></div>
-      </article>
-      <article class="panel">
-        <div class="panel-title"><h2 id="secondaryChartTitle">Priority analysis</h2><span>Highest impact first</span></div>
-        <div id="rankings" class="rankings workflow-secondary-chart"></div>
-      </article>
+    <section id="workflowCharts" class="workflow-chart-grid" aria-label="Workflow analytics"></section>
+
+    <section class="table-panel model-panel">
+      <div class="panel-title"><h2>Published model</h2><span>GOVERNED ML RELEASE</span></div>
+      <dl id="modelMetadata" class="model-metadata"></dl>
     </section>
 
     <section id="operationalPanel" class="table-panel" hidden>
@@ -98,6 +80,7 @@
     </section>
     <p id="pageStatus" class="page-status" aria-live="polite"></p>
   </main>
-  <script type="module" src="/decision-intelligence/static/decision-intelligence.js?v=20261020b"></script>
+  <script type="module" src="/shared/static/shell.js?v=20261027"></script>
+  <script type="module" src="/decision-intelligence/static/decision-intelligence.js?v=20261027d"></script>
 </body>
 </html>

@@ -4,11 +4,17 @@
 
 | Path | Ownership |
 |---|---|
-| `capacity_home/` | Compact four-card application launcher |
-| `operations_assistant/` | Assistant frontend, backend, agents, and MCP tools |
+| `capacity_home/` | Application launcher |
+| `operations_assistant/` | Shared Yukti engine, agents, and tools |
 | `data_explorer/` | Read-only browser and query UI |
-| `data_operations/` | Generator and pipeline modules, dashboard, configuration, and tests |
+| `capacity_analysis/` | Tactical capacity and bottleneck analysis |
 | `decision_intelligence/` | Five ML workflows, dashboards, publication, and tests |
+| `scenario_planning/` | Scenario and what-if dashboards |
+| `demand_supply_planning/` | S&OP planning dashboards |
+| `npi_ramp_planning/` | NPI ramp dashboards |
+| `operations_flow/` | Flow and constraint dashboards |
+| `data_operations/` | Generator, pipeline, architecture, configuration, and tests |
+| `documentation/` | Markdown-backed documentation app |
 | `src/capacity_twin_core/` | Shared runtime paths, dates, logging, contracts, formulas, and fixtures |
 | `docs/` | Project documentation |
 | `pyproject.toml`, `uv.lock` | Package metadata and locked environment |
@@ -37,16 +43,29 @@ CapacityPlanningDigitalTwin/
   artifacts/
     <run_id>/
       raw/sqlite/
+        raw_demand.db
+        raw_product.db
+        raw_site.db
+        raw_machine.db
+        raw_test.db
+        raw_yield.db
+        raw_execution.db
+        raw_inventory.db
+        raw_npi.db
+      reference.duckdb
+      mapping.duckdb
       bronze.duckdb
       silver.duckdb
       gold.duckdb
-      ml.duckdb
       serving.duckdb
+      ml.duckdb
       manifest.json
       logs/
       models/
       reports/
 ```
+
+Small pointer files select the current source, pipeline, ML, and compatible release. Applications use `release_current.json` when they need Serving and ML together.
 
 The runtime root is selected by `CAPACITY_TWIN_HOME`; the Windows default is `%LOCALAPPDATA%\CapacityPlanningDigitalTwin`.
 

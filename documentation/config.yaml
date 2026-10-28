@@ -1,0 +1,55 @@
+server:
+  allowed_origins:
+    - "http://127.0.0.1:8000"
+    - "http://localhost:8000"
+
+groups:
+  - title: Project
+    pages:
+      - {slug: overview, title: Project Overview, path: README.md}
+  - title: Applications
+    pages:
+      - {slug: home, title: Capacity Home, path: capacity_home/README.md}
+      - {slug: data-explorer, title: Data Explorer, path: data_explorer/README.md}
+      - {slug: capacity-analysis, title: Capacity Analysis, path: capacity_analysis/README.md}
+      - {slug: decision-intelligence, title: Decision Intelligence, path: decision_intelligence/README.md}
+      - {slug: scenario-planning, title: Scenario Planning, path: scenario_planning/README.md}
+      - {slug: demand-supply-planning, title: S&OP Planning, path: demand_supply_planning/README.md}
+      - {slug: npi-ramp-planning, title: NPI Ramp Planning, path: npi_ramp_planning/README.md}
+      - {slug: operations-flow, title: Operations Flow, path: operations_flow/README.md}
+      - {slug: data-operations, title: Data Operations, path: data_operations/README.md}
+      - {slug: yukti, title: Yukti, path: operations_assistant/README.md}
+  - title: Architecture
+    pages:
+      - {slug: system-architecture, title: System Architecture, path: docs/architecture/system-architecture.md}
+      - {slug: file-structure, title: File Structure, path: docs/architecture/file-structure.md}
+      - {slug: configuration, title: Configuration, path: docs/architecture/configuration.md}
+      - {slug: tech-stack, title: Technology Stack, path: docs/architecture/tech-stack.md}
+  - title: Data Engineering
+    pages:
+      - {slug: data-generation, title: Data Generation, path: docs/data-engineering/data-generation.md}
+      - {slug: pipeline, title: Pipeline Overview, path: docs/data-engineering/pipeline-overview.md}
+      - {slug: bronze, title: Bronze, path: docs/data-engineering/bronze.md}
+      - {slug: silver, title: Silver, path: docs/data-engineering/silver.md}
+      - {slug: gold, title: Gold and Serving, path: docs/data-engineering/gold.md}
+  - title: ML
+    pages:
+      - {slug: ml-overview, title: ML Overview, path: docs/ml/ml-overview.md}
+      - {slug: demand-forecasting, title: Demand Forecasting, path: docs/ml/demand-forecasting.md}
+      - {slug: yield-prediction, title: Yield Prediction, path: docs/ml/yield-prediction.md}
+      - {slug: oee-degradation, title: OEE Degradation Risk, path: docs/ml/predictive-maintenance.md}
+      - {slug: oee-anomaly, title: OEE Anomaly, path: docs/ml/oee-anomaly.md}
+      - {slug: capex, title: CapEx Simulation, path: docs/ml/capex-montecarlo.md}
+  - title: Setup
+    pages:
+      - {slug: installation, title: Installation, path: docs/setup/installation.md}
+      - {slug: running, title: Running the Project, path: docs/setup/running.md}
+      - {slug: validation, title: Validation, path: docs/setup/validation.md}
+      - {slug: limitations, title: Limitations, path: docs/setup/limitations.md}
+  - title: Reference
+    pages:
+      - {slug: data-scope, title: Data Scope, path: docs/technical-reference/data-scope.md}
+      - {slug: capacity-planning-reference, title: Capacity Planning Reference, path: docs/technical-reference/capacity-planning.md}
+      - {slug: glossary, title: Glossary, path: docs/technical-reference/glossary.md}
+      - {slug: future-scope, title: Future Scope, path: docs/technical-reference/future-scope.md}
+      - {slug: license, title: Disclaimer and License, path: docs/technical-reference/license.md}

@@ -1,4 +1,4 @@
-# Settings owned by Operations Assistant and its local API.
+# Settings owned by the shared Yukti engine and its local API.
 server:
   allowed_origins:
     - "http://127.0.0.1:8000"
